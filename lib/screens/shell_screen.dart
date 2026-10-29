@@ -52,7 +52,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final navBarBg = theme.bottomNavigationBarTheme.backgroundColor ?? cs.surfaceContainerHighest;
     final index = widget.navigationShell.currentIndex;
 
     // Scoped MediaQuery reads. `MediaQuery.of(context)` subscribes to every
@@ -80,13 +82,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               child: Container(
                 width: 72,
                 decoration: BoxDecoration(
-                  color: cs.surface,
-                  border: Border(
-                    right: BorderSide(
-                      color: cs.outline.withValues(alpha: 0.15),
-                      width: 0.8,
-                    ),
-                  ),
+                  color: navBarBg,
                 ),
                 child: SafeArea(
                   child: Column(
@@ -154,13 +150,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           child: Container(
             height: 64 + bottomPadding,
             decoration: BoxDecoration(
-              color: cs.surface,
-              border: Border(
-                top: BorderSide(
-                  color: cs.outline.withValues(alpha: 0.15),
-                  width: 0.8,
-                ),
-              ),
+              color: navBarBg,
             ),
             padding: EdgeInsets.only(bottom: bottomPadding),
             child: Row(

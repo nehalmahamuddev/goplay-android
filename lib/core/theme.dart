@@ -844,7 +844,7 @@ class GoPlayTheme {
         iconTheme: IconThemeData(color: darkOnSurface, size: 22),
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: dynSurface,
+        backgroundColor: darkSurfaceContainerHighest,
         selectedItemColor: dynPrimary,
         unselectedItemColor: darkOnSurfaceMuted,
         type: BottomNavigationBarType.fixed,

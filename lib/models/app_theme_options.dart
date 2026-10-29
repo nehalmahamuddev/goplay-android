@@ -154,6 +154,16 @@ enum AppThemeMode {
     required this.isDark,
   });
 
+  /// Surface color for the bottom navigation bar and side navigation rail.
+  Color get bottomNavColor => switch (this) {
+        AppThemeMode.dark => const Color(0xFF2B2C30), // Upstream Dark primaryGrayBackground (#2B2C30)
+        AppThemeMode.amoled => const Color(0xFF000000), // Upstream Amoled pure black (#000000)
+        AppThemeMode.dracula => const Color(0xFF414450), // Upstream DraculaPrimaryGrayBackground
+        AppThemeMode.silentBlue => const Color(0xFF282F49), // Upstream SilentBluePrimaryGrayBackground
+        AppThemeMode.light => const Color(0xFFF1F1F1), // Upstream LightPrimaryGrayBackground
+        _ => isDark ? const Color(0xFF2B2C30) : surfaceColor,
+      };
+
   /// Resolves an [AppThemeMode] by [id], falling back to [AppThemeMode.dark].
   static AppThemeMode fromId(String? id) {
     if (id == null) return AppThemeMode.dark;
@@ -295,7 +305,7 @@ enum AppThemeMode {
         ),
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: surfaceColor,
+        backgroundColor: bottomNavColor,
         selectedItemColor: scheme.primary,
         unselectedItemColor: onSurfaceMutedColor,
         type: BottomNavigationBarType.fixed,
