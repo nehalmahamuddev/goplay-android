@@ -38,7 +38,7 @@ class GoPlayTheme {
   static const Color darkOnSurface = Color(0xFFE9EAEE); // Primary text
   static const Color darkOnSurfaceVariant = Color(0xFF9BA0A4); // Secondary text
   static const Color darkOnSurfaceMuted = Color(0xFF757A80); // Tertiary text
-  static const Color darkCardBorder = Color(0x14FFFFFF); // Sleek hairline border
+  static const Color darkCardBorder = Colors.transparent; // Borderless cards
   static const Color darkDivider = Color(0x1AFFFFFF);
   static const Color darkPrimaryContainer = Color(0xFF242E00);
   static const Color darkOnPrimaryContainer = Color(0xFFE2FF66);
@@ -208,7 +208,7 @@ class GoPlayTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: darkCardBorder, width: 1),
+          side: BorderSide.none,
         ),
         margin: EdgeInsets.zero,
       ),
@@ -230,7 +230,7 @@ class GoPlayTheme {
         ),
         secondaryLabelStyle: GoPlayType.inter(fontSize: GoPlayType.sm, color: primary),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        side: const BorderSide(color: darkCardBorder, width: 1),
+        side: BorderSide.none,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       ),
 
@@ -248,11 +248,11 @@ class GoPlayTheme {
         fillColor: darkSurfaceContainerHigh,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: darkCardBorder, width: 1),
+          borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: darkCardBorder, width: 1),
+          borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -296,7 +296,7 @@ class GoPlayTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: darkOnSurface,
-          side: const BorderSide(color: darkCardBorder, width: 1),
+          side: BorderSide.none,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           textStyle: GoPlayType.inter(fontWeight: FontWeight.w600, fontSize: GoPlayType.base),
@@ -785,7 +785,7 @@ class GoPlayTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: darkCardBorder, width: 1),
+          side: BorderSide.none,
         ),
         margin: EdgeInsets.zero,
       ),
@@ -804,7 +804,7 @@ class GoPlayTheme {
           color: dynPrimary,
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        side: const BorderSide(color: darkCardBorder, width: 1),
+        side: BorderSide.none,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -812,11 +812,11 @@ class GoPlayTheme {
         fillColor: dynCard,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: darkCardBorder, width: 1),
+          borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: darkCardBorder, width: 1),
+          borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

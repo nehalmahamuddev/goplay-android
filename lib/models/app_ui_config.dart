@@ -996,8 +996,8 @@ class EventCardStyleConfig {
   const EventCardStyleConfig.defaults()
       : useCustomOverride = false,
         backgroundColor = '#121212',
-        borderColor = '#14FFFFFF',
-        borderWidth = 1.0,
+        borderColor = 'transparent',
+        borderWidth = 0.0,
         borderRadius = 14.0,
         liveBadgeColor = '#F53B66',
         elevation = 0.0,
@@ -1055,8 +1055,8 @@ class ChannelCardStyleConfig {
   const ChannelCardStyleConfig.defaults()
       : useCustomOverride = false,
         backgroundColor = '#121212',
-        borderColor = '#333333',
-        borderWidth = 1.0,
+        borderColor = 'transparent',
+        borderWidth = 0.0,
         borderRadius = 14.0,
         qualityBadgeColor = '#C8FF00',
         elevation = 0.0;

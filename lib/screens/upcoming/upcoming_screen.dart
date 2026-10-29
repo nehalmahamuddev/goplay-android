@@ -175,10 +175,6 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
                           decoration: BoxDecoration(
                             color: isSelected ? activeBg : inactiveBg,
                             borderRadius: BorderRadius.circular(chipRadius),
-                            border: Border.all(
-                              color: isSelected ? activeBg : cs.outline,
-                              width: 1,
-                            ),
                           ),
                           child: Text(
                             sport,

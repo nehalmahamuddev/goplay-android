@@ -155,16 +155,12 @@ class _PlayZEventCardState extends ConsumerState<PlayZEventCard>
     final onSurfaceVariant = theme.colorScheme.onSurfaceVariant; // #AAAAAA in dark mode
     final onSurfaceMuted = isDark ? GoPlayTheme.darkOnSurfaceMuted : GoPlayTheme.lightOnSurfaceMuted;
 
-    // Border & radius styling - always applies the configured component radius and border width
+    // Border & radius styling: borderless clean surfaces by default
     final cardRadius = eventCardStyle.borderRadius;
-    final borderColor = eventCardStyle.useCustomOverride
-        ? GoPlayTheme.parseHex(eventCardStyle.borderColor)
-        : (isLive ? GoPlayTheme.primary : (isDark ? const Color(0x28FFFFFF) : GoPlayTheme.lightCardBorder));
-    final borderWidth = eventCardStyle.borderWidth;
-    final cardBorder = borderWidth > 0
+    final cardBorder = (eventCardStyle.useCustomOverride && eventCardStyle.borderWidth > 0)
         ? Border.all(
-            color: borderColor,
-            width: borderWidth,
+            color: GoPlayTheme.parseHex(eventCardStyle.borderColor),
+            width: eventCardStyle.borderWidth,
           )
         : null;
 

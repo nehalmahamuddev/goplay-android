@@ -1475,9 +1475,6 @@ class _ChannelTileState extends State<_ChannelTile> {
     final normalDeco = BoxDecoration(
       color: cs.surfaceContainer,
       borderRadius: const BorderRadius.all(Radius.circular(16)),
-      border: Border.fromBorderSide(
-        BorderSide(color: cs.outline, width: 0.8),
-      ),
     );
     final activeDeco = BoxDecoration(
       color: cs.surfaceContainerHigh,
@@ -1492,9 +1489,6 @@ class _ChannelTileState extends State<_ChannelTile> {
     final hoveredDeco = BoxDecoration(
       color: cs.surfaceContainerHigh,
       borderRadius: const BorderRadius.all(Radius.circular(16)),
-      border: Border.fromBorderSide(
-        BorderSide(color: cs.outline, width: 0.8),
-      ),
     );
 
     return Padding(

@@ -248,10 +248,6 @@ class HomeScreen extends ConsumerWidget {
                                   padding: const EdgeInsets.symmetric(horizontal: 16),
                                   decoration: BoxDecoration(
                                     color: Theme.of(context).cardColor,
-                                    border: Border.all(
-                                      color: Theme.of(context).colorScheme.outline,
-                                      width: 1,
-                                    ),
                                     borderRadius: BorderRadius.circular(100),
                                   ),
                                   child: Row(
@@ -724,10 +720,6 @@ class _SportCategoryFilterChips extends ConsumerWidget {
                   decoration: BoxDecoration(
                     color: isSelected ? activeBg : inactiveBg,
                     borderRadius: BorderRadius.circular(chipRadius),
-                    border: Border.all(
-                      color: isSelected ? activeBg : cs.outline,
-                      width: 1,
-                    ),
                   ),
                   child: Center(
                     child: Text(
@@ -1075,7 +1067,7 @@ class _AnnouncementTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
           borderRadius: const BorderRadius.all(Radius.circular(12)),
-          border: Border.all(color: Theme.of(context).colorScheme.outline, width: 1),
+
           boxShadow: const [
             BoxShadow(color: Color(0x14000000), blurRadius: 4, offset: Offset(0, 1)),
           ],

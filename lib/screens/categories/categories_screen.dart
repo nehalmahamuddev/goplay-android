@@ -355,7 +355,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
 
   Widget _buildCategoriesSkeleton(BuildContext context) {
     final columns = _calculateCategoryColumns(context);
-    final cs = Theme.of(context).colorScheme;
+
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 88),
       physics: const NeverScrollableScrollPhysics(),
@@ -370,7 +370,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
         return Container(
           decoration: BoxDecoration(
             color: Theme.of(context).cardColor,
-          border: Border.all(color: cs.outline, width: 0.8),
+
             borderRadius: BorderRadius.circular(10),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -795,7 +795,7 @@ class _SearchField extends StatelessWidget {
         style: GoPlayType.body.copyWith(color: cs.onSurface),
         decoration: InputDecoration(
           filled: true,
-          fillColor: cs.surfaceContainerHigh,
+          fillColor: Theme.of(context).cardColor,
           contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
           hintText: hintText,
           hintStyle: GoPlayType.body.copyWith(color: cs.onSurfaceVariant),
@@ -849,7 +849,7 @@ class _CategoryPillCard extends ConsumerWidget {
         ? '$count ${count == 1 ? 'channel' : 'channels'}'
         : null;
 
-    final cs = Theme.of(context).colorScheme;
+
 
     return TvFocusable(
       focusNode: focusNode,
@@ -862,7 +862,7 @@ class _CategoryPillCard extends ConsumerWidget {
       child: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
-          border: Border.all(color: cs.outline, width: 0.8),
+
           borderRadius: BorderRadius.circular(10),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -1152,7 +1152,7 @@ class _ChannelShimmerCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: cs.surfaceContainerHigh,
+        color: Theme.of(context).cardColor,
         borderRadius: const BorderRadius.all(Radius.circular(10)),
       ),
       child: Center(
