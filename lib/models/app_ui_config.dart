@@ -55,6 +55,42 @@ class AppUiConfig {
     required this.componentStyles,
   });
 
+  AppUiConfig copyWith({
+    ThemeConfig? theme,
+    ChannelsTabConfig? channelsTab,
+    CategoriesScreenConfig? categoriesScreen,
+    HomeScreenConfig? homeScreen,
+    PromoBannerConfig? promoBanner,
+    TvExperienceConfig? tvExperience,
+    NavigationBrandingConfig? navigationBranding,
+    SearchConfig? searchConfig,
+    SportsCardsConfig? sportsCards,
+    PlayerDefaultsConfig? playerDefaults,
+    StreamReportingConfig? streamReporting,
+    CommunityLinksConfig? communityLinks,
+    OtaUpdatesConfig? otaUpdates,
+    BroadcastsConfig? broadcasts,
+    ComponentStylesConfig? componentStyles,
+  }) {
+    return AppUiConfig(
+      theme: theme ?? this.theme,
+      channelsTab: channelsTab ?? this.channelsTab,
+      categoriesScreen: categoriesScreen ?? this.categoriesScreen,
+      homeScreen: homeScreen ?? this.homeScreen,
+      promoBanner: promoBanner ?? this.promoBanner,
+      tvExperience: tvExperience ?? this.tvExperience,
+      navigationBranding: navigationBranding ?? this.navigationBranding,
+      searchConfig: searchConfig ?? this.searchConfig,
+      sportsCards: sportsCards ?? this.sportsCards,
+      playerDefaults: playerDefaults ?? this.playerDefaults,
+      streamReporting: streamReporting ?? this.streamReporting,
+      communityLinks: communityLinks ?? this.communityLinks,
+      otaUpdates: otaUpdates ?? this.otaUpdates,
+      broadcasts: broadcasts ?? this.broadcasts,
+      componentStyles: componentStyles ?? this.componentStyles,
+    );
+  }
+
   factory AppUiConfig.defaults() => const AppUiConfig(
         theme: ThemeConfig.defaults(),
         channelsTab: ChannelsTabConfig.defaults(),
@@ -280,6 +316,36 @@ class ChannelsTabConfig {
     required this.showCardNames,
     required this.showCardFavorites,
   });
+
+  ChannelsTabConfig copyWith({
+    bool? showTabIcons,
+    bool? showTabCounts,
+    bool? showTrendingTab,
+    bool? showFavoriteTab,
+    bool? autoHideFavoriteTabWhenEmpty,
+    bool? showAllTab,
+    int? channelGridColumns,
+    String? cardLayoutMode,
+    bool? showQualityBadge,
+    bool? showCardLogos,
+    bool? showCardNames,
+    bool? showCardFavorites,
+  }) {
+    return ChannelsTabConfig(
+      showTabIcons: showTabIcons ?? this.showTabIcons,
+      showTabCounts: showTabCounts ?? this.showTabCounts,
+      showTrendingTab: showTrendingTab ?? this.showTrendingTab,
+      showFavoriteTab: showFavoriteTab ?? this.showFavoriteTab,
+      autoHideFavoriteTabWhenEmpty: autoHideFavoriteTabWhenEmpty ?? this.autoHideFavoriteTabWhenEmpty,
+      showAllTab: showAllTab ?? this.showAllTab,
+      channelGridColumns: channelGridColumns ?? this.channelGridColumns,
+      cardLayoutMode: cardLayoutMode ?? this.cardLayoutMode,
+      showQualityBadge: showQualityBadge ?? this.showQualityBadge,
+      showCardLogos: showCardLogos ?? this.showCardLogos,
+      showCardNames: showCardNames ?? this.showCardNames,
+      showCardFavorites: showCardFavorites ?? this.showCardFavorites,
+    );
+  }
 
   const ChannelsTabConfig.defaults()
       : showTabIcons = true,

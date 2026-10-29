@@ -261,38 +261,38 @@ class _PlayZEventCardState extends ConsumerState<PlayZEventCard>
                               children: [
                                 // Home Team (Left) - closer to left card edge
                                 Expanded(
-                                  flex: 5,
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(left: 4.0),
-                                    child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        TeamFlagWidget(
-                                          flag: event.homeTeam.flag,
-                                          size: 26,
-                                          fit: BoxFit.contain,
-                                          showBorder: false,
-                                        ),
-                                        const SizedBox(height: 3),
-                                        Text(
-                                          event.homeTeam.name,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontFamily: GoPlayType.family,
-                                            fontSize: 11.0,
-                                            fontWeight: FontWeight.w500,
-                                            color: onSurface,
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(left: 3.0, right: 6.0),
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          TeamFlagWidget(
+                                            flag: event.homeTeam.flag,
+                                            size: 26,
+                                            fit: BoxFit.contain,
+                                            showBorder: false,
                                           ),
-                                        ),
-                                      ],
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            event.homeTeam.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              fontFamily: GoPlayType.family,
+                                              fontSize: 11.0,
+                                              fontWeight: FontWeight.w500,
+                                              color: onSurface,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
-
-                                const Spacer(flex: 1),
 
                                 // Center: Live Glowing Badge & Timer OR Kickoff Time & Countdown
                                 Padding(
@@ -424,37 +424,37 @@ class _PlayZEventCardState extends ConsumerState<PlayZEventCard>
                                         ),
                                 ),
 
-                                const Spacer(flex: 1),
-
                                 // Away Team (Right) - closer to right card edge
                                 Expanded(
-                                  flex: 5,
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(right: 4.0),
-                                    child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        TeamFlagWidget(
-                                          flag: event.awayTeam.flag,
-                                          size: 26,
-                                          fit: BoxFit.contain,
-                                          showBorder: false,
-                                        ),
-                                        const SizedBox(height: 3),
-                                        Text(
-                                          event.awayTeam.name,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontFamily: GoPlayType.family,
-                                            fontSize: 11.0,
-                                            fontWeight: FontWeight.w500,
-                                            color: onSurface,
+                                  child: Align(
+                                    alignment: Alignment.centerRight,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(left: 6.0, right: 3.0),
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          TeamFlagWidget(
+                                            flag: event.awayTeam.flag,
+                                            size: 26,
+                                            fit: BoxFit.contain,
+                                            showBorder: false,
                                           ),
-                                        ),
-                                      ],
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            event.awayTeam.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              fontFamily: GoPlayType.family,
+                                              fontSize: 11.0,
+                                              fontWeight: FontWeight.w500,
+                                              color: onSurface,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),

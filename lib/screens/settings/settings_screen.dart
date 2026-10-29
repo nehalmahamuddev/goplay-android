@@ -1,16 +1,46 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
-import '../../core/theme.dart';
+import '../../core/constants.dart';
 import '../../core/typography.dart';
-import '../../providers/app_providers.dart';
-import '../../providers/update_notifier.dart';
-import '../../widgets/tv_focus_wrapper.dart';
-import '../../models/app_theme_options.dart';
 import '../../providers/theme_provider.dart';
+import 'widgets/account_info_sheet.dart';
+import 'widgets/setting_tile.dart';
 
+/// Searchable item definition for deep preference search.
+class _PreferenceSearchItem {
+  final String title;
+  final String category;
+  final String route;
+  final IconData icon;
+  final List<String> keywords;
+
+  const _PreferenceSearchItem({
+    required this.title,
+    required this.category,
+    required this.route,
+    required this.icon,
+    required this.keywords,
+  });
+
+  bool matches(String query) {
+    final lower = query.toLowerCase().trim();
+    if (lower.isEmpty) return false;
+    if (title.toLowerCase().contains(lower)) return true;
+    if (category.toLowerCase().contains(lower)) return true;
+    return keywords.any((k) => k.toLowerCase().contains(lower));
+  }
+}
+
+/// Upstream Main Settings Screen Hub.
+///
+/// Implements the exact Upstream hierarchy:
+/// - Profile / Account Header with 50dp circular avatar and interactive sheet.
+/// - Pill-shaped deep preference search bar with real-time filtering.
+/// - 6 Category Tiles (General, Player, Layout, Updates and Backup, Data & Cloud Sync, Accounts and Security).
+/// - Exact Build Stamp Footer ("2.2.2 • commit-hash • build-date") with tap-to-copy.
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -19,1672 +49,464 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  // Expansion States
-  bool _themeExpanded = true;
-  bool _playbackExpanded = true;
-  bool _contentTabsExpanded = true;
-  bool _syncExpanded = false;
-  bool _updateExpanded = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  final FocusNode _searchFocusNode = FocusNode();
 
-  // Playback Preferences
-  bool _isHwAccelEnabled = true;
-  bool _isAutoPlayEnabled = true;
-  bool _isBackgroundAudioEnabled = false;
-  String _selectedBufferMode = 'Balanced';
-  String _selectedAspectRatio = '16:9 (Fit)';
+  static const List<_PreferenceSearchItem> _searchIndex = [
+    _PreferenceSearchItem(
+      title: 'Primary color',
+      category: 'Layout',
+      route: '/settings/layout',
+      icon: Icons.palette_outlined,
+      keywords: ['accent', 'color', 'blue', 'lime', 'volt', 'theme', 'looks'],
+    ),
+    _PreferenceSearchItem(
+      title: 'App theme',
+      category: 'Layout',
+      route: '/settings/layout',
+      icon: Icons.dark_mode_outlined,
+      keywords: ['dark', 'amoled', 'black', 'pure black', 'dracula', 'cyber lime', 'theme'],
+    ),
+    _PreferenceSearchItem(
+      title: 'Show Trending Tab',
+      category: 'Layout',
+      route: '/settings/layout',
+      icon: Icons.trending_up_rounded,
+      keywords: ['trending', 'tabs', 'channels', 'filter'],
+    ),
+    _PreferenceSearchItem(
+      title: 'Show Quality Badge',
+      category: 'Layout',
+      route: '/settings/layout',
+      icon: Icons.high_quality_rounded,
+      keywords: ['resolution', 'hd', 'fhd', '4k', 'badges', 'cards'],
+    ),
+    _PreferenceSearchItem(
+      title: 'Hardware Acceleration',
+      category: 'Player',
+      route: '/settings/player',
+      icon: Icons.memory_rounded,
+      keywords: ['hw', 'gpu', 'video', 'decoding', 'performance', 'playback'],
+    ),
+    _PreferenceSearchItem(
+      title: 'Auto-play Stream on Open',
+      category: 'Player',
+      route: '/settings/player',
+      icon: Icons.play_circle_outline_rounded,
+      keywords: ['autoplay', 'start', 'live', 'player'],
+    ),
+    _PreferenceSearchItem(
+      title: 'Background Audio Playback',
+      category: 'Player',
+      route: '/settings/player',
+      icon: Icons.headphones_outlined,
+      keywords: ['audio', 'background', 'screen off', 'radio'],
+    ),
+    _PreferenceSearchItem(
+      title: 'Buffer Profile',
+      category: 'Player',
+      route: '/settings/player',
+      icon: Icons.speed_rounded,
+      keywords: ['buffer', 'fast load', 'balanced', 'stability', 'latency'],
+    ),
+    _PreferenceSearchItem(
+      title: 'Default Aspect Ratio',
+      category: 'Player',
+      route: '/settings/player',
+      icon: Icons.aspect_ratio_rounded,
+      keywords: ['aspect', '16:9', 'fit', 'stretch', 'zoom', 'scaling'],
+    ),
+    _PreferenceSearchItem(
+      title: 'Check for Update',
+      category: 'Updates and Backup',
+      route: '/settings/updates',
+      icon: Icons.system_update_alt_rounded,
+      keywords: ['version', 'update', 'ota', 'download', 'release', 'new version'],
+    ),
+    _PreferenceSearchItem(
+      title: 'Back up data',
+      category: 'Updates and Backup',
+      route: '/settings/updates',
+      icon: Icons.archive_outlined,
+      keywords: ['backup', 'export', 'favorites', 'bookmarks', 'save'],
+    ),
+    _PreferenceSearchItem(
+      title: 'Restore data from backup',
+      category: 'Updates and Backup',
+      route: '/settings/updates',
+      icon: Icons.restore_rounded,
+      keywords: ['restore', 'import', 'load', 'favorites'],
+    ),
+    _PreferenceSearchItem(
+      title: 'Force Sync Now',
+      category: 'Data & Cloud Sync',
+      route: '/settings/sync',
+      icon: Icons.sync_rounded,
+      keywords: ['sync', 'cloud', 'refresh', 'channels', 'events', 'categories'],
+    ),
+    _PreferenceSearchItem(
+      title: 'Clear Cache',
+      category: 'Data & Cloud Sync',
+      route: '/settings/sync',
+      icon: Icons.delete_outline_rounded,
+      keywords: ['clear cache', 'storage', 'clean', 'images', 'logos'],
+    ),
+    _PreferenceSearchItem(
+      title: 'Community Telegram & Discord',
+      category: 'General',
+      route: '/settings/general',
+      icon: Icons.send_rounded,
+      keywords: ['telegram', 'discord', 'chat', 'community', 'help', 'support'],
+    ),
+    _PreferenceSearchItem(
+      title: 'Client Device ID',
+      category: 'Accounts and Security',
+      route: '/settings/account',
+      icon: Icons.fingerprint_rounded,
+      keywords: ['device', 'id', 'account', 'security', 'profile', 'token'],
+    ),
+  ];
 
-  // Sync Preferences
-  String _selectedSyncRate = '6 Hours';
-  bool _isSyncing = false;
-  bool _isClearingCache = false;
-  bool _isResettingUi = false;
-
-  final List<String> _bufferModes = ['Fast Load', 'Balanced', 'High Stability'];
-  final List<String> _aspectRatios = ['16:9 (Fit)', 'Stretch', 'Original'];
-  final List<String> _syncRates = ['1 Hour', '6 Hours', 'Manual'];
-
-  Future<void> _handleForceSync() async {
-    setState(() => _isSyncing = true);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await ref.read(syncServiceProvider).sync();
-      ref.invalidate(channelsProvider);
-      ref.invalidate(eventsProvider);
-      ref.invalidate(categoriesProvider);
-
-      if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.check_circle_outline_rounded, color: GoPlayTheme.primary),
-                SizedBox(width: 10),
-                Text(
-                  'Channels and events synchronized successfully!',
-                  style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
-                ),
-              ],
-            ),
-            backgroundColor: GoPlayTheme.surfaceContainerHigh,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() {
+      final q = _searchController.text.trim();
+      if (q != _searchQuery) {
+        setState(() => _searchQuery = q);
       }
-    } catch (e) {
-      if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline_rounded, color: GoPlayTheme.error),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Sync failed: $e',
-                    style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: GoPlayTheme.surfaceContainerHigh,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isSyncing = false);
-    }
+    });
   }
 
-  Future<void> _handleClearCache() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: GoPlayTheme.surfaceContainer,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Clear Application Cache?',
-          style: TextStyle(color: GoPlayTheme.onSurface, fontWeight: FontWeight.w600),
-        ),
-        content: const Text(
-          'This will clear stored channel icons and offline schedule data. Fresh data will be redownloaded automatically.',
-          style: TextStyle(color: GoPlayTheme.onSurfaceVariant, fontSize: GoPlayType.base, height: 1.4),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel', style: TextStyle(color: GoPlayTheme.onSurfaceVariant)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: GoPlayTheme.error,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Clear Cache', style: TextStyle(fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true || !mounted) return;
-
-    setState(() => _isClearingCache = true);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await ref.read(cacheServiceProvider).clearAllCache();
-      ref.invalidate(channelsProvider);
-      ref.invalidate(eventsProvider);
-      ref.invalidate(categoriesProvider);
-
-      if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.cleaning_services_rounded, color: GoPlayTheme.primary),
-                SizedBox(width: 10),
-                Text(
-                  'Application cache cleared!',
-                  style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
-                ),
-              ],
-            ),
-            backgroundColor: GoPlayTheme.surfaceContainerHigh,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isClearingCache = false);
-    }
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
   }
 
-  Future<void> _handleResetUiToDefaults() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Reset UI to Default Theme?',
-          style: TextStyle(color: GoPlayTheme.onSurface, fontWeight: FontWeight.w600),
-        ),
-        content: const Text(
-          'This will reset your local cached colors, card styles, and layout back to default GoPlay Volt styling (#C8FF00 / #0F0F0F).',
-          style: TextStyle(color: GoPlayTheme.onSurfaceVariant, fontSize: GoPlayType.base, height: 1.4),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel', style: TextStyle(color: GoPlayTheme.onSurfaceVariant)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: GoPlayTheme.primary,
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Reset Theme', style: TextStyle(fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true || !mounted) return;
-
-    setState(() => _isResettingUi = true);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await ref.read(cacheServiceProvider).resetLocalUiConfigToDefaults();
-      ref.invalidate(uiConfigProvider);
-
-      if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.restart_alt_rounded, color: GoPlayTheme.primary),
-                SizedBox(width: 10),
-                Text(
-                  'UI theme reset to default GoPlay Volt!',
-                  style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
-                ),
-              ],
-            ),
-            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isResettingUi = false);
-    }
+  String _getFormattedBuildDate() {
+    final now = DateTime.now();
+    return DateFormat('MMMM d, y h:mm:ss a').format(now);
   }
 
   @override
   Widget build(BuildContext context) {
-    final updateState = ref.watch(updateProvider);
-    final notifier = ref.read(updateProvider.notifier);
-    final uiConfig = ref.watch(uiConfigProvider);
-    final settingsStyle = uiConfig.componentStyles.settingsScreen;
-    final headerGradStart = settingsStyle.useCustomOverride
-        ? GoPlayTheme.parseHex(settingsStyle.headerGradientStart)
-        : const Color(0xFFFF7A85);
-    final headerGradEnd = settingsStyle.useCustomOverride
-        ? GoPlayTheme.parseHex(settingsStyle.headerGradientEnd)
-        : const Color(0xFFFF5263);
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final themeMode = ref.watch(activeThemeModeProvider);
+    final headerBg = theme.bottomNavigationBarTheme.backgroundColor ?? themeMode.bottomNavColor;
 
-    final cs = Theme.of(context).colorScheme;
+    final isSearching = _searchQuery.isNotEmpty;
+    final searchResults = isSearching
+        ? _searchIndex.where((item) => item.matches(_searchQuery)).toList()
+        : const <_PreferenceSearchItem>[];
 
     return Scaffold(
       backgroundColor: cs.surface,
-      body: SafeArea(
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            // Top App Bar
-            SliverAppBar(
-              floating: false,
-              pinned: true,
-              backgroundColor: cs.surface,
-              elevation: 0,
-              automaticallyImplyLeading: false,
-              systemOverlayStyle: SystemUiOverlayStyle.light,
-              leading: IconButton(
-                icon: const Icon(
-                  Icons.arrow_back_rounded,
-                  color: GoPlayTheme.onSurface,
-                  size: 24,
-                ),
-                tooltip: 'Back',
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-              title: const Text(
-                'App Settings',
-                style: TextStyle(
-                  color: GoPlayTheme.onSurface,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.2,
-                ),
-              ),
-              centerTitle: true,
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          // ─── Pinned App Bar ───
+          SliverAppBar(
+            pinned: true,
+            floating: false,
+            backgroundColor: headerBg,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            automaticallyImplyLeading: false,
+            leading: IconButton(
+              icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
+              tooltip: 'Back',
+              onPressed: () => Navigator.of(context).pop(),
             ),
+            title: Text(
+              'Settings',
+              style: TextStyle(
+                fontFamily: GoPlayType.family,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: cs.onSurface,
+                letterSpacing: -0.3,
+              ),
+            ),
+          ),
 
-            // Main Settings List
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  // ─── Compact Profile / Brand Header ───
-                  Center(
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 6),
-                        Container(
-                          width: 64,
-                          height: 64,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              colors: [headerGradStart, headerGradEnd],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: headerGradEnd.withValues(alpha: 0.3),
-                                blurRadius: 12,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: const Center(
-                            child: Text(
-                              'GP',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'GoPlay Stream',
-                          style: TextStyle(
-                            color: GoPlayTheme.onSurface,
-                            fontSize: 17,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: -0.2,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          'v2.1.0 • High-Performance IPTV',
-                          style: TextStyle(
-                            color: GoPlayTheme.onSurfaceVariant,
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w400,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-                    ),
-                  ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 12),
 
-                                    // ─── Group 0: App Appearance & Themes ───
-                  Builder(
-                    builder: (context) {
-                      final themeState = ref.watch(themeSettingsProvider);
-                      final themeNotifier = ref.read(themeSettingsProvider.notifier);
-
-                      return _buildExpandableGroupCard(
-                        icon: Icons.palette_outlined,
-                        iconColor: themeState.accentColor.color,
-                        title: 'App Appearance & Themes',
-                        description: 'Customize background theme, dark modes & accent colors',
-                        isExpanded: _themeExpanded,
-                        onToggleExpand: () => setState(() => _themeExpanded = !_themeExpanded),
+                  // ─── 1. Profile / Account Header (Screenshot 1) ───
+                  InkWell(
+                    onTap: () => AccountInfoSheet.show(context),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+                      child: Row(
                         children: [
-                          _buildThemeSelectionTile(
-                            title: 'Background Theme',
-                            subtitle: 'Select base app canvas (Dark, AMOLED, Dracula, etc.)',
-                            leadingSwatch: Container(
-                              width: 28,
-                              height: 28,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: themeState.themeMode.surfaceColor,
-                                border: Border.all(
-                                  color: themeState.themeMode.cardColor,
-                                  width: 3.5,
-                                ),
-                              ),
-                            ),
-                            currentValue: themeState.themeMode.displayName,
-                            onTap: () => _showThemeModeDialog(context, themeState),
-                          ),
-                          const Divider(color: Color(0x14FFFFFF), height: 1),
-                          _buildThemeSelectionTile(
-                            title: 'Primary Accent Color',
-                            subtitle: 'Highlights, buttons, active indicators & TV focus borders',
-                            leadingSwatch: Container(
-                              width: 26,
-                              height: 26,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: themeState.accentColor.color,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: themeState.accentColor.color.withValues(alpha: 0.4),
-                                    blurRadius: 5,
-                                  ),
+                          // Blue Swirl Avatar (matching Screenshot 1)
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const RadialGradient(
+                                colors: [
+                                  Color(0xFF00B4D8),
+                                  Color(0xFF0077B6),
+                                  Color(0xFF03045E),
                                 ],
+                                center: Alignment(-0.2, -0.2),
+                                radius: 0.9,
                               ),
-                            ),
-                            currentValue: themeState.accentColor.displayName,
-                            onTap: () => _showAccentColorDialog(context, themeState),
-                          ),
-                          if (themeState.isUsingCustomTheme) ...[
-                            const Divider(color: Color(0x14FFFFFF), height: 1),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      'Custom theme active (overriding cloud defaults)',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.white.withValues(alpha: 0.6),
-                                      ),
-                                    ),
-                                  ),
-                                  TvFocusable(
-                                    onTap: () async {
-                                      HapticFeedback.selectionClick();
-                                      await themeNotifier.resetToCloudDefault();
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: const Text('Theme reset to cloud default!'),
-                                            behavior: SnackBarBehavior.floating,
-                                            backgroundColor: Theme.of(context).cardColor,
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                          ),
-                                        );
-                                      }
-                                    },
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF2A2B32),
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: const Color(0x24FFFFFF), width: 1),
-                                      ),
-                                      child: const Text(
-                                        'Reset to Cloud',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFFFF5263),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ],
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // ─── Group 1: Stream & Playback Engine ───
-                  _buildExpandableGroupCard(
-                    icon: Icons.play_circle_outline_rounded,
-                    iconColor: const Color(0xFFFF7A85),
-                    title: 'Playback Engine',
-                    description: 'GPU acceleration, auto-play & buffer controls',
-                    isExpanded: _playbackExpanded,
-                    onToggleExpand: () => setState(() => _playbackExpanded = !_playbackExpanded),
-                    children: [
-                      _buildNestedToggleTile(
-                        title: 'Hardware Acceleration (GPU)',
-                        description: 'Enable GPU decoding for smooth 60fps playback',
-                        value: _isHwAccelEnabled,
-                        onChanged: (val) => setState(() => _isHwAccelEnabled = val),
-                      ),
-                      const Divider(color: Color(0x14FFFFFF), height: 1),
-                      _buildNestedToggleTile(
-                        title: 'Auto-Play Channel Stream',
-                        description: 'Immediately start video when channel is selected',
-                        value: _isAutoPlayEnabled,
-                        onChanged: (val) => setState(() => _isAutoPlayEnabled = val),
-                      ),
-                      const Divider(color: Color(0x14FFFFFF), height: 1),
-                      _buildNestedToggleTile(
-                        title: 'Background Audio Playback',
-                        description: 'Keep playing audio when switching apps or locking',
-                        value: _isBackgroundAudioEnabled,
-                        onChanged: (val) => setState(() => _isBackgroundAudioEnabled = val),
-                      ),
-                      const Divider(color: Color(0x14FFFFFF), height: 1),
-                      _buildNestedOptionTile(
-                        title: 'Stream Buffer Strategy',
-                        description: 'Control stream buffer depth for network stability',
-                        currentValue: _selectedBufferMode,
-                        options: _bufferModes,
-                        onSelected: (val) => setState(() => _selectedBufferMode = val),
-                      ),
-                      const Divider(color: Color(0x14FFFFFF), height: 1),
-                      _buildNestedOptionTile(
-                        title: 'Default Aspect Ratio',
-                        description: 'Preferred video display ratio for live broadcasts',
-                        currentValue: _selectedAspectRatio,
-                        options: _aspectRatios,
-                        onSelected: (val) => setState(() => _selectedAspectRatio = val),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // ─── Group: Content & Tabs ───
-                  _buildExpandableGroupCard(
-                    icon: Icons.view_carousel_outlined,
-                    iconColor: const Color(0xFFA78BFA),
-                    title: 'Content & Tabs',
-                    description: 'Channel category tabs and screen display preferences',
-                    isExpanded: _contentTabsExpanded,
-                    onToggleExpand: () => setState(() => _contentTabsExpanded = !_contentTabsExpanded),
-                    children: [
-                      _buildNestedToggleTile(
-                        title: 'Show Trending Category Tab',
-                        description: 'Display the top 20 trending channels tab in Channels page',
-                        value: ref.watch(showTrendingTabProvider),
-                        onChanged: (val) {
-                          ref.read(showTrendingTabProvider.notifier).toggle(val);
-                        },
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // ─── Group 2: Data & Synchronization ───
-                  _buildExpandableGroupCard(
-                    icon: Icons.cloud_sync_outlined,
-                    iconColor: GoPlayTheme.primary,
-                    title: 'Data & Synchronization',
-                    description: 'Channel catalog sync frequency & cache controls',
-                    isExpanded: _syncExpanded,
-                    onToggleExpand: () => setState(() => _syncExpanded = !_syncExpanded),
-                    children: [
-                      _buildNestedOptionTile(
-                        title: 'Background Sync Frequency',
-                        description: 'How often to sync channels from server',
-                        currentValue: _selectedSyncRate,
-                        options: _syncRates,
-                        onSelected: (val) => setState(() => _selectedSyncRate = val),
-                      ),
-                      const Divider(color: Color(0x14FFFFFF), height: 1),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _buildActionButton(
-                                    label: _isSyncing ? 'Syncing...' : 'Force Sync',
-                                    icon: Icons.sync_rounded,
-                                    isLoading: _isSyncing,
-                                    color: GoPlayTheme.primary,
-                                    onPressed: _isSyncing ? null : _handleForceSync,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: _buildActionButton(
-                                    label: _isClearingCache ? 'Clearing...' : 'Clear Cache',
-                                    icon: Icons.cleaning_services_rounded,
-                                    isLoading: _isClearingCache,
-                                    color: GoPlayTheme.error,
-                                    onPressed: _isClearingCache ? null : _handleClearCache,
-                                  ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF0077B6).withValues(alpha: 0.35),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 2),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 10),
-                            SizedBox(
-                              width: double.infinity,
-                              child: _buildActionButton(
-                                label: _isResettingUi ? 'Resetting UI...' : 'Reset UI to Default Theme',
-                                icon: Icons.restart_alt_rounded,
-                                isLoading: _isResettingUi,
-                                color: GoPlayTheme.onSurfaceVariant,
-                                onPressed: _isResettingUi ? null : _handleResetUiToDefaults,
+                            child: const Center(
+                              child: Icon(
+                                Icons.stream_rounded,
+                                color: Colors.white,
+                                size: 28,
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // ─── Group 3: App Maintenance & Updates ───
-                  _buildExpandableGroupCard(
-                    icon: Icons.system_update_rounded,
-                    iconColor: const Color(0xFF60A5FA),
-                    title: 'App Maintenance & Updates',
-                    description: 'OTA self-hosted updates & version status',
-                    isExpanded: _updateExpanded,
-                    onToggleExpand: () => setState(() => _updateExpanded = !_updateExpanded),
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildVersionRow('Current Version', 'v${updateState.currentVersion}'),
-                            const SizedBox(height: 10),
-                            _buildVersionRow(
-                              'Latest Online Version',
-                              updateState.updateInfo?.latestVersion != null
-                                  ? 'v${updateState.updateInfo!.latestVersion}'
-                                  : 'Up to date',
-                              isHighlight: updateState.updateInfo != null,
-                            ),
-                            const SizedBox(height: 10),
-                            _buildVersionRow(
-                              'Last Checked',
-                              updateState.lastCheckTime != null
-                                  ? DateFormat('MMM dd, hh:mm a').format(updateState.lastCheckTime!)
-                                  : 'Never',
-                            ),
-
-                            // Error Alerts
-                            if (updateState.status == UpdateStatus.error && updateState.errorMessage != null)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 12.0),
-                                child: _buildErrorDisplay(updateState.errorMessage!),
-                              )
-                            else if (updateState.status == UpdateStatus.downloadFailed && updateState.errorMessage != null)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 12.0),
-                                child: _buildErrorDisplay(updateState.errorMessage!),
-                              ),
-
-                            // Download Progress Indicator
-                            if (updateState.status == UpdateStatus.downloading) ...[
-                              const SizedBox(height: 12),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: LinearProgressIndicator(
-                                  value: updateState.downloadProgress,
-                                  backgroundColor: Colors.white.withValues(alpha: 0.05),
-                                  valueColor: const AlwaysStoppedAnimation<Color>(GoPlayTheme.primary),
-                                  minHeight: 6,
+                          ),
+                          const SizedBox(width: 16),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Default',
+                                style: TextStyle(
+                                  fontFamily: GoPlayType.family,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                  color: cs.onSurface,
+                                  letterSpacing: -0.2,
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Downloading: ${(updateState.downloadProgress * 100).toStringAsFixed(0)}%',
-                                    style: const TextStyle(
-                                      fontSize: GoPlayType.sm,
-                                      fontWeight: FontWeight.w600,
-                                      color: GoPlayTheme.primary,
-                                    ),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => notifier.cancelDownload(),
-                                    child: const Text(
-                                      'Cancel',
-                                      style: TextStyle(
-                                        fontSize: GoPlayType.sm,
-                                        fontWeight: FontWeight.w600,
-                                        color: GoPlayTheme.error,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                              const SizedBox(height: 2),
+                              Text(
+                                'Settings',
+                                style: TextStyle(
+                                  fontFamily: GoPlayType.family,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w400,
+                                  color: cs.onSurfaceVariant.withValues(alpha: 0.8),
+                                ),
                               ),
                             ],
-
-                            const SizedBox(height: 14),
-                            _buildCardActionButton(context, updateState, notifier),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
 
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 16),
 
-                  // ─── Group 4: Community & Support ───
-                  if (uiConfig.communityLinks.telegramUrl.isNotEmpty) ...[
-                    _buildSingleActionCard(
-                      icon: Icons.send_rounded,
-                      iconColor: const Color(0xFF0088CC),
-                      title: 'Join Telegram Channel',
-                      description: 'Get real-time updates, announcements & live support',
-                      onTap: () {
-                        launchUrl(
-                          Uri.parse(uiConfig.communityLinks.telegramUrl),
-                          mode: LaunchMode.externalApplication,
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 14),
-                  ],
-                  if (uiConfig.communityLinks.discordUrl.isNotEmpty) ...[
-                    _buildSingleActionCard(
-                      icon: Icons.forum_rounded,
-                      iconColor: const Color(0xFF5865F2),
-                      title: 'Join Discord Server',
-                      description: 'Connect with community members & report issues',
-                      onTap: () {
-                        launchUrl(
-                          Uri.parse(uiConfig.communityLinks.discordUrl),
-                          mode: LaunchMode.externalApplication,
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 14),
-                  ],
-
-                  // ─── Group 5: About & Privacy Action Tile ───
-                  _buildSingleActionCard(
-                    icon: Icons.info_outline_rounded,
-                    iconColor: const Color(0xFFA78BFA),
-                    title: 'About GoPlay',
-                    description: 'Licenses, terms of service and legal information',
-                    onTap: () {
-                      showAboutDialog(
-                        context: context,
-                        applicationName: 'GoPlay Stream',
-                        applicationVersion: 'v2.1.0 (Build 210)',
-                        applicationLegalese: '© 2026 GoPlay Streaming Platform. All rights reserved.',
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 36),
-                ]),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ─── UI Helpers matching Reference Mockup ───
-
-  Widget _buildExpandableGroupCard({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String description,
-    required bool isExpanded,
-    required VoidCallback onToggleExpand,
-    required List<Widget> children,
-  }) {
-    final uiConfig = ref.watch(uiConfigProvider);
-    final settingsStyle = uiConfig.componentStyles.settingsScreen;
-    final cardBg = GoPlayTheme.parseHex(uiConfig.resolveSettingsCardBg());
-    final cardBorderColor = settingsStyle.useCustomOverride
-        ? GoPlayTheme.parseHex(settingsStyle.cardBorderColor)
-        : const Color(0x14FFFFFF);
-    final cardBorderWidth = settingsStyle.cardBorderWidth;
-    final cardBorderRadius = settingsStyle.cardBorderRadius;
-    final cardBorder = cardBorderWidth > 0
-        ? Border.all(
-            color: cardBorderColor,
-            width: cardBorderWidth,
-          )
-        : null;
-    final effectiveIconBg = settingsStyle.useCustomOverride
-        ? GoPlayTheme.parseHex(settingsStyle.iconContainerColor)
-        : iconColor.withValues(alpha: 0.12);
-    final effectiveIconColor = settingsStyle.useCustomOverride
-        ? GoPlayTheme.parseHex(settingsStyle.iconAccentColor)
-        : iconColor;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(cardBorderRadius),
-        border: cardBorder,
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(cardBorderRadius),
-        child: Column(
-          children: [
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  onToggleExpand();
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(9),
-                        decoration: BoxDecoration(
-                          color: effectiveIconBg,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(icon, color: effectiveIconColor, size: 20),
+                  // ─── 2. Pill-Shaped Search Bar (Screenshot 1) ───
+                  Container(
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF161616),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: _searchFocusNode.hasFocus
+                            ? cs.primary.withValues(alpha: 0.5)
+                            : Colors.transparent,
+                        width: 1,
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title,
-                              style: const TextStyle(
-                                color: GoPlayTheme.onSurface,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              description,
-                              style: const TextStyle(
-                                color: GoPlayTheme.onSurfaceVariant,
-                                fontSize: 12.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      AnimatedRotation(
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeInOutCubic,
-                        turns: isExpanded ? 0.5 : 0.0,
-                        child: const Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          color: GoPlayTheme.onSurfaceVariant,
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.search_rounded,
+                          color: cs.onSurfaceVariant.withValues(alpha: 0.7),
                           size: 22,
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 240),
-              curve: Curves.easeInOutCubic,
-              alignment: Alignment.topCenter,
-              child: isExpanded
-                  ? Column(
-                      children: [
-                        const Divider(color: Color(0x14FFFFFF), height: 1),
-                        ...children,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            style: TextStyle(
+                              fontFamily: GoPlayType.family,
+                              fontSize: 15,
+                              color: cs.onSurface,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Search...',
+                              hintStyle: TextStyle(
+                                fontFamily: GoPlayType.family,
+                                fontSize: 15,
+                                color: cs.onSurfaceVariant.withValues(alpha: 0.5),
+                              ),
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                        ),
+                        if (_searchQuery.isNotEmpty)
+                          IconButton(
+                            icon: Icon(
+                              Icons.close_rounded,
+                              color: cs.onSurfaceVariant,
+                              size: 18,
+                            ),
+                            onPressed: () {
+                              _searchController.clear();
+                              _searchFocusNode.unfocus();
+                            },
+                          ),
                       ],
-                    )
-                  : const SizedBox.shrink(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSingleActionCard({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String description,
-    required VoidCallback onTap,
-  }) {
-    final uiConfig = ref.watch(uiConfigProvider);
-    final settingsStyle = uiConfig.componentStyles.settingsScreen;
-    final cardBg = GoPlayTheme.parseHex(uiConfig.resolveSettingsCardBg());
-    final cardBorderColor = settingsStyle.useCustomOverride
-        ? GoPlayTheme.parseHex(settingsStyle.cardBorderColor)
-        : const Color(0x14FFFFFF);
-    final cardBorderWidth = settingsStyle.useCustomOverride ? settingsStyle.cardBorderWidth : 0.6;
-    final cardBorderRadius = settingsStyle.useCustomOverride ? settingsStyle.cardBorderRadius : 16.0;
-    final effectiveIconBg = settingsStyle.useCustomOverride
-        ? GoPlayTheme.parseHex(settingsStyle.iconContainerColor)
-        : iconColor.withValues(alpha: 0.12);
-    final effectiveIconColor = settingsStyle.useCustomOverride
-        ? GoPlayTheme.parseHex(settingsStyle.iconAccentColor)
-        : iconColor;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(cardBorderRadius),
-        border: Border.all(
-          color: cardBorderColor,
-          width: cardBorderWidth,
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(cardBorderRadius),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(cardBorderRadius),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(9),
-                  decoration: BoxDecoration(
-                    color: effectiveIconBg,
-                    borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
-                  child: Icon(icon, color: effectiveIconColor, size: 20),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          color: GoPlayTheme.onSurface,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
+
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
+          ),
+
+          // ─── 3. Search Results or Main Category List ───
+          if (isSearching)
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  if (searchResults.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 40.0),
+                      child: Center(
+                        child: Text(
+                          'No settings match "$_searchQuery"',
+                          style: TextStyle(
+                            fontFamily: GoPlayType.family,
+                            color: cs.onSurfaceVariant,
+                            fontSize: 15,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        description,
-                        style: const TextStyle(
-                          color: GoPlayTheme.onSurfaceVariant,
-                          fontSize: 12.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  color: GoPlayTheme.onSurfaceVariant,
-                  size: 22,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNestedToggleTile({
-    required String title,
-    required String description,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: GoPlayTheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  description,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: GoPlayTheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 14),
-          _SettingsSwitch(
-            value: value,
-            onChanged: onChanged,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNestedOptionTile({
-    required String title,
-    required String description,
-    required String currentValue,
-    required List<String> options,
-    required ValueChanged<String> onSelected,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: GoPlayTheme.onSurface,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            description,
-            style: const TextStyle(
-              fontSize: 12,
-              color: GoPlayTheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: options.map((option) {
-              final isSelected = option == currentValue;
-              final isLast = option == options.last;
-              return Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(right: isLast ? 0 : 8),
-                  child: TvFocusable(
+                    );
+                  }
+                  final item = searchResults[index];
+                  return SettingTile(
+                    icon: item.icon,
+                    title: item.title,
+                    subtitle: item.category,
+                    trailing: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 14,
+                      color: cs.onSurfaceVariant.withValues(alpha: 0.6),
+                    ),
                     onTap: () {
-                      HapticFeedback.selectionClick();
-                      onSelected(option);
+                      context.push(item.route);
                     },
-                    borderRadius: BorderRadius.circular(8),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? GoPlayTheme.primary
-                            : const Color(0xFF1E1E1E),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: isSelected
-                              ? GoPlayTheme.primary
-                              : const Color(0x33FFFFFF),
-                          width: 0.8,
-                        ),
+                  );
+                },
+                childCount: searchResults.isEmpty ? 1 : searchResults.length,
+              ),
+            )
+          else
+            SliverList(
+              delegate: SliverChildListDelegate([
+                // Tile 1: General
+                SettingTile(
+                  icon: Icons.build_rounded,
+                  title: 'General',
+                  subtitle: 'Language, Downloads, ISP Bypasses, Links',
+                  onTap: () => context.push('/settings/general'),
+                ),
+
+                // Tile 2: Player
+                SettingTile(
+                  icon: Icons.play_arrow_rounded,
+                  title: 'Player',
+                  subtitle: 'Subtitles, Player features, Gestures, Layout, Cache',
+                  onTap: () => context.push('/settings/player'),
+                ),
+
+                // Tile 3: Layout
+                SettingTile(
+                  icon: Icons.format_paint_rounded,
+                  title: 'Layout',
+                  subtitle: 'Looks, Features, Poster, Toggle UI elements on poster',
+                  onTap: () => context.push('/settings/layout'),
+                ),
+
+                // Tile 4: Updates and Backup
+                SettingTile(
+                  icon: Icons.file_download_outlined,
+                  title: 'Updates and Backup',
+                  subtitle: 'App updates, Backup, Extensions, Actions',
+                  onTap: () => context.push('/settings/updates'),
+                ),
+
+                // Tile 5: Data & Cloud Sync
+                SettingTile(
+                  icon: Icons.cloud_sync_rounded,
+                  title: 'Data & Cloud Sync',
+                  subtitle: 'Sync frequency, Force sync, Clear cache, Reset UI',
+                  onTap: () => context.push('/settings/sync'),
+                ),
+
+                // Tile 6: Accounts and Security
+                SettingTile(
+                  icon: Icons.shield_outlined,
+                  title: 'Accounts and Security',
+                  subtitle: 'Accounts, Security',
+                  onTap: () => context.push('/settings/account'),
+                ),
+
+                const SizedBox(height: 28),
+
+                // ─── 4. Build Stamp Footer (Screenshot 1) ───
+                InkWell(
+                  onTap: () {
+                    final stamp = '${AppConstants.appVersion}  •  e30f65d  •  ${_getFormattedBuildDate()}';
+                    Clipboard.setData(ClipboardData(text: stamp));
+                    HapticFeedback.lightImpact();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('Build info copied to clipboard!'),
+                        backgroundColor: const Color(0xFF1E1E1E),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 14.0),
+                    child: Center(
                       child: Text(
-                        option,
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        '${AppConstants.appVersion}   •   e30f65d   •   ${_getFormattedBuildDate()}',
                         style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                          color: isSelected ? const Color(0xFF0F0F0F) : const Color(0xFFE0E0E0),
+                          fontFamily: GoPlayType.family,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w400,
+                          color: cs.onSurfaceVariant.withValues(alpha: 0.7),
+                          letterSpacing: 0.2,
                         ),
                       ),
                     ),
                   ),
                 ),
-              );
-            }).toList(),
-          ),
+
+                const SizedBox(height: 32),
+              ]),
+            ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildVersionRow(String label, String value, {bool isHighlight = false}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 13.5,
-            color: GoPlayTheme.onSurfaceVariant,
-          ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 13.5,
-            fontWeight: FontWeight.w600,
-            color: isHighlight ? GoPlayTheme.primary : GoPlayTheme.onSurface,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildErrorDisplay(String error) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: GoPlayTheme.error.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: GoPlayTheme.error.withValues(alpha: 0.3), width: 0.8),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.error_outline_rounded, color: GoPlayTheme.error, size: 16),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              error,
-              style: const TextStyle(
-                color: GoPlayTheme.error,
-                fontSize: 12.5,
-                height: 1.3,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required String label,
-    required IconData icon,
-    required bool isLoading,
-    required Color color,
-    required VoidCallback? onPressed,
-  }) {
-    return SizedBox(
-      height: 42,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          backgroundColor: color.withValues(alpha: 0.08),
-          side: BorderSide(color: color.withValues(alpha: 0.6), width: 1.0),
-          foregroundColor: color,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (isLoading)
-              SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(color: color, strokeWidth: 2),
-              )
-            else
-              Icon(icon, size: 16, color: color),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCardActionButton(BuildContext context, UpdateState state, UpdateNotifier notifier) {
-    final isChecking = state.status == UpdateStatus.checking;
-    final isDownloading = state.status == UpdateStatus.downloading;
-
-    if (isChecking) {
-      return SizedBox(
-        width: double.infinity,
-        height: 42,
-        child: OutlinedButton(
-          onPressed: null,
-          style: OutlinedButton.styleFrom(
-            side: const BorderSide(color: Color(0x14FFFFFF)),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 15,
-                height: 15,
-                child: CircularProgressIndicator(color: GoPlayTheme.primary, strokeWidth: 2),
-              ),
-              SizedBox(width: 8),
-              Text(
-                'Checking for updates...',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: GoPlayTheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (isDownloading) {
-      return const SizedBox.shrink();
-    }
-
-    if (state.status == UpdateStatus.downloadSuccess) {
-      return SizedBox(
-        width: double.infinity,
-        height: 42,
-        child: FilledButton.icon(
-          onPressed: () => notifier.installApk(),
-          icon: const Icon(Icons.install_mobile_rounded, color: Colors.black, size: 18),
-          label: const Text(
-            'Install Update Now',
-            style: TextStyle(color: Colors.black, fontSize: 13.5, fontWeight: FontWeight.w600),
-          ),
-          style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFF10B981),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        ),
-      );
-    }
-
-    if (state.status == UpdateStatus.downloadFailed) {
-      return SizedBox(
-        width: double.infinity,
-        height: 42,
-        child: FilledButton.icon(
-          onPressed: () => notifier.retryDownload(),
-          icon: const Icon(Icons.refresh_rounded, color: Colors.white, size: 18),
-          label: const Text(
-            'Retry Download',
-            style: TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w600),
-          ),
-          style: FilledButton.styleFrom(
-            backgroundColor: GoPlayTheme.error,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        ),
-      );
-    }
-
-    if (state.status == UpdateStatus.updateAvailable) {
-      return SizedBox(
-        width: double.infinity,
-        height: 42,
-        child: FilledButton.icon(
-          onPressed: () => notifier.startDownload(),
-          icon: const Icon(Icons.download_rounded, color: Colors.black, size: 18),
-          label: const Text(
-            'Download & Update',
-            style: TextStyle(color: Colors.black, fontSize: 13.5, fontWeight: FontWeight.w600),
-          ),
-          style: FilledButton.styleFrom(
-            backgroundColor: GoPlayTheme.primary,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        ),
-      );
-    }
-
-    return SizedBox(
-      width: double.infinity,
-      height: 42,
-      child: OutlinedButton.icon(
-        onPressed: () async {
-          final messenger = ScaffoldMessenger.of(context);
-          await notifier.checkForUpdates(isManual: true);
-          if (ref.read(updateProvider).status == UpdateStatus.alreadyUpToDate) {
-            messenger.showSnackBar(
-              SnackBar(
-                content: const Row(
-                  children: [
-                    Icon(Icons.check_circle_outline_rounded, color: GoPlayTheme.primary),
-                    SizedBox(width: 10),
-                    Text(
-                      'App is already up to date!',
-                      style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
-                    ),
-                  ],
-                ),
-                backgroundColor: GoPlayTheme.surfaceContainerHigh,
-                behavior: SnackBarBehavior.floating,
-                duration: const Duration(seconds: 2),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            );
-          }
-        },
-        icon: const Icon(Icons.refresh_rounded, color: GoPlayTheme.primary, size: 18),
-        label: const Text(
-          'Check for Updates',
-          style: TextStyle(
-            fontSize: 13.5,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: GoPlayTheme.primary, width: 0.8),
-          foregroundColor: GoPlayTheme.primary,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      ),
-    );
-  }
-// end of previous helper
-
-// ─── Theme Customization Dialogs ──────────────────────────────────────────
-
-  Future<void> _showThemeModeDialog(BuildContext context, ThemeSettingsState themeState) async {
-    final notifier = ref.read(themeSettingsProvider.notifier);
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1B1C22),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: Color(0x1FFFFFFF), width: 1),
-          ),
-          titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
-          contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF38BDF8).withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.palette_outlined, color: Color(0xFF38BDF8), size: 20),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
-                  'Choose App Theme',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView(
-              shrinkWrap: true,
-              children: AppThemeMode.values.map((mode) {
-                final isSelected = themeState.themeMode == mode;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: TvFocusable(
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      notifier.setThemeMode(mode);
-                      Navigator.of(ctx).pop();
-                    },
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: isSelected ? const Color(0x2438BDF8) : const Color(0xFF23242B),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isSelected ? const Color(0xFF38BDF8) : const Color(0x14FFFFFF),
-                          width: isSelected ? 1.5 : 1,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          // Dual Color Preview Swatch (Surface + Card)
-                          Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: mode.surfaceColor,
-                              border: Border.all(
-                                color: mode.cardColor,
-                                width: 4,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.3),
-                                  blurRadius: 4,
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  mode.displayName,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  mode.subtitle,
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.6),
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (isSelected)
-                            const Icon(Icons.check_circle_rounded, color: Color(0xFF38BDF8), size: 20),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _showAccentColorDialog(BuildContext context, ThemeSettingsState themeState) async {
-    final notifier = ref.read(themeSettingsProvider.notifier);
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1B1C22),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: Color(0x1FFFFFFF), width: 1),
-          ),
-          titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
-          contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF43F5E).withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.color_lens_outlined, color: Color(0xFFF43F5E), size: 20),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
-                  'Choose Accent Color',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView(
-              shrinkWrap: true,
-              children: AppAccentColor.values.map((accent) {
-                final isSelected = themeState.accentColor == accent;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: TvFocusable(
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      notifier.setAccentColor(accent);
-                      Navigator.of(ctx).pop();
-                    },
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: isSelected ? accent.color.withValues(alpha: 0.18) : const Color(0xFF23242B),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isSelected ? accent.color : const Color(0x14FFFFFF),
-                          width: isSelected ? 1.5 : 1,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          // Accent Solid Color Swatch Pill
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: accent.color,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: accent.color.withValues(alpha: 0.4),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 1),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Text(
-                              accent.displayName,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          if (isSelected)
-                            Icon(Icons.check_circle_rounded, color: accent.color, size: 20),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildThemeSelectionTile({
-    required String title,
-    required String subtitle,
-    required Widget leadingSwatch,
-    required String currentValue,
-    required VoidCallback onTap,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: TvFocusable(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          onTap();
-        },
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF18191E),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0x14FFFFFF), width: 1),
-          ),
-          child: Row(
-            children: [
-              leadingSwatch,
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFFAAAAAA),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      currentValue,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.arrow_drop_down_rounded, color: Colors.white70, size: 18),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-
-
-
-/// Sleek custom rounded switch input matching the reference design.
-class _SettingsSwitch extends StatelessWidget {
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  const _SettingsSwitch({
-    required this.value,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TvFocusable(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onChanged(!value);
-      },
-      borderRadius: BorderRadius.circular(14),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        width: 44,
-        height: 24,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          color: value ? GoPlayTheme.primary : const Color(0xFF383838),
-          boxShadow: value
-              ? [
-                  BoxShadow(
-                    color: GoPlayTheme.primary.withValues(alpha: 0.3),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        padding: const EdgeInsets.all(2.5),
-        alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          width: 19,
-          height: 19,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.25),
-                blurRadius: 3,
-                offset: const Offset(0, 1),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

@@ -11,6 +11,12 @@ import '../screens/player/player_screen.dart';
 import '../screens/search/search_screen.dart';
 import '../screens/splash/splash_screen.dart';
 import '../screens/settings/settings_screen.dart';
+import '../screens/settings/subpages/layout_settings_screen.dart';
+import '../screens/settings/subpages/player_settings_screen.dart';
+import '../screens/settings/subpages/updates_settings_screen.dart';
+import '../screens/settings/subpages/sync_settings_screen.dart';
+import '../screens/settings/subpages/general_settings_screen.dart';
+import '../screens/settings/subpages/account_settings_screen.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 final shellNavigatorKey = GlobalKey<NavigatorState>();
@@ -27,6 +33,38 @@ final appRouter = GoRouter(
       path: '/settings',
       parentNavigatorKey: rootNavigatorKey,
       builder: (context, state) => const SettingsScreen(),
+      routes: [
+        GoRoute(
+          path: 'general',
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => const GeneralSettingsScreen(),
+        ),
+        GoRoute(
+          path: 'player',
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => const PlayerSettingsScreen(),
+        ),
+        GoRoute(
+          path: 'layout',
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => const LayoutSettingsScreen(),
+        ),
+        GoRoute(
+          path: 'updates',
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => const UpdatesSettingsScreen(),
+        ),
+        GoRoute(
+          path: 'sync',
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => const SyncSettingsScreen(),
+        ),
+        GoRoute(
+          path: 'account',
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (context, state) => const AccountSettingsScreen(),
+        ),
+      ],
     ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
