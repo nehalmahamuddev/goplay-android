@@ -33,7 +33,7 @@ class GoPlayTheme {
   static const Color darkSurface = Color(0xFF000000); // Pure Black (#000000)
   static const Color darkSurfaceContainerLow = Color(0xFF0A0A0A);
   static const Color darkSurfaceContainer = Color(0xFF121212); // Cards & surfaces (#121212)
-  static const Color darkSurfaceContainerHigh = Color(0xFF181818); // Elevated chips & search (#181818)
+  static const Color darkSurfaceContainerHigh = Color(0xFF121212); // Uniform dark surface container (#121212)
   static const Color darkSurfaceContainerHighest = Color(0xFF222222);
   static const Color darkOnSurface = Color(0xFFE9EAEE); // Primary text
   static const Color darkOnSurfaceVariant = Color(0xFF9BA0A4); // Secondary text
@@ -778,6 +778,56 @@ class GoPlayTheme {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: dynSurface,
       canvasColor: dynSurface,
+      cardColor: dynCard,
+      cardTheme: CardThemeData(
+        color: dynCard,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: darkCardBorder, width: 1),
+        ),
+        margin: EdgeInsets.zero,
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: dynCard,
+        selectedColor: dynPrimary.withValues(alpha: 0.22),
+        disabledColor: dynCard,
+        labelStyle: GoPlayType.inter(
+          fontSize: GoPlayType.sm,
+          fontWeight: FontWeight.w500,
+          color: darkOnSurface,
+        ),
+        secondaryLabelStyle: GoPlayType.inter(
+          fontSize: GoPlayType.sm,
+          fontWeight: FontWeight.w600,
+          color: dynPrimary,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        side: const BorderSide(color: darkCardBorder, width: 1),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: dynCard,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: darkCardBorder, width: 1),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: darkCardBorder, width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: dynPrimary, width: 1.5),
+        ),
+        hintStyle: GoPlayType.inter(color: darkOnSurfaceMuted),
+        labelStyle: GoPlayType.inter(color: darkOnSurfaceVariant),
+        prefixIconColor: darkOnSurfaceVariant,
+        suffixIconColor: darkOnSurfaceVariant,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
       splashFactory: InkRipple.splashFactory,
       visualDensity: VisualDensity.standard,
       textTheme: textTheme.copyWith(
@@ -814,81 +864,7 @@ class GoPlayTheme {
 
   /// Builds a ThemeData from user selected AppThemeMode and AppAccentColor.
   static ThemeData buildCustomUserTheme(AppThemeMode mode, AppAccentColor accent) {
-    final dynPrimary = accent.color;
-    final dynSurface = mode.surfaceColor;
-    final dynCard = mode.cardColor;
-    final isDark = mode.isDark;
-
-    final onSurface = isDark ? darkOnSurface : lightOnSurface;
-    final onSurfaceVariant = isDark ? darkOnSurfaceVariant : lightOnSurfaceVariant;
-    final onSurfaceMuted = isDark ? darkOnSurfaceMuted : lightOnSurfaceMuted;
-    final cardBorderColor = isDark ? darkCardBorder : lightCardBorder;
-    final dividerColor = isDark ? darkDivider : lightDivider;
-
-    final textTheme = _buildTextTheme().apply(
-      fontFamily: GoPlayType.family,
-      bodyColor: onSurface,
-      displayColor: onSurface,
-    );
-
-    final colorScheme = ColorScheme(
-      brightness: isDark ? Brightness.dark : Brightness.light,
-      primary: dynPrimary,
-      onPrimary: isDark ? darkOnPrimary : Colors.white,
-      primaryContainer: dynPrimary.withValues(alpha: 0.2),
-      onPrimaryContainer: dynPrimary,
-      secondary: dynPrimary,
-      onSecondary: isDark ? darkOnPrimary : Colors.white,
-      surface: dynSurface,
-      onSurface: onSurface,
-      onSurfaceVariant: onSurfaceVariant,
-      error: error,
-      onError: Colors.white,
-      outline: cardBorderColor,
-      outlineVariant: dividerColor,
-      inverseSurface: isDark ? lightSurface : darkSurface,
-      onInverseSurface: isDark ? lightOnSurface : darkOnSurface,
-    );
-
-    return ThemeData(
-      useMaterial3: true,
-      brightness: isDark ? Brightness.dark : Brightness.light,
-      colorScheme: colorScheme,
-      scaffoldBackgroundColor: dynSurface,
-      canvasColor: dynSurface,
-      cardColor: dynCard,
-      splashFactory: InkRipple.splashFactory,
-      visualDensity: VisualDensity.standard,
-      textTheme: textTheme.copyWith(
-        bodyMedium: textTheme.bodyMedium?.copyWith(color: onSurfaceVariant),
-        bodySmall: textTheme.bodySmall?.copyWith(color: onSurfaceMuted),
-      ),
-      appBarTheme: AppBarTheme(
-        backgroundColor: dynSurface,
-        foregroundColor: onSurface,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        centerTitle: false,
-        titleTextStyle: GoPlayType.title.copyWith(color: onSurface),
-        iconTheme: IconThemeData(color: onSurface, size: 22),
-      ),
-      bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: dynSurface,
-        selectedItemColor: dynPrimary,
-        unselectedItemColor: onSurfaceMuted,
-        type: BottomNavigationBarType.fixed,
-        elevation: 0,
-        selectedLabelStyle: GoPlayType.labelSmall.copyWith(fontWeight: FontWeight.w600),
-        unselectedLabelStyle: GoPlayType.labelSmall,
-      ),
-      tabBarTheme: TabBarThemeData(
-        labelColor: dynPrimary,
-        unselectedLabelColor: onSurfaceMuted,
-        indicatorColor: dynPrimary,
-        indicatorSize: TabBarIndicatorSize.label,
-        dividerColor: Colors.transparent,
-      ),
-    );
+    return mode.toThemeData(accent);
   }
 }
 

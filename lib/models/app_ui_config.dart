@@ -226,11 +226,13 @@ class ThemeConfig {
 
   factory ThemeConfig.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const ThemeConfig.defaults();
+    final rawCard = json['card_color'] as String?;
+    final resolvedCard = (rawCard == null || rawCard == '#272727' || rawCard.isEmpty) ? '#121212' : rawCard;
     return ThemeConfig(
       preset: json['preset'] as String? ?? 'openstream',
       primaryColor: json['primary_color'] as String? ?? '#3D50FA',
       surfaceColor: json['surface_color'] as String? ?? '#000000',
-      cardColor: json['card_color'] as String? ?? '#121212',
+      cardColor: resolvedCard,
     );
   }
 
@@ -994,7 +996,7 @@ class EventCardStyleConfig {
   const EventCardStyleConfig.defaults()
       : useCustomOverride = false,
         backgroundColor = '#121212',
-        borderColor = '#272727',
+        borderColor = '#14FFFFFF',
         borderWidth = 1.0,
         borderRadius = 14.0,
         liveBadgeColor = '#F53B66',
@@ -1007,7 +1009,7 @@ class EventCardStyleConfig {
     return EventCardStyleConfig(
       useCustomOverride: json['use_custom_override'] as bool? ?? false,
       backgroundColor: json['background_color'] as String? ?? '#121212',
-      borderColor: json['border_color'] as String? ?? '#272727',
+      borderColor: json['border_color'] as String? ?? '#14FFFFFF',
       borderWidth: (json['border_width'] as num?)?.toDouble() ?? 1.0,
       borderRadius: (json['border_radius'] as num?)?.toDouble() ?? 14.0,
       liveBadgeColor: json['live_badge_color'] as String? ?? '#F53B66',
@@ -1052,7 +1054,7 @@ class ChannelCardStyleConfig {
 
   const ChannelCardStyleConfig.defaults()
       : useCustomOverride = false,
-        backgroundColor = '#272727',
+        backgroundColor = '#121212',
         borderColor = '#333333',
         borderWidth = 1.0,
         borderRadius = 14.0,
@@ -1063,7 +1065,7 @@ class ChannelCardStyleConfig {
     if (json == null) return const ChannelCardStyleConfig.defaults();
     return ChannelCardStyleConfig(
       useCustomOverride: json['use_custom_override'] as bool? ?? false,
-      backgroundColor: json['background_color'] as String? ?? '#272727',
+      backgroundColor: json['background_color'] as String? ?? '#121212',
       borderColor: json['border_color'] as String? ?? '#333333',
       borderWidth: (json['border_width'] as num?)?.toDouble() ?? 1.0,
       borderRadius: (json['border_radius'] as num?)?.toDouble() ?? 14.0,
@@ -1106,7 +1108,7 @@ class ChipOverrideStyle {
   const ChipOverrideStyle.defaults({double radius = 20.0})
       : activeBgColor = '#C8FF00',
         activeTextColor = '#0F0F0F',
-        inactiveBgColor = '#272727',
+        inactiveBgColor = '#121212',
         inactiveTextColor = '#FFFFFF',
         borderRadius = radius,
         borderColor = 'transparent',
@@ -1117,7 +1119,7 @@ class ChipOverrideStyle {
     return ChipOverrideStyle(
       activeBgColor: json['active_bg_color'] as String? ?? '#C8FF00',
       activeTextColor: json['active_text_color'] as String? ?? '#0F0F0F',
-      inactiveBgColor: json['inactive_bg_color'] as String? ?? '#272727',
+      inactiveBgColor: json['inactive_bg_color'] as String? ?? '#121212',
       inactiveTextColor: json['inactive_text_color'] as String? ?? '#FFFFFF',
       borderRadius: (json['border_radius'] as num?)?.toDouble() ?? defaultRadius,
       borderColor: json['border_color'] as String? ?? 'transparent',
@@ -1168,7 +1170,7 @@ class CategoryChipsStyleConfig {
       : useCustomOverride = false,
         activeBgColor = '#C8FF00',
         activeTextColor = '#0F0F0F',
-        inactiveBgColor = '#272727',
+        inactiveBgColor = '#121212',
         inactiveTextColor = '#FFFFFF',
         borderRadius = 20.0,
         borderColor = 'transparent',
@@ -1184,7 +1186,7 @@ class CategoryChipsStyleConfig {
       useCustomOverride: json['use_custom_override'] as bool? ?? false,
       activeBgColor: json['active_bg_color'] as String? ?? '#C8FF00',
       activeTextColor: json['active_text_color'] as String? ?? '#0F0F0F',
-      inactiveBgColor: json['inactive_bg_color'] as String? ?? '#272727',
+      inactiveBgColor: json['inactive_bg_color'] as String? ?? '#121212',
       inactiveTextColor: json['inactive_text_color'] as String? ?? '#FFFFFF',
       borderRadius: (json['border_radius'] as num?)?.toDouble() ?? 20.0,
       borderColor: json['border_color'] as String? ?? 'transparent',
@@ -1242,7 +1244,7 @@ class SettingsScreenStyleConfig {
 
   const SettingsScreenStyleConfig.defaults()
       : useCustomOverride = false,
-        cardBgColor = '#272727',
+        cardBgColor = '#121212',
         cardBorderColor = '#333333',
         cardBorderWidth = 1.0,
         cardBorderRadius = 16.0,
@@ -1255,7 +1257,7 @@ class SettingsScreenStyleConfig {
     if (json == null) return const SettingsScreenStyleConfig.defaults();
     return SettingsScreenStyleConfig(
       useCustomOverride: json['use_custom_override'] as bool? ?? false,
-      cardBgColor: json['card_bg_color'] as String? ?? '#272727',
+      cardBgColor: json['card_bg_color'] as String? ?? '#121212',
       cardBorderColor: json['card_border_color'] as String? ?? '#333333',
       cardBorderWidth: (json['card_border_width'] as num?)?.toDouble() ?? 1.0,
       cardBorderRadius: (json['card_border_radius'] as num?)?.toDouble() ?? 16.0,

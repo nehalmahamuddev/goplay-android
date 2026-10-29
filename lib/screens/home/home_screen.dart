@@ -247,7 +247,11 @@ class HomeScreen extends ConsumerWidget {
                                   height: 40,
                                   padding: const EdgeInsets.symmetric(horizontal: 16),
                                   decoration: BoxDecoration(
-                                    color: GoPlayTheme.surfaceContainerHigh,
+                                    color: Theme.of(context).cardColor,
+                                    border: Border.all(
+                                      color: Theme.of(context).colorScheme.outline,
+                                      width: 1,
+                                    ),
                                     borderRadius: BorderRadius.circular(100),
                                   ),
                                   child: Row(
@@ -678,10 +682,20 @@ class _SportCategoryFilterChips extends ConsumerWidget {
     final selectedSport = ref.watch(selectedSportFilterProvider);
     final uiConfig = ref.watch(uiConfigProvider);
 
-    final activeBg = GoPlayTheme.parseHex(uiConfig.resolveCategoryChipActiveBg(isHome: true));
-    final inactiveBg = GoPlayTheme.parseHex(uiConfig.resolveCategoryChipInactiveBg(isHome: true));
-    final activeTextColor = GoPlayTheme.parseHex(uiConfig.resolveCategoryChipActiveTextColor(isHome: true));
-    final inactiveTextColor = GoPlayTheme.parseHex(uiConfig.resolveCategoryChipInactiveTextColor(isHome: true));
+    final cs = Theme.of(context).colorScheme;
+    final hasOverride = uiConfig.componentStyles.categoryChips.useCustomOverride;
+    final activeBg = hasOverride
+        ? GoPlayTheme.parseHex(uiConfig.resolveCategoryChipActiveBg(isHome: true))
+        : cs.primary;
+    final inactiveBg = hasOverride
+        ? GoPlayTheme.parseHex(uiConfig.resolveCategoryChipInactiveBg(isHome: true))
+        : Theme.of(context).cardColor;
+    final activeTextColor = hasOverride
+        ? GoPlayTheme.parseHex(uiConfig.resolveCategoryChipActiveTextColor(isHome: true))
+        : cs.onPrimary;
+    final inactiveTextColor = hasOverride
+        ? GoPlayTheme.parseHex(uiConfig.resolveCategoryChipInactiveTextColor(isHome: true))
+        : cs.onSurface;
     final chipRadius = uiConfig.resolveCategoryChipRadius(isHome: true);
 
     return sportsAsync.when(
@@ -710,6 +724,10 @@ class _SportCategoryFilterChips extends ConsumerWidget {
                   decoration: BoxDecoration(
                     color: isSelected ? activeBg : inactiveBg,
                     borderRadius: BorderRadius.circular(chipRadius),
+                    border: Border.all(
+                      color: isSelected ? activeBg : cs.outline,
+                      width: 1,
+                    ),
                   ),
                   child: Center(
                     child: Text(
@@ -1026,13 +1044,7 @@ class _AnnouncementTile extends StatelessWidget {
 
   const _AnnouncementTile({required this.announcement});
 
-  static const _cardDecoration = BoxDecoration(
-    color: Color(0xFF272727),
-    borderRadius: BorderRadius.all(Radius.circular(12)),
-    boxShadow: [
-      BoxShadow(color: Color(0x14000000), blurRadius: 4, offset: Offset(0, 1)),
-    ],
-  );
+
 
   static const _titleStyle = TextStyle(
     fontFamily: GoPlayType.family,
@@ -1060,7 +1072,14 @@ class _AnnouncementTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: DecoratedBox(
-        decoration: _cardDecoration,
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: const BorderRadius.all(Radius.circular(12)),
+          border: Border.all(color: Theme.of(context).colorScheme.outline, width: 1),
+          boxShadow: const [
+            BoxShadow(color: Color(0x14000000), blurRadius: 4, offset: Offset(0, 1)),
+          ],
+        ),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(

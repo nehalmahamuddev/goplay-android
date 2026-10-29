@@ -419,7 +419,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                           SnackBar(
                                             content: const Text('Theme reset to cloud default!'),
                                             behavior: SnackBarBehavior.floating,
-                                            backgroundColor: const Color(0xFF272727),
+                                            backgroundColor: Theme.of(context).cardColor,
                                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                           ),
                                         );
@@ -1602,7 +1602,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF272727),
+                  color: Theme.of(context).cardColor,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Row(

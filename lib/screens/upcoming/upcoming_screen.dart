@@ -98,10 +98,19 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
     final liveEventsCount = ref.watch(liveEventsProvider).value?.length ?? 0;
     final uiConfig = ref.watch(uiConfigProvider);
 
-    final activeBg = GoPlayTheme.parseHex(uiConfig.resolveCategoryChipActiveBg(isHome: false));
-    final inactiveBg = GoPlayTheme.parseHex(uiConfig.resolveCategoryChipInactiveBg(isHome: false));
-    final activeTextColor = GoPlayTheme.parseHex(uiConfig.resolveCategoryChipActiveTextColor(isHome: false));
-    final inactiveTextColor = GoPlayTheme.parseHex(uiConfig.resolveCategoryChipInactiveTextColor(isHome: false));
+    final hasOverride = uiConfig.componentStyles.categoryChips.useCustomOverride;
+    final activeBg = hasOverride
+        ? GoPlayTheme.parseHex(uiConfig.resolveCategoryChipActiveBg(isHome: false))
+        : cs.primary;
+    final inactiveBg = hasOverride
+        ? GoPlayTheme.parseHex(uiConfig.resolveCategoryChipInactiveBg(isHome: false))
+        : theme.cardColor;
+    final activeTextColor = hasOverride
+        ? GoPlayTheme.parseHex(uiConfig.resolveCategoryChipActiveTextColor(isHome: false))
+        : cs.onPrimary;
+    final inactiveTextColor = hasOverride
+        ? GoPlayTheme.parseHex(uiConfig.resolveCategoryChipInactiveTextColor(isHome: false))
+        : cs.onSurface;
     final chipRadius = uiConfig.resolveCategoryChipRadius(isHome: false);
 
     return Material(
@@ -166,6 +175,10 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
                           decoration: BoxDecoration(
                             color: isSelected ? activeBg : inactiveBg,
                             borderRadius: BorderRadius.circular(chipRadius),
+                            border: Border.all(
+                              color: isSelected ? activeBg : cs.outline,
+                              width: 1,
+                            ),
                           ),
                           child: Text(
                             sport,
@@ -297,7 +310,7 @@ class _EventsListView extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: onRefresh,
       color: GoPlayTheme.primary,
-      backgroundColor: const Color(0xFF272727),
+      backgroundColor: Theme.of(context).cardColor,
       child: eventsAsync.when(
         data: (events) {
           if (events.isEmpty) {
@@ -404,7 +417,7 @@ class _GroupedUpcomingListView extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: onRefresh,
       color: GoPlayTheme.primary,
-      backgroundColor: const Color(0xFF272727),
+      backgroundColor: Theme.of(context).cardColor,
       child: eventsAsync.when(
         data: (events) {
           final grouped = _groupByDate(events);

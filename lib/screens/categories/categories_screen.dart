@@ -369,7 +369,8 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
       itemBuilder: (context, index) {
         return Container(
           decoration: BoxDecoration(
-            color: cs.surfaceContainerHigh,
+            color: Theme.of(context).cardColor,
+          border: Border.all(color: cs.outline, width: 0.8),
             borderRadius: BorderRadius.circular(10),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -860,7 +861,8 @@ class _CategoryPillCard extends ConsumerWidget {
           : category.name,
       child: Container(
         decoration: BoxDecoration(
-          color: cs.surfaceContainerHigh,
+          color: Theme.of(context).cardColor,
+          border: Border.all(color: cs.outline, width: 0.8),
           borderRadius: BorderRadius.circular(10),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),

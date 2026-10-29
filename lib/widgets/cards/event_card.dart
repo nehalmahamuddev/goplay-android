@@ -16,7 +16,7 @@ enum EventCardVariant {
 
 // ─── Pre-computed static decorations ─────────────────────────────────────────
 const _kLiveCardDecoration = BoxDecoration(
-  color: Color(0xFF272727),
+  color: Color(0xFF121212),
   borderRadius: BorderRadius.all(Radius.circular(12)),
   boxShadow: [
     BoxShadow(color: Color(0x14000000), blurRadius: 4, offset: Offset(0, 1)),
@@ -24,7 +24,7 @@ const _kLiveCardDecoration = BoxDecoration(
 );
 
 const _kUpcomingCardDecoration = BoxDecoration(
-  color: Color(0xFF272727),
+  color: Color(0xFF121212),
   borderRadius: BorderRadius.all(Radius.circular(12)),
   boxShadow: [
     BoxShadow(color: Color(0x14000000), blurRadius: 4, offset: Offset(0, 1)),

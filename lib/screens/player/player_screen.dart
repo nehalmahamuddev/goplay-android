@@ -1177,7 +1177,7 @@ class _ServerBadgesRow extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: isSelected
                         ? GoPlayTheme.primary
-                        : const Color(0xFF272727),
+                        : Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Center(
