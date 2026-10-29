@@ -16,17 +16,77 @@ class UpdateInfo {
     required this.publishedAt,
   });
 
-  /// Factory constructor to parse JSON.
+  /// Factory constructor to parse standard update.json.
   factory UpdateInfo.fromJson(Map<String, dynamic> json) {
     return UpdateInfo(
-      latestVersion: json['latestVersion'] as String,
-      minimumVersion: json['minimumVersion'] as String,
-      forceUpdate: json['forceUpdate'] as bool? ?? false,
-      apkUrl: json['apkUrl'] as String,
+      latestVersion: (json['latestVersion'] ?? json['versionName'] ?? '') as String,
+      minimumVersion: (json['minimumVersion'] ?? '1.0.0') as String,
+      forceUpdate: json['forceUpdate'] as bool? ?? json['mandatory'] as bool? ?? false,
+      apkUrl: (json['apkUrl'] ?? '') as String,
       releaseNotes: List<String>.from(json['releaseNotes'] ?? const []),
       publishedAt: json['publishedAt'] != null
           ? DateTime.tryParse(json['publishedAt'] as String) ?? DateTime.now()
           : DateTime.now(),
+    );
+  }
+
+  /// Factory constructor to parse GitHub Releases API response.
+  factory UpdateInfo.fromGithubRelease(Map<String, dynamic> json) {
+    // 1. Extract Tag & Version
+    final tagName = (json['tag_name'] as String? ?? '').trim();
+    // Strip leading 'v' or 'V' and trailing tags like "-release"
+    final cleanVersion = tagName.replaceFirst(RegExp(r'^[vV]'), '').split('-').first.trim();
+
+    // 2. Find APK asset
+    final assets = json['assets'] as List<dynamic>? ?? [];
+    String apkDownloadUrl = '';
+    for (final asset in assets) {
+      if (asset is Map<String, dynamic>) {
+        final name = (asset['name'] as String? ?? '').toLowerCase();
+        final contentType = (asset['content_type'] as String? ?? '').toLowerCase();
+        if (name.endsWith('.apk') || contentType == 'application/vnd.android.package-archive') {
+          apkDownloadUrl = asset['browser_download_url'] as String? ?? '';
+          break;
+        }
+      }
+    }
+
+    // 3. Parse Release Notes from Body
+    final body = json['body'] as String? ?? '';
+    final notes = <String>[];
+    for (final rawLine in body.split('\n')) {
+      final line = rawLine.trim();
+      if (line.isEmpty) continue;
+      // Skip markdown headers or dividers
+      if (line.startsWith('##') || line.startsWith('---') || line.startsWith('===')) continue;
+      // Clean bullet points
+      var cleaned = line;
+      if (cleaned.startsWith('•') || cleaned.startsWith('-') || cleaned.startsWith('*')) {
+        cleaned = cleaned.substring(1).trim();
+      }
+      // Remove markdown links e.g. [text](url) -> text
+      cleaned = cleaned.replaceAllMapped(RegExp(r'\[(.*?)\]\(.*?\)'), (m) => m[1] ?? '');
+      if (cleaned.isNotEmpty && !cleaned.toLowerCase().contains('full changelog')) {
+        notes.add(cleaned);
+      }
+    }
+
+    if (notes.isEmpty) {
+      notes.add('Bug fixes and performance improvements.');
+    }
+
+    final publishedAtStr = json['published_at'] as String?;
+    final publishedAt = publishedAtStr != null
+        ? DateTime.tryParse(publishedAtStr) ?? DateTime.now()
+        : DateTime.now();
+
+    return UpdateInfo(
+      latestVersion: cleanVersion.isNotEmpty ? cleanVersion : tagName,
+      minimumVersion: '1.0.0',
+      forceUpdate: false,
+      apkUrl: apkDownloadUrl,
+      releaseNotes: notes,
+      publishedAt: publishedAt,
     );
   }
 
@@ -52,8 +112,8 @@ class VersionUtils {
   ///   0 if version1 == version2
   static int compare(String version1, String version2) {
     // Strip build numbers (+...) or pre-release tags (-...)
-    final cleanV1 = version1.split('+').first.split('-').first;
-    final cleanV2 = version2.split('+').first.split('-').first;
+    final cleanV1 = version1.replaceFirst(RegExp(r'^[vV]'), '').split('+').first.split('-').first;
+    final cleanV2 = version2.replaceFirst(RegExp(r'^[vV]'), '').split('+').first.split('-').first;
 
     final parts1 = cleanV1.split('.').map((e) => int.tryParse(e) ?? 0).toList();
     final parts2 = cleanV2.split('.').map((e) => int.tryParse(e) ?? 0).toList();

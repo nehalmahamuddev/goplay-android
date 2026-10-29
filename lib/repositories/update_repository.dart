@@ -77,7 +77,7 @@ class UpdateRepository {
     }
 
     try {
-      final updateInfo = await _updateService.fetchUpdateInfo(AppConstants.updateJsonUrl);
+      final updateInfo = await _updateService.fetchLatestRelease();
       await updateLastCheckTimestamp();
       await _cacheUpdateInfo(updateInfo);
 
@@ -143,3 +143,4 @@ class UpdateCheckResult {
     this.error,
   });
 }
+

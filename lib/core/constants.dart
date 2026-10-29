@@ -19,9 +19,13 @@ class AppConstants {
 
   // App Info
   static const String appName = 'GoPlay';
-  static const String appVersion = '1.0.0';
+  static const String appVersion = '2.2.1';
   
-  // Updates
-  static const String updateJsonUrl =
+  // Updates (GitHub Releases API primary with fallback)
+  static const String githubOwner = 'nehalmahamuddev';
+  static const String githubRepo = 'goplay-android';
+  static const String githubLatestReleaseUrl =
+      'https://api.github.com/repos/$githubOwner/$githubRepo/releases/latest';
+  static const String fallbackUpdateJsonUrl =
       'https://pub-0440e8e4ec654c10b2471b3b64aa4265.r2.dev/update.json';
 }

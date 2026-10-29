@@ -5,12 +5,51 @@ import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../core/constants.dart';
 import '../models/update_info.dart';
 
 class UpdateService {
   final Dio _dio;
 
   UpdateService(this._dio);
+
+  /// Fetches update info from GitHub Releases API, falling back to static update.json if needed.
+  Future<UpdateInfo> fetchLatestRelease() async {
+    try {
+      // 1. Primary: Fetch from GitHub Releases API
+      final response = await _dio.get(
+        AppConstants.githubLatestReleaseUrl,
+        options: Options(
+          headers: {
+            'Accept': 'application/vnd.github.v3+json',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data;
+        final jsonMap = data is Map<String, dynamic>
+            ? data
+            : (data is String ? jsonDecode(data) as Map<String, dynamic> : null);
+
+        if (jsonMap != null) {
+          final info = UpdateInfo.fromGithubRelease(jsonMap);
+          // If a valid APK was found in the GitHub release
+          if (info.apkUrl.isNotEmpty) {
+            return info;
+          }
+        }
+      }
+    } catch (_) {
+      // GitHub API rate limited or offline, proceed to fallback
+    }
+
+    // 2. Fallback: Fetch from static update.json
+    return fetchUpdateInfo(AppConstants.fallbackUpdateJsonUrl);
+  }
 
   /// Fetches the update configuration from the remote JSON file.
   Future<UpdateInfo> fetchUpdateInfo(String url) async {
@@ -19,7 +58,6 @@ class UpdateService {
         url,
         options: Options(
           headers: {
-            // Bypass potential proxy/CDN caching issues
             'Cache-Control': 'no-cache',
             'Pragma': 'no-cache',
             'Expires': '0',
@@ -98,53 +136,42 @@ class UpdateService {
       final dir = Directory(tempDir.path);
       if (await dir.exists()) {
         final list = dir.listSync();
-        for (final item in list) {
-          if (item is File && item.path.endsWith('.apk')) {
-            await item.delete();
+        for (final file in list) {
+          if (file is File && file.path.endsWith('.apk')) {
+            try {
+              await file.delete();
+            } catch (_) {
+              // Ignore failure to delete stale files
+            }
           }
         }
       }
     } catch (_) {
-      // Fail silently for cleanup errors
+      // Ignore directory read errors
     }
   }
 
-  /// Checks if the app has permission to install packages (Android 8+).
-  Future<bool> isInstallPermissionGranted() async {
-    if (Platform.isAndroid) {
-      return await Permission.requestInstallPackages.isGranted;
-    }
-    return true;
-  }
-
-  /// Requests the package installation permission (opens System Settings).
-  Future<bool> requestInstallPermission() async {
-    if (Platform.isAndroid) {
-      final status = await Permission.requestInstallPackages.request();
-      return status.isGranted;
-    }
-    return true;
-  }
-
-  /// Launches the package installer for the downloaded APK.
-  Future<bool> installApk(String filePath) async {
+  /// Requests install permissions (for Android 8.0+) and opens the APK file.
+  Future<OpenResult> installApk(String filePath) async {
     try {
-      final file = File(filePath);
-      if (!await file.exists()) {
-        throw Exception('APK file not found for installation: $filePath');
+      if (Platform.isAndroid) {
+        // Check REQUEST_INSTALL_PACKAGES permission
+        final status = await Permission.requestInstallPackages.status;
+        if (!status.isGranted) {
+          final requestStatus = await Permission.requestInstallPackages.request();
+          if (!requestStatus.isGranted) {
+            throw Exception('Permission to install packages was denied');
+          }
+        }
       }
-      
+
       final result = await OpenFilex.open(
         filePath,
         type: 'application/vnd.android.package-archive',
       );
-      
-      if (result.type != ResultType.done) {
-        throw Exception('Failed to open APK installer: ${result.message}');
-      }
-      return true;
+      return result;
     } catch (e) {
-      throw Exception('Error installing APK: $e');
+      throw Exception('Failed to trigger installation: $e');
     }
   }
 }
