@@ -7,6 +7,7 @@ import '../../core/theme.dart';
 import '../../core/typography.dart';
 import '../../models/category.dart';
 import '../../providers/app_providers.dart';
+import '../../providers/theme_provider.dart';
 import '../../providers/playz_providers.dart';
 import '../../widgets/app_overflow_menu.dart';
 import '../../widgets/cards/channel_card.dart';
@@ -198,6 +199,10 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final themeMode = ref.watch(activeThemeModeProvider);
+    final headerBg = theme.bottomNavigationBarTheme.backgroundColor ?? themeMode.bottomNavColor;
     final categoriesAsync = ref.watch(playzCategoriesProvider);
     final favoriteIds = ref.watch(favoriteChannelIdsProvider);
 
@@ -221,10 +226,8 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        body: SafeArea(
-          bottom: false,
-          child: AnimatedSwitcher(
+        backgroundColor: cs.surface,
+        body: AnimatedSwitcher(
             duration: const Duration(milliseconds: 260),
             switchInCurve: Curves.easeOutCubic,
             switchOutCurve: Curves.easeInCubic,
@@ -241,9 +244,8 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
               );
             },
             child: _selectedCategory == null
-                ? _buildCategoriesPage(context, categoriesAsync, favoriteIds)
-                : _buildChannelsPage(context, _selectedCategory!, favoriteIds),
-          ),
+                ? _buildCategoriesPage(context, categoriesAsync, favoriteIds, headerBg)
+                : _buildChannelsPage(context, _selectedCategory!, favoriteIds, headerBg),
         ),
       ),
     );
@@ -256,6 +258,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     BuildContext context,
     AsyncValue<List<Category>> categoriesAsync,
     Set<String> favoriteIds,
+    Color headerBg,
   ) {
     final channelsByCategoryAsync = ref.watch(channelsByCategoryMapProvider);
     final channelsMap = channelsByCategoryAsync.value;
@@ -263,7 +266,13 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     return Column(
       key: const ValueKey('categories_list_view'),
       children: [
-        _buildCategoriesAppBar(context),
+        Container(
+          color: headerBg,
+          child: SafeArea(
+            bottom: false,
+            child: _buildCategoriesAppBar(context),
+          ),
+        ),
         Expanded(
           child: categoriesAsync.when(
             data: (categories) {
@@ -424,7 +433,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     return AppBar(
       primary: false,
       automaticallyImplyLeading: false,
-      backgroundColor: cs.surface,
+      backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
@@ -491,13 +500,20 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     BuildContext context,
     Category category,
     Set<String> favoriteIds,
+    Color headerBg,
   ) {
     final channelsAsync = ref.watch(playzCategoryChannelsProvider(category));
 
     return Column(
       key: ValueKey('category_channels_${category.id}'),
       children: [
-        _buildChannelsAppBar(context, category),
+        Container(
+          color: headerBg,
+          child: SafeArea(
+            bottom: false,
+            child: _buildChannelsAppBar(context, category),
+          ),
+        ),
         Expanded(
           child: channelsAsync.when(
             data: (channels) {
@@ -604,7 +620,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     return AppBar(
       primary: false,
       automaticallyImplyLeading: false,
-      backgroundColor: cs.surface,
+      backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,

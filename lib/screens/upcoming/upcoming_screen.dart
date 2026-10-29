@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../core/theme.dart';
 import '../../core/typography.dart';
 import '../../providers/app_providers.dart';
+import '../../providers/theme_provider.dart';
 import '../../models/event.dart';
 import '../../services/event_stream_launcher.dart';
 import '../../widgets/cards/playz_event_card.dart';
@@ -93,6 +94,8 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final themeMode = ref.watch(activeThemeModeProvider);
+    final headerBg = theme.bottomNavigationBarTheme.backgroundColor ?? themeMode.bottomNavColor;
     final sportsAsync = ref.watch(sortedSportCategoriesProvider);
     final selectedSport = ref.watch(selectedSportFilterProvider);
     final liveEventsCount = ref.watch(liveEventsProvider).value?.length ?? 0;
@@ -123,7 +126,7 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
             SliverAppBar(
               floating: false,
               pinned: true,
-              backgroundColor: cs.surface,
+              backgroundColor: headerBg,
               surfaceTintColor: Colors.transparent,
               elevation: 0,
               scrolledUnderElevation: 0,
@@ -153,7 +156,9 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
 
             // Horizontal Sport Category Filter Chips
             SliverToBoxAdapter(
-              child: sportsAsync.when(
+              child: Container(
+                color: headerBg,
+                child: sportsAsync.when(
                 data: (sports) => SizedBox(
                   height: 44,
                   child: ListView.separated(
@@ -192,6 +197,7 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
                 ),
                 loading: () => const SizedBox(height: 44),
                 error: (err, stack) => const SizedBox.shrink(),
+              ),
               ),
             ),
 
@@ -232,7 +238,7 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
                     const Tab(text: 'Ended'),
                   ],
                 ),
-                backgroundColor: cs.surface,
+                backgroundColor: headerBg,
               ),
             ),
           ];
@@ -558,6 +564,7 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   bool shouldRebuild(_SliverTabBarDelegate oldDelegate) {
-    return false;
+    return oldDelegate.backgroundColor != backgroundColor ||
+        oldDelegate.tabBar != tabBar;
   }
 }

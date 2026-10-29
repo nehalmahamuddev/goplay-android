@@ -92,6 +92,23 @@ enum AppThemeMode {
     isDark: true,
   ),
 
+  /// Cyber Lime: Deep obsidian canvas (#141216) with #1A1A1A card containers and electric lime (#D4ED41) accents.
+  cyberLime(
+    id: 'cyber_lime',
+    displayName: 'Cyber Lime',
+    subtitle: 'Deep obsidian (#141216) canvas with #1A1A1A cards and #D4ED41 accents',
+    surfaceColor: Color(0xFF141216),
+    cardColor: Color(0xFF1A1A1A),
+    surfaceContainerHigh: Color(0xFF242426),
+    bottomNavColor: Color(0xFF1A1A1A),
+    cardBorderColor: Colors.transparent,
+    dividerColor: Color(0x1AD4ED41),
+    onSurfaceColor: Color(0xFFF5F7ED),
+    onSurfaceVariantColor: Color(0xFFD4ED41),
+    onSurfaceMutedColor: Color(0xFF7A8565),
+    isDark: true,
+  ),
+
   /// Light Studio: Clean high-contrast daylight theme.
   light(
     id: 'light',
@@ -171,7 +188,10 @@ enum AppThemeMode {
   static AppThemeMode fromId(String? id) {
     if (id == null) return AppThemeMode.dark;
     return AppThemeMode.values.firstWhere(
-      (e) => e.id == id,
+      (e) =>
+          e.id == id ||
+          (e == AppThemeMode.cyberLime &&
+              (id == 'lime' || id == 'neon_lime' || id == 'electric_lime')),
       orElse: () => AppThemeMode.dark,
     );
   }
@@ -350,6 +370,14 @@ enum AppAccentColor {
     onAccentColor: Color(0xFF0F0F0F),
   ),
 
+  /// Electric Lime (#D4ED41).
+  lime(
+    id: 'lime',
+    displayName: 'Electric Lime',
+    color: Color(0xFFD4ED41),
+    onAccentColor: Color(0xFF141216),
+  ),
+
   /// Electric Cyan (#00D2FF).
   cyan(
     id: 'cyan',
@@ -421,7 +449,10 @@ enum AppAccentColor {
   static AppAccentColor fromId(String? id) {
     if (id == null) return AppAccentColor.royalBlue;
     return AppAccentColor.values.firstWhere(
-      (e) => e.id == id,
+      (e) =>
+          e.id == id ||
+          (e == AppAccentColor.lime &&
+              (id == 'electric_lime' || id == 'cyber_lime')),
       orElse: () => AppAccentColor.royalBlue,
     );
   }
