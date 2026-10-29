@@ -15,7 +15,7 @@ enum AppThemeMode {
     surfaceColor: Color(0xFF000000),
     cardColor: Color(0xFF161616),
     surfaceContainerHigh: Color(0xFF1C1C20),
-    bottomNavColor: Color(0xFF2B2C30),
+    bottomNavColor: Color(0xFF161616),
     cardBorderColor: Colors.transparent,
     dividerColor: Color(0x1AFFFFFF),
     onSurfaceColor: Color(0xFFE9EAEE),
