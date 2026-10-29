@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'typography.dart';
 import '../models/app_ui_config.dart';
+import '../models/app_theme_options.dart';
 
 /// GoPlay design system.
 ///
@@ -804,6 +805,85 @@ class GoPlayTheme {
       tabBarTheme: TabBarThemeData(
         labelColor: dynPrimary,
         unselectedLabelColor: darkOnSurfaceMuted,
+        indicatorColor: dynPrimary,
+        indicatorSize: TabBarIndicatorSize.label,
+        dividerColor: Colors.transparent,
+      ),
+    );
+  }
+
+  /// Builds a ThemeData from user selected AppThemeMode and AppAccentColor.
+  static ThemeData buildCustomUserTheme(AppThemeMode mode, AppAccentColor accent) {
+    final dynPrimary = accent.color;
+    final dynSurface = mode.surfaceColor;
+    final dynCard = mode.cardColor;
+    final isDark = mode.isDark;
+
+    final onSurface = isDark ? darkOnSurface : lightOnSurface;
+    final onSurfaceVariant = isDark ? darkOnSurfaceVariant : lightOnSurfaceVariant;
+    final onSurfaceMuted = isDark ? darkOnSurfaceMuted : lightOnSurfaceMuted;
+    final cardBorderColor = isDark ? darkCardBorder : lightCardBorder;
+    final dividerColor = isDark ? darkDivider : lightDivider;
+
+    final textTheme = _buildTextTheme().apply(
+      fontFamily: GoPlayType.family,
+      bodyColor: onSurface,
+      displayColor: onSurface,
+    );
+
+    final colorScheme = ColorScheme(
+      brightness: isDark ? Brightness.dark : Brightness.light,
+      primary: dynPrimary,
+      onPrimary: isDark ? darkOnPrimary : Colors.white,
+      primaryContainer: dynPrimary.withValues(alpha: 0.2),
+      onPrimaryContainer: dynPrimary,
+      secondary: dynPrimary,
+      onSecondary: isDark ? darkOnPrimary : Colors.white,
+      surface: dynSurface,
+      onSurface: onSurface,
+      onSurfaceVariant: onSurfaceVariant,
+      error: error,
+      onError: Colors.white,
+      outline: cardBorderColor,
+      outlineVariant: dividerColor,
+      inverseSurface: isDark ? lightSurface : darkSurface,
+      onInverseSurface: isDark ? lightOnSurface : darkOnSurface,
+    );
+
+    return ThemeData(
+      useMaterial3: true,
+      brightness: isDark ? Brightness.dark : Brightness.light,
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: dynSurface,
+      canvasColor: dynSurface,
+      cardColor: dynCard,
+      splashFactory: InkRipple.splashFactory,
+      visualDensity: VisualDensity.standard,
+      textTheme: textTheme.copyWith(
+        bodyMedium: textTheme.bodyMedium?.copyWith(color: onSurfaceVariant),
+        bodySmall: textTheme.bodySmall?.copyWith(color: onSurfaceMuted),
+      ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: dynSurface,
+        foregroundColor: onSurface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        titleTextStyle: GoPlayType.title.copyWith(color: onSurface),
+        iconTheme: IconThemeData(color: onSurface, size: 22),
+      ),
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: dynSurface,
+        selectedItemColor: dynPrimary,
+        unselectedItemColor: onSurfaceMuted,
+        type: BottomNavigationBarType.fixed,
+        elevation: 0,
+        selectedLabelStyle: GoPlayType.labelSmall.copyWith(fontWeight: FontWeight.w600),
+        unselectedLabelStyle: GoPlayType.labelSmall,
+      ),
+      tabBarTheme: TabBarThemeData(
+        labelColor: dynPrimary,
+        unselectedLabelColor: onSurfaceMuted,
         indicatorColor: dynPrimary,
         indicatorSize: TabBarIndicatorSize.label,
         dividerColor: Colors.transparent,

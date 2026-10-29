@@ -12,7 +12,7 @@ import '../models/announcement.dart';
 import '../models/hero_banner_item.dart';
 import '../services/stream_decryptor.dart';
 import '../models/app_ui_config.dart';
-import '../core/theme.dart';
+import 'theme_provider.dart';
 
 // ─── Core Service Providers ───────────────────────────────────
 final supabaseServiceProvider = Provider<SupabaseService>((ref) {
@@ -47,10 +47,9 @@ final uiConfigProvider = Provider<AppUiConfig>((ref) {
   return cache.getLocalUiConfig();
 });
 
-/// Reactive Theme Provider that responds instantly to dashboard theme changes
+/// Reactive Theme Provider that responds instantly to user selections or cloud updates
 final appThemeProvider = Provider<ThemeData>((ref) {
-  final uiConfig = ref.watch(uiConfigProvider);
-  return GoPlayTheme.buildDynamicTheme(uiConfig.theme);
+  return ref.watch(activeAppThemeProvider);
 });
 
 // ─── Channels ─────────────────────────────────────────────────
@@ -589,3 +588,7 @@ class SelectedSportFilterNotifier extends Notifier<String> {
 
   void select(String sport) => state = sport;
 }
+
+
+
+

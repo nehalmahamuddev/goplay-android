@@ -8,6 +8,8 @@ import '../../core/typography.dart';
 import '../../providers/app_providers.dart';
 import '../../providers/update_notifier.dart';
 import '../../widgets/tv_focus_wrapper.dart';
+import '../../models/app_theme_options.dart';
+import '../../providers/theme_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -18,6 +20,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   // Expansion States
+  bool _themeExpanded = true;
   bool _playbackExpanded = true;
   bool _contentTabsExpanded = true;
   bool _syncExpanded = false;
@@ -338,6 +341,118 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ],
                     ),
                   ),
+
+                                    // ─── Group 0: App Appearance & Themes ───
+                  Builder(
+                    builder: (context) {
+                      final themeState = ref.watch(themeSettingsProvider);
+                      final themeNotifier = ref.read(themeSettingsProvider.notifier);
+
+                      return _buildExpandableGroupCard(
+                        icon: Icons.palette_outlined,
+                        iconColor: themeState.accentColor.color,
+                        title: 'App Appearance & Themes',
+                        description: 'Customize background theme, dark modes & accent colors',
+                        isExpanded: _themeExpanded,
+                        onToggleExpand: () => setState(() => _themeExpanded = !_themeExpanded),
+                        children: [
+                          _buildThemeSelectionTile(
+                            title: 'Background Theme',
+                            subtitle: 'Select base app canvas (Dark, AMOLED, Dracula, etc.)',
+                            leadingSwatch: Container(
+                              width: 28,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: themeState.themeMode.surfaceColor,
+                                border: Border.all(
+                                  color: themeState.themeMode.cardColor,
+                                  width: 3.5,
+                                ),
+                              ),
+                            ),
+                            currentValue: themeState.themeMode.displayName,
+                            onTap: () => _showThemeModeDialog(context, themeState),
+                          ),
+                          const Divider(color: Color(0x14FFFFFF), height: 1),
+                          _buildThemeSelectionTile(
+                            title: 'Primary Accent Color',
+                            subtitle: 'Highlights, buttons, active indicators & TV focus borders',
+                            leadingSwatch: Container(
+                              width: 26,
+                              height: 26,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: themeState.accentColor.color,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: themeState.accentColor.color.withValues(alpha: 0.4),
+                                    blurRadius: 5,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            currentValue: themeState.accentColor.displayName,
+                            onTap: () => _showAccentColorDialog(context, themeState),
+                          ),
+                          if (themeState.isUsingCustomTheme) ...[
+                            const Divider(color: Color(0x14FFFFFF), height: 1),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'Custom theme active (overriding cloud defaults)',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.white.withValues(alpha: 0.6),
+                                      ),
+                                    ),
+                                  ),
+                                  TvFocusable(
+                                    onTap: () async {
+                                      HapticFeedback.selectionClick();
+                                      await themeNotifier.resetToCloudDefault();
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: const Text('Theme reset to cloud default!'),
+                                            behavior: SnackBarBehavior.floating,
+                                            backgroundColor: const Color(0xFF272727),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF2A2B32),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: const Color(0x24FFFFFF), width: 1),
+                                      ),
+                                      child: const Text(
+                                        'Reset to Cloud',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFFFF5263),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 14),
 
                   // ─── Group 1: Stream & Playback Engine ───
                   _buildExpandableGroupCard(
@@ -1193,7 +1308,329 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     );
   }
+// end of previous helper
+
+// ─── Theme Customization Dialogs ──────────────────────────────────────────
+
+  Future<void> _showThemeModeDialog(BuildContext context, ThemeSettingsState themeState) async {
+    final notifier = ref.read(themeSettingsProvider.notifier);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1B1C22),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Color(0x1FFFFFFF), width: 1),
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+          contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF38BDF8).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.palette_outlined, color: Color(0xFF38BDF8), size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Choose App Theme',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
+              children: AppThemeMode.values.map((mode) {
+                final isSelected = themeState.themeMode == mode;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: TvFocusable(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      notifier.setThemeMode(mode);
+                      Navigator.of(ctx).pop();
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: isSelected ? const Color(0x2438BDF8) : const Color(0xFF23242B),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected ? const Color(0xFF38BDF8) : const Color(0x14FFFFFF),
+                          width: isSelected ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          // Dual Color Preview Swatch (Surface + Card)
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: mode.surfaceColor,
+                              border: Border.all(
+                                color: mode.cardColor,
+                                width: 4,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.3),
+                                  blurRadius: 4,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  mode.displayName,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  mode.subtitle,
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.6),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (isSelected)
+                            const Icon(Icons.check_circle_rounded, color: Color(0xFF38BDF8), size: 20),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showAccentColorDialog(BuildContext context, ThemeSettingsState themeState) async {
+    final notifier = ref.read(themeSettingsProvider.notifier);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1B1C22),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Color(0x1FFFFFFF), width: 1),
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+          contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF43F5E).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.color_lens_outlined, color: Color(0xFFF43F5E), size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Choose Accent Color',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
+              children: AppAccentColor.values.map((accent) {
+                final isSelected = themeState.accentColor == accent;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: TvFocusable(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      notifier.setAccentColor(accent);
+                      Navigator.of(ctx).pop();
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: isSelected ? accent.color.withValues(alpha: 0.18) : const Color(0xFF23242B),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected ? accent.color : const Color(0x14FFFFFF),
+                          width: isSelected ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          // Accent Solid Color Swatch Pill
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: accent.color,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: accent.color.withValues(alpha: 0.4),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Text(
+                              accent.displayName,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          if (isSelected)
+                            Icon(Icons.check_circle_rounded, color: accent.color, size: 20),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildThemeSelectionTile({
+    required String title,
+    required String subtitle,
+    required Widget leadingSwatch,
+    required String currentValue,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: TvFocusable(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF18191E),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0x14FFFFFF), width: 1),
+          ),
+          child: Row(
+            children: [
+              leadingSwatch,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFFAAAAAA),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF272727),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      currentValue,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.arrow_drop_down_rounded, color: Colors.white70, size: 18),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
+
+
+
 
 /// Sleek custom rounded switch input matching the reference design.
 class _SettingsSwitch extends StatelessWidget {
