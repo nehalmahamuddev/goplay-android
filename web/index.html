@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="GoPlay - Premium Live Sports and IPTV Streaming App.">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="goplay">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>GoPlay - Live Sports Streaming</title>
+  <link rel="manifest" href="manifest.json">
+
+  <!-- No webfont is loaded here on purpose.
+       This splash is painted before Flutter boots and is replaced within a few
+       hundred ms, so fetching Orbitron/Inter for it only adds a render-blocking
+       round trip and a visible FOUT. The system sans stack is close enough to
+       Inter at wordmark size, and the app itself uses the bundled Inter. -->
+
+  <!-- Preconnect to Supabase and CDN for faster first API/asset calls -->
+  <link rel="preconnect" href="https://hqmhuvsjlykrdusfkmeg.supabase.co">
+  <link rel="dns-prefetch" href="https://hqmhuvsjlykrdusfkmeg.supabase.co">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+
+  <style>
+    /* Palette mirrors lib/core/theme.dart so the HTML splash and the Flutter
+       splash are the same brand moment: neutral near-black canvas, one teal. */
+    :root {
+      --canvas: #0E0F11;
+      --canvas-deepest: #08090A;
+      --surface-low: #141519;
+      --signal-teal: #00ADB5;
+      --signal-teal-deep: #008A91;
+      --text-primary: #F5F5F7;
+      --text-secondary: #9A9CA8;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                   'Helvetica Neue', Arial, sans-serif;
+    }
+    body {
+      background-color: var(--canvas);
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: var(--font-sans);
+    }
+    #loading-splash {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at center, var(--surface-low) 0%, var(--canvas-deepest) 100%);
+      z-index: 99999;
+      transition: opacity 0.4s ease-out, visibility 0.4s;
+    }
+    #loading-splash.fade-out {
+      opacity: 0;
+      visibility: hidden;
+    }
+    .loader-container {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .pulse-ring {
+      position: absolute;
+      width: 90px;
+      height: 90px;
+      border: 3px solid var(--signal-teal);
+      border-radius: 50%;
+      animation: pulse 1.8s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+      box-shadow: 0 0 20px rgba(0, 173, 181, 0.3);
+    }
+    .inner-circle {
+      width: 54px;
+      height: 54px;
+      background: linear-gradient(135deg, var(--signal-teal) 0%, var(--signal-teal-deep) 100%);
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 0 30px rgba(0, 173, 181, 0.5);
+      animation: bounce 1.8s ease-in-out infinite;
+    }
+    .inner-circle svg {
+      width: 26px;
+      height: 26px;
+      fill: var(--canvas-deepest);
+    }
+    /* Matches GoPlayType.wordmark: 32px / w800 / +2px tracking. */
+    .brand-title {
+      font-family: var(--font-sans);
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--text-primary);
+      letter-spacing: 2px;
+      margin: 8px 0;
+      text-shadow: 0 4px 15px rgba(0, 173, 181, 0.25);
+    }
+    /* Matches GoPlayType.tagline: 11px / w600 / +4px tracking. */
+    .brand-subtitle {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      letter-spacing: 4px;
+      text-transform: uppercase;
+    }
+    @keyframes pulse {
+      0% {
+        transform: scale(0.6);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(1.4);
+        opacity: 0;
+      }
+    }
+    @keyframes bounce {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(0.92);
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Beautiful Premium Loading Splash Screen -->
+  <div id="loading-splash">
+    <div class="loader-container">
+      <div class="pulse-ring"></div>
+      <div class="inner-circle">
+        <!-- Reusable Play Icon representing Sports Streaming -->
+        <svg viewBox="0 0 24 24">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+      </div>
+    </div>
+    <div class="brand-title">GoPlay</div>
+    <div class="brand-subtitle">Live Sports Streaming</div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

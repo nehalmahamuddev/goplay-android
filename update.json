@@ -1,0 +1,14 @@
+{
+  "latestVersion": "2.2.1",
+  "minimumVersion": "2.0.0",
+  "forceUpdate": false,
+  "apkUrl": "https://pub-0440e8e4ec654c10b2471b3b64aa4265.r2.dev/goplay-2.2.1.apk",
+  "releaseNotes": [
+    "Watch live sports in GoPlay.",
+    "Discover upcoming and live matches.",
+    "Faster loading and smoother streaming.",
+    "New category page added.",
+    "Improved stream stability and performance."
+  ],
+  "publishedAt": "2026-10-25 22:32:00+06:00"
+}

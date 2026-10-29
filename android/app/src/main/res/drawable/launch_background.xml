@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Match the app's dark background so there is zero white flash on launch -->
+    <item android:drawable="@color/splash_bg" />
+</layer-list>
