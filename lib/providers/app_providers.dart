@@ -16,7 +16,11 @@ import 'theme_provider.dart';
 
 // ─── Core Service Providers ───────────────────────────────────
 final supabaseServiceProvider = Provider<SupabaseService>((ref) {
-  return SupabaseService(Supabase.instance.client);
+  try {
+    return SupabaseService(Supabase.instance.client);
+  } catch (_) {
+    return SupabaseService();
+  }
 });
 
 final cacheServiceProvider = Provider<CacheService>((ref) {
@@ -404,7 +408,7 @@ final activeCategoriesWithCountsProvider = Provider<AsyncValue<List<(Category, i
   final list = <(Category, int)>[];
   for (final cat in categories) {
     final count = grouped[cat.id]?.length ?? 0;
-    if (count > 0 || cat.active) {
+    if (count > 0 && cat.active) {
       list.add((cat, count));
     }
   }

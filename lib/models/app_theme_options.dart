@@ -130,6 +130,9 @@ enum AppThemeMode {
   /// Surface color for the bottom navigation bar and side navigation rail.
   final Color bottomNavColor;
 
+  /// Surface color for screen headers (e.g. Channels page header), matching [bottomNavColor].
+  Color get headerColor => bottomNavColor;
+
   /// Hairline outline border color for cards and chips.
   final Color cardBorderColor;
 

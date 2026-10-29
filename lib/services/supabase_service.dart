@@ -10,14 +10,16 @@ import '../models/app_ui_config.dart';
 
 /// Service for all Supabase database operations
 class SupabaseService {
-  final SupabaseClient _client;
+  final SupabaseClient? _client;
 
-  SupabaseService(this._client);
+  SupabaseService([this._client]);
 
   /// Fetch version tracking info from database
   Future<Map<String, dynamic>?> getSyncVersions() async {
+    final client = _client;
+    if (client == null) return null;
     try {
-      final response = await _client
+      final response = await client
           .from('app_settings')
           .select('channels_version, events_version, ui_config_version, ui_config')
           .eq('id', 1)
@@ -34,12 +36,14 @@ class SupabaseService {
 
   /// Fetches ALL channels using pagination to bypass the 1000-row PostgREST limit.
   Future<List<Channel>> getChannels() async {
+    final client = _client;
+    if (client == null) return const [];
     const int batchSize = 1000;
     int offset = 0;
     final List<Channel> allChannels = [];
 
     while (true) {
-      final response = await _client
+      final response = await client
           .from('channels')
           .select('*, stream_servers(*)')
           .order('sort_order', ascending: true)
@@ -56,9 +60,11 @@ class SupabaseService {
   }
 
   Future<List<Channel>> getTrendingChannels({int limit = 20}) async {
+    final client = _client;
+    if (client == null) return const [];
     // 1. Try real-time RPC for dynamic trending (Admin pins + 24-48h top plays)
     try {
-      final response = await _client.rpc(
+      final response = await client.rpc(
         'get_trending_channels',
         params: {'p_limit': limit},
       );
@@ -77,7 +83,7 @@ class SupabaseService {
     final List<Channel> allChannels = [];
 
     while (true) {
-      final response = await _client
+      final response = await client
           .from('channels')
           .select('*, stream_servers(*)')
           .eq('is_trending', true)
@@ -95,12 +101,14 @@ class SupabaseService {
   }
 
   Future<List<Channel>> getChannelsByCategory(String categoryId) async {
+    final client = _client;
+    if (client == null) return const [];
     const int batchSize = 1000;
     int offset = 0;
     final List<Channel> allChannels = [];
 
     while (true) {
-      final response = await _client
+      final response = await client
           .from('channels')
           .select('*, stream_servers(*)')
           .eq('category', categoryId)
@@ -118,15 +126,19 @@ class SupabaseService {
   }
 
   Future<Channel?> getChannel(String id) async {
+    final client = _client;
+    if (client == null) return null;
     final response =
-        await _client.from('channels').select().eq('id', id).maybeSingle();
+        await client.from('channels').select().eq('id', id).maybeSingle();
     if (response == null) return null;
     return Channel.fromJson(response);
   }
 
   // ─── Events ─────────────────────────────────────────────────
   Future<List<SportEvent>> getEvents() async {
-    final response = await _client
+    final client = _client;
+    if (client == null) return const [];
+    final response = await client
         .from('events')
         .select()
         .order('sort_order', ascending: true);
@@ -134,7 +146,9 @@ class SupabaseService {
   }
 
   Future<List<SportEvent>> getLiveEvents() async {
-    final response = await _client
+    final client = _client;
+    if (client == null) return const [];
+    final response = await client
         .from('events')
         .select()
         .eq('status', 'live')
@@ -143,7 +157,9 @@ class SupabaseService {
   }
 
   Future<List<SportEvent>> getUpcomingEvents() async {
-    final response = await _client
+    final client = _client;
+    if (client == null) return const [];
+    final response = await client
         .from('events')
         .select()
         .eq('status', 'upcoming')
@@ -152,7 +168,9 @@ class SupabaseService {
   }
 
   Future<List<SportEvent>> getFeaturedEvents() async {
-    final response = await _client
+    final client = _client;
+    if (client == null) return const [];
+    final response = await client
         .from('events')
         .select()
         .eq('is_featured', true)
@@ -162,7 +180,9 @@ class SupabaseService {
 
   // ─── Categories ─────────────────────────────────────────────
   Future<List<Category>> getCategories() async {
-    final response = await _client
+    final client = _client;
+    if (client == null) return const [];
+    final response = await client
         .from('categories')
         .select()
         .eq('active', true)
@@ -172,7 +192,9 @@ class SupabaseService {
 
   // ─── Announcements ─────────────────────────────────────────
   Future<List<Announcement>> getAnnouncements() async {
-    final response = await _client
+    final client = _client;
+    if (client == null) return const [];
+    final response = await client
         .from('announcements')
         .select()
         .eq('active', true)
@@ -182,7 +204,9 @@ class SupabaseService {
 
   // ─── Hero Banners ───────────────────────────────────────────
   Future<List<HeroBannerItem>> getHeroBanners() async {
-    final response = await _client
+    final client = _client;
+    if (client == null) return const [];
+    final response = await client
         .from('hero_banners')
         .select()
         .eq('active', true)
@@ -192,7 +216,9 @@ class SupabaseService {
 
   // ─── Favorites ──────────────────────────────────────────────
   Future<List<String>> getFavoriteIds(String deviceId, String itemType) async {
-    final response = await _client
+    final client = _client;
+    if (client == null) return const [];
+    final response = await client
         .from('favorites')
         .select('item_id')
         .eq('device_id', deviceId)
@@ -202,7 +228,9 @@ class SupabaseService {
 
   Future<void> addFavorite(
       String deviceId, String itemType, String itemId) async {
-    await _client.from('favorites').upsert({
+    final client = _client;
+    if (client == null) return;
+    await client.from('favorites').upsert({
       'device_id': deviceId,
       'item_type': itemType,
       'item_id': itemId,
@@ -211,7 +239,9 @@ class SupabaseService {
 
   Future<void> removeFavorite(
       String deviceId, String itemType, String itemId) async {
-    await _client
+    final client = _client;
+    if (client == null) return;
+    await client
         .from('favorites')
         .delete()
         .eq('device_id', deviceId)
@@ -221,7 +251,9 @@ class SupabaseService {
 
   // ─── Watch History ──────────────────────────────────────────
   Future<List<Map<String, dynamic>>> getWatchHistory(String deviceId) async {
-    final response = await _client
+    final client = _client;
+    if (client == null) return const [];
+    final response = await client
         .from('watch_history')
         .select()
         .eq('device_id', deviceId)
@@ -236,8 +268,10 @@ class SupabaseService {
     String? title,
     String? logo,
   }) async {
+    final client = _client;
+    if (client == null) return;
     // Check if entry exists
-    final existing = await _client
+    final existing = await client
         .from('watch_history')
         .select('id')
         .eq('device_id', deviceId)
@@ -245,12 +279,12 @@ class SupabaseService {
         .maybeSingle();
 
     if (existing != null) {
-      await _client
+      await client
           .from('watch_history')
           .update({'watched_at': DateTime.now().toIso8601String()})
           .eq('id', existing['id']);
     } else {
-      await _client.from('watch_history').insert({
+      await client.from('watch_history').insert({
         'device_id': deviceId,
         'channel_id': channelId,
         'title': title,
@@ -261,8 +295,10 @@ class SupabaseService {
 
   // ─── Stream Servers (Unified Multi-Server Architecture) ───────
   Future<List<StreamServer>> getStreamServers(String channelId) async {
+    final client = _client;
+    if (client == null) return const [];
     try {
-      final response = await _client
+      final response = await client
           .from('stream_servers')
           .select()
           .eq('channel_id', channelId)
@@ -278,15 +314,18 @@ class SupabaseService {
   }
 
   Future<void> upsertStreamServers(List<StreamServer> servers) async {
-    if (servers.isEmpty) return;
+    final client = _client;
+    if (client == null || servers.isEmpty) return;
     final payload = servers.map((s) => s.toJson()).toList();
-    await _client.from('stream_servers').upsert(payload, onConflict: 'id');
+    await client.from('stream_servers').upsert(payload, onConflict: 'id');
   }
 
   // ─── App UI Configuration ────────────────────────────────────
   Future<AppUiConfig?> getUiConfig() async {
+    final client = _client;
+    if (client == null) return null;
     try {
-      final response = await _client
+      final response = await client
           .from('app_settings')
           .select('ui_config')
           .eq('id', 1)

@@ -186,7 +186,7 @@ class CacheService {
   // ─── User Preference: Show Trending Tab ─────────────────────
   bool getShowTrendingTabUserPref() {
     final box = _boxOrNull(AppConstants.settingsBox);
-    return box?.get('user_show_trending_tab') as bool? ?? false;
+    return box?.get('user_show_trending_tab') as bool? ?? true;
   }
 
   Future<void> saveShowTrendingTabUserPref(bool enabled) async {

@@ -15,6 +15,7 @@ import '../../models/category.dart';
 import '../../models/channel.dart';
 import '../../models/app_ui_config.dart';
 import '../../widgets/app_overflow_menu.dart';
+import '../../providers/theme_provider.dart';
 
 const double _kTabStripHeight = 48.0;
 const double _kToolbarHeight = 56.0;
@@ -160,9 +161,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
         (!hasFavorite && !showTrending && (categories?.isEmpty ?? true));
 
     final ids = <String>[
-      if (showAll) 'all',
-      if (hasFavorite) 'favorite',
       if (showTrending) 'trending',
+      if (hasFavorite) 'favorite',
+      if (showAll) 'all',
       ...?categories?.map((e) => e.$1.id),
     ];
 
@@ -399,6 +400,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final themeMode = ref.watch(activeThemeModeProvider);
+    final headerBg = theme.bottomNavigationBarTheme.backgroundColor ?? themeMode.bottomNavColor;
     final activeCatsAsync = ref.watch(activeCategoriesWithCountsProvider);
     final controller = _tabController;
     final categories = activeCatsAsync.value;
@@ -414,61 +417,69 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
         color: cs.surface,
         child: Column(
           children: [
-            // AppBar handles the status-bar inset itself, so no SafeArea is
-            // needed above it.
-            AppBar(
-              automaticallyImplyLeading: false,
-              backgroundColor: cs.surface,
-              surfaceTintColor: Colors.transparent,
-              elevation: 0,
-              scrolledUnderElevation: 0,
-              titleSpacing: 16,
-              toolbarHeight: _kToolbarHeight,
-              title: _isSearching
-                  ? _SearchField(
-                      controller: _searchController,
-                      onChanged: _onSearchChanged,
-                      onClear: _onSearchClearPressed,
-                    )
-                  : Text('Channels', style: theme.appBarTheme.titleTextStyle),
-              actions: _isSearching
-                  ? null
-                  : [
-                      IconButton(
-                        tooltip: 'Search channels',
-                        icon: Icon(Icons.search_rounded,
-                            color: cs.onSurface, size: 22),
-                        onPressed: _openSearch,
-                      ),
-                      const AppOverflowMenu(),
-                      const SizedBox(width: 8),
-                    ],
-            ),
+            // Channels Header: Status Bar + AppBar + Category Tab Bar
+            // Uses headerBg matching the bottom navigation bar and AppThemeMode
+            Container(
+              color: headerBg,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AppBar(
+                    automaticallyImplyLeading: false,
+                    backgroundColor: Colors.transparent,
+                    surfaceTintColor: Colors.transparent,
+                    elevation: 0,
+                    scrolledUnderElevation: 0,
+                    titleSpacing: 16,
+                    toolbarHeight: _kToolbarHeight,
+                    title: _isSearching
+                        ? _SearchField(
+                            controller: _searchController,
+                            onChanged: _onSearchChanged,
+                            onClear: _onSearchClearPressed,
+                          )
+                        : Text('Channels', style: theme.appBarTheme.titleTextStyle),
+                    actions: _isSearching
+                        ? null
+                        : [
+                            IconButton(
+                              tooltip: 'Search channels',
+                              icon: Icon(Icons.search_rounded,
+                                  color: cs.onSurface, size: 22),
+                              onPressed: _openSearch,
+                            ),
+                            const AppOverflowMenu(),
+                            const SizedBox(width: 8),
+                          ],
+                  ),
 
-            // The tab strip occupies the same 48dp in every state, so the grid
-            // no longer jumps down when categories finish loading.
-            SizedBox(
-              height: _kTabStripHeight,
-              child: (controller == null || categories == null)
-                  ? const _TabStripSkeleton()
-                  : _CategoryFilterBar(
-                      tabController: controller,
-                      activeCatsWithCounts: categories,
-                      trendingCount:
-                          (ref.watch(trendingChannelsProvider).value ?? const [])
-                              .length,
-                      favoriteCount:
-                          (ref.watch(channelsProvider).value ?? const [])
-                              .where((c) => ref
-                                  .watch(favoriteChannelIdsProvider)
-                                  .contains(c.id))
-                              .length,
-                      totalCount:
-                          (ref.watch(channelsProvider).value ?? const []).length,
-                      onTabTapped: (index) {
-                        if (index == _coordinator.activeIndex) _scrollToTop();
-                      },
-                    ),
+                  // The tab strip occupies the same 48dp in every state, so the grid
+                  // no longer jumps down when categories finish loading.
+                  SizedBox(
+                    height: _kTabStripHeight,
+                    child: (controller == null || categories == null)
+                        ? const _TabStripSkeleton()
+                        : _CategoryFilterBar(
+                            tabController: controller,
+                            activeCatsWithCounts: categories,
+                            trendingCount:
+                                (ref.watch(trendingChannelsProvider).value ?? const [])
+                                    .length,
+                            favoriteCount:
+                                (ref.watch(channelsProvider).value ?? const [])
+                                    .where((c) => ref
+                                        .watch(favoriteChannelIdsProvider)
+                                        .contains(c.id))
+                                    .length,
+                            totalCount:
+                                (ref.watch(channelsProvider).value ?? const []).length,
+                            onTabTapped: (index) {
+                              if (index == _coordinator.activeIndex) _scrollToTop();
+                            },
+                          ),
+                  ),
+                ],
+              ),
             ),
 
             Expanded(child: _buildBody(activeCatsAsync, controller)),
@@ -854,18 +865,18 @@ class _CategoryFilterBar extends ConsumerWidget {
 
     int tabIndex = 0;
     final tabs = <Widget>[
-      if (showAll)
+      if (showTrending)
         Tab(
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('All'),
+              const Text('Trending'),
               if (tabConfig.showTabCounts) ...[
                 const SizedBox(width: 6),
                 _CountBadge(
                   animation: tabController.animation,
                   index: tabIndex++,
-                  count: totalCount,
+                  count: trendingCount,
                 ),
               ],
             ],
@@ -888,18 +899,18 @@ class _CategoryFilterBar extends ConsumerWidget {
             ],
           ),
         ),
-      if (showTrending)
+      if (showAll)
         Tab(
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Trending'),
+              const Text('All'),
               if (tabConfig.showTabCounts) ...[
                 const SizedBox(width: 6),
                 _CountBadge(
                   animation: tabController.animation,
                   index: tabIndex++,
-                  count: trendingCount,
+                  count: totalCount,
                 ),
               ],
             ],
