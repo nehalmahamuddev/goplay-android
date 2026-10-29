@@ -1474,14 +1474,13 @@ class _ShimmerCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     // Derived from the color scheme so the skeleton stays visible in a light
     // theme; the old hardcoded 5%-white fill was invisible on a light surface.
-    final base = cs.onSurface.withValues(alpha: 0.06);
+
     final highlight = cs.onSurface.withValues(alpha: 0.10);
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: base,
+        color: Theme.of(context).cardColor,
         borderRadius: const BorderRadius.all(Radius.circular(10)),
-        border: Border.fromBorderSide(BorderSide(color: cs.outline, width: 0.8)),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

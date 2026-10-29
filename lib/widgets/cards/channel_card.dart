@@ -101,9 +101,7 @@ class ChannelCard extends ConsumerWidget {
       ),
     );
 
-    final cardBg = channelCardStyle.useCustomOverride && channelCardStyle.backgroundColor.isNotEmpty
-        ? GoPlayTheme.parseHex(channelCardStyle.backgroundColor)
-        : Theme.of(context).cardColor;
+    final cardBg = Theme.of(context).cardColor;
     final cardRadius = channelCardStyle.borderRadius;
     final cardBorder = (channelCardStyle.useCustomOverride && channelCardStyle.borderWidth > 0)
         ? Border.all(

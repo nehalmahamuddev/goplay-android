@@ -148,9 +148,7 @@ class _PlayZEventCardState extends ConsumerState<PlayZEventCard>
     final elapsedText = _formatElapsed(event.startTime);
 
     // Resolves card background: uses custom override if active; otherwise global theme.cardColor
-    final cardBg = eventCardStyle.useCustomOverride && eventCardStyle.backgroundColor.isNotEmpty
-        ? GoPlayTheme.parseHex(eventCardStyle.backgroundColor)
-        : Theme.of(context).cardColor;
+    final cardBg = Theme.of(context).cardColor;
     final onSurface = theme.colorScheme.onSurface; // #F1F1F1 in dark mode
     final onSurfaceVariant = theme.colorScheme.onSurfaceVariant; // #AAAAAA in dark mode
     final onSurfaceMuted = isDark ? GoPlayTheme.darkOnSurfaceMuted : GoPlayTheme.lightOnSurfaceMuted;
