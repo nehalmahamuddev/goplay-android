@@ -30,7 +30,7 @@ class GoPlayTheme {
   //             DARK MODE PALETTE
   // ==========================================
   // YouTube Dark Theme Palette
-  static const Color darkSurface = Color(0xFF111111); // Upstream Normal Dark canvas (#111111)
+  static const Color darkSurface = Color(0xFF000000); // Pure Black (#000000)
   static const Color darkSurfaceContainerLow = Color(0xFF0A0A0A);
   static const Color darkSurfaceContainer = Color(0xFF161616); // Upstream Card container (#161616)
   static const Color darkSurfaceContainerHigh = Color(0xFF1C1C20); // Upstream Elevated surface (#1C1C20)

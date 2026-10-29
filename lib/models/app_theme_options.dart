@@ -7,12 +7,12 @@ import '../core/typography.dart';
 /// Each preset supplies semantic surface colors, border tokens, and text contrast
 /// guarantees tailored for OLED, Android TV, and handheld displays.
 enum AppThemeMode {
-  /// Default Upstream normal dark theme: Charcoal canvas (#111111) with dark card containers (#161616).
+  /// Default Upstream dark theme: Pure black canvas (#000000) with dark card containers (#161616).
   dark(
     id: 'dark',
     displayName: 'Upstream Dark (Default)',
-    subtitle: 'Charcoal canvas (#111111) with #161616 card containers',
-    surfaceColor: Color(0xFF111111),
+    subtitle: 'Pure black canvas (#000000) with #161616 card containers',
+    surfaceColor: Color(0xFF000000),
     cardColor: Color(0xFF161616),
     surfaceContainerHigh: Color(0xFF1C1C20),
     cardBorderColor: Colors.transparent,

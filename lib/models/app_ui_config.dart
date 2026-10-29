@@ -221,7 +221,7 @@ class ThemeConfig {
   const ThemeConfig.defaults()
       : preset = 'upstream',
         primaryColor = '#3D50FA',
-        surfaceColor = '#111111',
+        surfaceColor = '#000000',
         cardColor = '#161616';
 
   factory ThemeConfig.fromJson(Map<String, dynamic>? json) {
@@ -231,7 +231,7 @@ class ThemeConfig {
     return ThemeConfig(
       preset: json['preset'] as String? ?? 'upstream',
       primaryColor: json['primary_color'] as String? ?? '#3D50FA',
-      surfaceColor: json['surface_color'] as String? ?? '#111111',
+      surfaceColor: json['surface_color'] as String? ?? '#000000',
       cardColor: resolvedCard,
     );
   }
