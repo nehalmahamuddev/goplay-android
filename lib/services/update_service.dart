@@ -44,7 +44,7 @@ class UpdateService {
         }
       }
     } catch (_) {
-      // GitHub API rate limited or offline, proceed to fallback
+      // GitHub API rate limited, release not yet created, or offline -> proceed to fallback
     }
 
     // 2. Fallback: Fetch from static update.json
@@ -136,42 +136,57 @@ class UpdateService {
       final dir = Directory(tempDir.path);
       if (await dir.exists()) {
         final list = dir.listSync();
-        for (final file in list) {
-          if (file is File && file.path.endsWith('.apk')) {
+        for (final item in list) {
+          if (item is File && item.path.endsWith('.apk')) {
             try {
-              await file.delete();
+              await item.delete();
             } catch (_) {
-              // Ignore failure to delete stale files
+              // Fail silently for cleanup errors
             }
           }
         }
       }
     } catch (_) {
-      // Ignore directory read errors
+      // Fail silently for cleanup errors
     }
   }
 
-  /// Requests install permissions (for Android 8.0+) and opens the APK file.
-  Future<OpenResult> installApk(String filePath) async {
-    try {
-      if (Platform.isAndroid) {
-        // Check REQUEST_INSTALL_PACKAGES permission
-        final status = await Permission.requestInstallPackages.status;
-        if (!status.isGranted) {
-          final requestStatus = await Permission.requestInstallPackages.request();
-          if (!requestStatus.isGranted) {
-            throw Exception('Permission to install packages was denied');
-          }
-        }
-      }
+  /// Checks if the app has permission to install packages (Android 8+).
+  Future<bool> isInstallPermissionGranted() async {
+    if (Platform.isAndroid) {
+      return await Permission.requestInstallPackages.isGranted;
+    }
+    return true;
+  }
 
+  /// Requests the package installation permission (opens System Settings).
+  Future<bool> requestInstallPermission() async {
+    if (Platform.isAndroid) {
+      final status = await Permission.requestInstallPackages.request();
+      return status.isGranted;
+    }
+    return true;
+  }
+
+  /// Launches the package installer for the downloaded APK.
+  Future<bool> installApk(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (!await file.exists()) {
+        throw Exception('APK file not found for installation: $filePath');
+      }
+      
       final result = await OpenFilex.open(
         filePath,
         type: 'application/vnd.android.package-archive',
       );
-      return result;
+      
+      if (result.type != ResultType.done) {
+        throw Exception('Failed to open APK installer: ${result.message}');
+      }
+      return true;
     } catch (e) {
-      throw Exception('Failed to trigger installation: $e');
+      throw Exception('Error installing APK: $e');
     }
   }
 }
