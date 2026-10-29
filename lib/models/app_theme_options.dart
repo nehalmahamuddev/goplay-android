@@ -7,30 +7,30 @@ import '../core/typography.dart';
 /// Each preset supplies semantic surface colors, border tokens, and text contrast
 /// guarantees tailored for OLED, Android TV, and handheld displays.
 enum AppThemeMode {
-  /// Default Openstream dark theme: Pure black canvas (#000000) with dark surface containers (#121212).
+  /// Default Upstream normal dark theme: Charcoal canvas (#111111) with dark card containers (#161616).
   dark(
     id: 'dark',
-    displayName: 'Openstream Dark (Default)',
-    subtitle: 'Pure black canvas (#000000) with dark card containers (#121212)',
-    surfaceColor: Color(0xFF000000),
-    cardColor: Color(0xFF121212),
-    surfaceContainerHigh: Color(0xFF181818),
+    displayName: 'Upstream Dark (Default)',
+    subtitle: 'Charcoal canvas (#111111) with #161616 card containers',
+    surfaceColor: Color(0xFF111111),
+    cardColor: Color(0xFF161616),
+    surfaceContainerHigh: Color(0xFF1C1C20),
     cardBorderColor: Colors.transparent,
     dividerColor: Color(0x1AFFFFFF),
     onSurfaceColor: Color(0xFFE9EAEE),
     onSurfaceVariantColor: Color(0xFF9BA0A4),
-    onSurfaceMutedColor: Color(0xFF757A80),
+    onSurfaceMutedColor: Color(0xFF9BA0A6),
     isDark: true,
   ),
 
-  /// Pure AMOLED blackout: 0% light emission on both canvas and card surfaces for OLED battery savings.
+  /// Pure AMOLED blackout: 0% light emission on canvas with #121212 card containers for OLED battery savings.
   amoled(
     id: 'amoled',
     displayName: 'AMOLED Blackout',
-    subtitle: 'Absolute pure black on all surfaces for OLED & TV',
+    subtitle: 'Pure black (#000000) canvas with #121212 card containers',
     surfaceColor: Color(0xFF000000),
-    cardColor: Color(0xFF000000),
-    surfaceContainerHigh: Color(0xFF0D0D0D),
+    cardColor: Color(0xFF121212),
+    surfaceContainerHigh: Color(0xFF181818),
     cardBorderColor: Colors.transparent,
     dividerColor: Color(0x20FFFFFF),
     onSurfaceColor: Color(0xFFFFFFFF),
@@ -115,7 +115,7 @@ enum AppThemeMode {
   /// Primary canvas and scaffold background color.
   final Color surfaceColor;
 
-  /// Primary surface container color for cards, dialogs, and panels (#121212 on default).
+  /// Primary surface container color for cards, dialogs, and panels (#161616 on default).
   final Color cardColor;
 
   /// Slightly elevated container surface for hovering, floating chips, or active states.

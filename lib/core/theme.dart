@@ -30,14 +30,14 @@ class GoPlayTheme {
   //             DARK MODE PALETTE
   // ==========================================
   // YouTube Dark Theme Palette
-  static const Color darkSurface = Color(0xFF000000); // Pure Black (#000000)
+  static const Color darkSurface = Color(0xFF111111); // Upstream Normal Dark canvas (#111111)
   static const Color darkSurfaceContainerLow = Color(0xFF0A0A0A);
-  static const Color darkSurfaceContainer = Color(0xFF121212); // Cards & surfaces (#121212)
-  static const Color darkSurfaceContainerHigh = Color(0xFF121212); // Uniform dark surface container (#121212)
-  static const Color darkSurfaceContainerHighest = Color(0xFF222222);
+  static const Color darkSurfaceContainer = Color(0xFF161616); // Upstream Card container (#161616)
+  static const Color darkSurfaceContainerHigh = Color(0xFF1C1C20); // Upstream Elevated surface (#1C1C20)
+  static const Color darkSurfaceContainerHighest = Color(0xFF2B2C30); // Upstream Primary Gray (#2B2C30)
   static const Color darkOnSurface = Color(0xFFE9EAEE); // Primary text
   static const Color darkOnSurfaceVariant = Color(0xFF9BA0A4); // Secondary text
-  static const Color darkOnSurfaceMuted = Color(0xFF757A80); // Tertiary text
+  static const Color darkOnSurfaceMuted = Color(0xFF9BA0A6); // Upstream Icon/Muted text (#9BA0A6)
   static const Color darkCardBorder = Colors.transparent; // Borderless cards
   static const Color darkDivider = Color(0x1AFFFFFF);
   static const Color darkPrimaryContainer = Color(0xFF242E00);
