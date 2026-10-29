@@ -4,18 +4,26 @@ import 'package:flutter/material.dart';
 enum AppThemeMode {
   dark(
     id: 'dark',
-    displayName: 'Default Dark',
-    subtitle: 'Classic sleek near-black canvas',
-    surfaceColor: Color(0xFF0F0F0F),
-    cardColor: Color(0xFF272727),
+    displayName: 'Openstream Dark (Default)',
+    subtitle: 'Pure black canvas with dark card containers',
+    surfaceColor: Color(0xFF000000),
+    cardColor: Color(0xFF121212),
     isDark: true,
   ),
   amoled(
     id: 'amoled',
-    displayName: 'AMOLED Pure Black',
-    subtitle: 'Deep true black for OLED displays & TV screens',
+    displayName: 'AMOLED Blackout',
+    subtitle: 'Absolute pure black on all surfaces for OLED & TV',
     surfaceColor: Color(0xFF000000),
-    cardColor: Color(0xFF161616),
+    cardColor: Color(0xFF000000),
+    isDark: true,
+  ),
+  gray(
+    id: 'gray',
+    displayName: 'Studio Gray',
+    subtitle: 'Smooth charcoal near-black surface',
+    surfaceColor: Color(0xFF0F0F0F),
+    cardColor: Color(0xFF272727),
     isDark: true,
   ),
   dracula(
@@ -70,9 +78,14 @@ enum AppThemeMode {
 
 /// Supported accent / primary color overlays in GoPlay.
 enum AppAccentColor {
+  royalBlue(
+    id: 'royal_blue',
+    displayName: 'Royal Blue (Default)',
+    color: Color(0xFF3D50FA),
+  ),
   volt(
     id: 'volt',
-    displayName: 'Cyber Lime (Default)',
+    displayName: 'Cyber Lime / Volt',
     color: Color(0xFFC8FF00),
   ),
   cyan(
@@ -117,10 +130,10 @@ enum AppAccentColor {
   });
 
   static AppAccentColor fromId(String? id) {
-    if (id == null) return AppAccentColor.volt;
+    if (id == null) return AppAccentColor.royalBlue;
     return AppAccentColor.values.firstWhere(
       (e) => e.id == id,
-      orElse: () => AppAccentColor.volt,
+      orElse: () => AppAccentColor.royalBlue,
     );
   }
 }

@@ -56,7 +56,7 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettingsState> {
 
     return const ThemeSettingsState(
       themeMode: AppThemeMode.dark,
-      accentColor: AppAccentColor.volt,
+      accentColor: AppAccentColor.royalBlue,
       isUsingCustomTheme: false,
     );
   }
@@ -74,7 +74,7 @@ class ThemeSettingsNotifier extends Notifier<ThemeSettingsState> {
   Future<void> resetToCloudDefault() async {
     state = const ThemeSettingsState(
       themeMode: AppThemeMode.dark,
-      accentColor: AppAccentColor.volt,
+      accentColor: AppAccentColor.royalBlue,
       isUsingCustomTheme: false,
     );
 

@@ -219,18 +219,18 @@ class ThemeConfig {
   });
 
   const ThemeConfig.defaults()
-      : preset = 'volt',
-        primaryColor = '#C8FF00',
-        surfaceColor = '#0F0F0F',
-        cardColor = '#272727';
+      : preset = 'openstream',
+        primaryColor = '#3D50FA',
+        surfaceColor = '#000000',
+        cardColor = '#121212';
 
   factory ThemeConfig.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const ThemeConfig.defaults();
     return ThemeConfig(
-      preset: json['preset'] as String? ?? 'volt',
-      primaryColor: json['primary_color'] as String? ?? '#C8FF00',
-      surfaceColor: json['surface_color'] as String? ?? '#0F0F0F',
-      cardColor: json['card_color'] as String? ?? '#272727',
+      preset: json['preset'] as String? ?? 'openstream',
+      primaryColor: json['primary_color'] as String? ?? '#3D50FA',
+      surfaceColor: json['surface_color'] as String? ?? '#000000',
+      cardColor: json['card_color'] as String? ?? '#121212',
     );
   }
 
@@ -997,7 +997,7 @@ class EventCardStyleConfig {
         borderColor = '#272727',
         borderWidth = 1.0,
         borderRadius = 14.0,
-        liveBadgeColor = '#FF2B2B',
+        liveBadgeColor = '#F53B66',
         elevation = 0.0,
         enableGlow = true,
         hotBadge = const HotBadgeConfig.defaults();
@@ -1010,7 +1010,7 @@ class EventCardStyleConfig {
       borderColor: json['border_color'] as String? ?? '#272727',
       borderWidth: (json['border_width'] as num?)?.toDouble() ?? 1.0,
       borderRadius: (json['border_radius'] as num?)?.toDouble() ?? 14.0,
-      liveBadgeColor: json['live_badge_color'] as String? ?? '#FF2B2B',
+      liveBadgeColor: json['live_badge_color'] as String? ?? '#F53B66',
       elevation: (json['elevation'] as num?)?.toDouble() ?? 0.0,
       enableGlow: json['enable_glow'] as bool? ?? true,
       hotBadge: HotBadgeConfig.fromJson(_deepCastMap(json['hot_badge'])),
@@ -1278,4 +1278,5 @@ class SettingsScreenStyleConfig {
         'header_gradient_end': headerGradientEnd,
       };
 }
+
 
