@@ -15,6 +15,7 @@ enum AppThemeMode {
     surfaceColor: Color(0xFF000000),
     cardColor: Color(0xFF161616),
     surfaceContainerHigh: Color(0xFF1C1C20),
+    bottomNavColor: Color(0xFF2B2C30),
     cardBorderColor: Colors.transparent,
     dividerColor: Color(0x1AFFFFFF),
     onSurfaceColor: Color(0xFFE9EAEE),
@@ -31,6 +32,7 @@ enum AppThemeMode {
     surfaceColor: Color(0xFF000000),
     cardColor: Color(0xFF121212),
     surfaceContainerHigh: Color(0xFF181818),
+    bottomNavColor: Color(0xFF000000),
     cardBorderColor: Colors.transparent,
     dividerColor: Color(0x20FFFFFF),
     onSurfaceColor: Color(0xFFFFFFFF),
@@ -47,6 +49,7 @@ enum AppThemeMode {
     surfaceColor: Color(0xFF0F0F0F),
     cardColor: Color(0xFF1B1B1B),
     surfaceContainerHigh: Color(0xFF242424),
+    bottomNavColor: Color(0xFF242424),
     cardBorderColor: Colors.transparent,
     dividerColor: Color(0x15FFFFFF),
     onSurfaceColor: Color(0xFFECECEC),
@@ -63,6 +66,7 @@ enum AppThemeMode {
     surfaceColor: Color(0xFF282A36),
     cardColor: Color(0xFF343746),
     surfaceContainerHigh: Color(0xFF44475A),
+    bottomNavColor: Color(0xFF414450),
     cardBorderColor: Colors.transparent,
     dividerColor: Color(0x226272A4),
     onSurfaceColor: Color(0xFFF8F8F2),
@@ -79,6 +83,7 @@ enum AppThemeMode {
     surfaceColor: Color(0xFF0E1320),
     cardColor: Color(0xFF172033),
     surfaceContainerHigh: Color(0xFF202C45),
+    bottomNavColor: Color(0xFF282F49),
     cardBorderColor: Colors.transparent,
     dividerColor: Color(0x1A5C7CFA),
     onSurfaceColor: Color(0xFFE5EDF7),
@@ -95,6 +100,7 @@ enum AppThemeMode {
     surfaceColor: Color(0xFFF8F9FA),
     cardColor: Color(0xFFFFFFFF),
     surfaceContainerHigh: Color(0xFFECEFF1),
+    bottomNavColor: Color(0xFFF1F1F1),
     cardBorderColor: Colors.transparent,
     dividerColor: Color(0x0F000000),
     onSurfaceColor: Color(0xFF111417),
@@ -121,6 +127,9 @@ enum AppThemeMode {
   /// Slightly elevated container surface for hovering, floating chips, or active states.
   final Color surfaceContainerHigh;
 
+  /// Surface color for the bottom navigation bar and side navigation rail.
+  final Color bottomNavColor;
+
   /// Hairline outline border color for cards and chips.
   final Color cardBorderColor;
 
@@ -146,6 +155,7 @@ enum AppThemeMode {
     required this.surfaceColor,
     required this.cardColor,
     required this.surfaceContainerHigh,
+    required this.bottomNavColor,
     required this.cardBorderColor,
     required this.dividerColor,
     required this.onSurfaceColor,
@@ -153,16 +163,6 @@ enum AppThemeMode {
     required this.onSurfaceMutedColor,
     required this.isDark,
   });
-
-  /// Surface color for the bottom navigation bar and side navigation rail.
-  Color get bottomNavColor => switch (this) {
-        AppThemeMode.dark => const Color(0xFF2B2C30), // Upstream Dark primaryGrayBackground (#2B2C30)
-        AppThemeMode.amoled => const Color(0xFF000000), // Upstream Amoled pure black (#000000)
-        AppThemeMode.dracula => const Color(0xFF414450), // Upstream DraculaPrimaryGrayBackground
-        AppThemeMode.silentBlue => const Color(0xFF282F49), // Upstream SilentBluePrimaryGrayBackground
-        AppThemeMode.light => const Color(0xFFF1F1F1), // Upstream LightPrimaryGrayBackground
-        _ => isDark ? const Color(0xFF2B2C30) : surfaceColor,
-      };
 
   /// Resolves an [AppThemeMode] by [id], falling back to [AppThemeMode.dark].
   static AppThemeMode fromId(String? id) {
