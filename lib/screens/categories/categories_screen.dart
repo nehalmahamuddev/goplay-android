@@ -11,6 +11,7 @@ import '../../providers/theme_provider.dart';
 import '../../providers/playz_providers.dart';
 import '../../widgets/cards/channel_card.dart';
 import '../../widgets/tv_focus_wrapper.dart';
+import '../../widgets/search_pill_card.dart';
 import 'package:go_router/go_router.dart';
 
 enum CategorySortOption { defaultOrder, nameAsc, countDesc }
@@ -45,9 +46,11 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
 
   // Search states
   final TextEditingController _categorySearchController = TextEditingController();
+  final FocusNode _categorySearchFocusNode = FocusNode(debugLabel: 'CategorySearch');
   String _categorySearchQuery = '';
 
   final TextEditingController _channelSearchController = TextEditingController();
+  final FocusNode _channelSearchFocusNode = FocusNode(debugLabel: 'ChannelSearch');
   String _channelSearchQuery = '';
 
   // Filter & Sort states
@@ -64,15 +67,15 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     super.initState();
     _categorySearchController.addListener(() {
       final q = _categorySearchController.text.trim().toLowerCase();
-      if (q != _categorySearchQuery) {
-        setState(() => _categorySearchQuery = q);
+      if (q.isEmpty && _categorySearchQuery.isNotEmpty) {
+        setState(() => _categorySearchQuery = '');
       }
     });
 
     _channelSearchController.addListener(() {
       final q = _channelSearchController.text.trim().toLowerCase();
-      if (q != _channelSearchQuery) {
-        setState(() => _channelSearchQuery = q);
+      if (q.isEmpty && _channelSearchQuery.isNotEmpty) {
+        setState(() => _channelSearchQuery = '');
       }
     });
   }
@@ -80,7 +83,9 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
   @override
   void dispose() {
     _categorySearchController.dispose();
+    _categorySearchFocusNode.dispose();
     _channelSearchController.dispose();
+    _channelSearchFocusNode.dispose();
     _categoryScrollController.dispose();
     _channelScrollController.dispose();
     for (final fn in _categoryFocusNodes.values) {
@@ -92,6 +97,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
 
   void _onCategoryTapped(Category category) {
     HapticFeedback.selectionClick();
+    _categorySearchFocusNode.unfocus();
     _lastSelectedCategoryId = category.id;
     setState(() {
       _selectedCategory = category;
@@ -105,6 +111,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
 
   void _goBackToCategories() {
     HapticFeedback.lightImpact();
+    _channelSearchFocusNode.unfocus();
     setState(() {
       _channelSearchController.clear();
       _channelSearchQuery = '';
@@ -258,11 +265,18 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
           color: headerBg,
           child: SafeArea(
             bottom: false,
-            child: _buildCategorySearchHeader(
-              context: context,
+            child: SearchPillCard(
               controller: _categorySearchController,
+              focusNode: _categorySearchFocusNode,
               hintText: 'Search categories...',
               isFilterActive: isFilterActive,
+              onChanged: (val) {
+                final q = val.trim().toLowerCase();
+                if (q != _categorySearchQuery) {
+                  setState(() => _categorySearchQuery = q);
+                }
+              },
+              onClear: () => setState(() => _categorySearchQuery = ''),
               onFilterTap: () => _showCategoryFilterSheet(context),
             ),
           ),
@@ -442,131 +456,6 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     );
   }
 
-  Widget _buildCategorySearchHeader({
-    required BuildContext context,
-    required TextEditingController controller,
-    required String hintText,
-    required bool isFilterActive,
-    required VoidCallback onFilterTap,
-    Widget? leading,
-  }) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(leading != null ? 8 : 16, 6, 16, 8),
-      child: Row(
-        children: [
-          if (leading != null) ...[
-            leading,
-            const SizedBox(width: 4),
-          ],
-          Expanded(
-            child: Container(
-              height: 48,
-              decoration: BoxDecoration(
-                color: cs.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 14),
-                  Icon(
-                    Icons.search_rounded,
-                    color: cs.onSurfaceVariant.withValues(alpha: 0.7),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: controller,
-                      textInputAction: TextInputAction.search,
-                      cursorColor: const Color(0xFFA855F7),
-                      cursorWidth: 2,
-                      style: TextStyle(
-                        fontFamily: GoPlayType.family,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w400,
-                        color: cs.onSurface,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: hintText,
-                        hintStyle: TextStyle(
-                          fontFamily: GoPlayType.family,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                          color: cs.onSurfaceVariant.withValues(alpha: 0.5),
-                        ),
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        errorBorder: InputBorder.none,
-                        disabledBorder: InputBorder.none,
-                        focusedErrorBorder: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                  ),
-                  ValueListenableBuilder<TextEditingValue>(
-                    valueListenable: controller,
-                    builder: (context, value, child) {
-                      if (value.text.isEmpty) return const SizedBox.shrink();
-                      return IconButton(
-                        tooltip: 'Clear search',
-                        icon: Icon(
-                          Icons.close_rounded,
-                          color: cs.onSurfaceVariant.withValues(alpha: 0.8),
-                          size: 18,
-                        ),
-                        splashRadius: 18,
-                        onPressed: () {
-                          HapticFeedback.lightImpact();
-                          controller.clear();
-                        },
-                      );
-                    },
-                  ),
-                  IconButton(
-                    tooltip: 'Filter and sort',
-                    splashRadius: 20,
-                    icon: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Icon(
-                          Icons.filter_list_rounded,
-                          size: 22,
-                          color: isFilterActive
-                              ? GoPlayTheme.primary
-                              : cs.onSurfaceVariant.withValues(alpha: 0.8),
-                        ),
-                        if (isFilterActive)
-                          Positioned(
-                            top: -1,
-                            right: -1,
-                            child: Container(
-                              width: 7,
-                              height: 7,
-                              decoration: const BoxDecoration(
-                                color: GoPlayTheme.primary,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    onPressed: onFilterTap,
-                  ),
-                  const SizedBox(width: 4),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   // ==========================================
   //         SCREEN 2: CHANNELS GRID
   // ==========================================
@@ -588,11 +477,18 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
           color: headerBg,
           child: SafeArea(
             bottom: false,
-            child: _buildCategorySearchHeader(
-              context: context,
+            child: SearchPillCard(
               controller: _channelSearchController,
+              focusNode: _channelSearchFocusNode,
               hintText: 'Search in ${category.name}...',
               isFilterActive: isFilterActive,
+              onChanged: (val) {
+                final q = val.trim().toLowerCase();
+                if (q != _channelSearchQuery) {
+                  setState(() => _channelSearchQuery = q);
+                }
+              },
+              onClear: () => setState(() => _channelSearchQuery = ''),
               onFilterTap: () => _showChannelFilterSheet(context, category),
               leading: IconButton(
                 icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
@@ -824,7 +720,12 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                             color: cs.onSurfaceVariant,
                           ),
                         ),
-                        activeThumbColor: GoPlayTheme.primary,
+                        activeThumbColor: Colors.white,
+                        activeTrackColor: cs.primary,
+                        inactiveThumbColor: const Color(0xFFB0B0B0),
+                        inactiveTrackColor: const Color(0xFF2C2C2E),
+                        trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         value: _filterFavoriteCategories,
                         onChanged: (val) {
                           HapticFeedback.selectionClick();
@@ -1048,7 +949,12 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                             color: cs.onSurfaceVariant,
                           ),
                         ),
-                        activeThumbColor: GoPlayTheme.primary,
+                        activeThumbColor: Colors.white,
+                        activeTrackColor: cs.primary,
+                        inactiveThumbColor: const Color(0xFFB0B0B0),
+                        inactiveTrackColor: const Color(0xFF2C2C2E),
+                        trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         value: _filterFavoriteChannels,
                         onChanged: (val) {
                           HapticFeedback.selectionClick();

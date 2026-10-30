@@ -14,11 +14,13 @@ import '../../widgets/cards/channel_card.dart';
 import '../../models/category.dart';
 import '../../models/channel.dart';
 import '../../models/app_ui_config.dart';
-import '../../widgets/app_overflow_menu.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import '../../providers/theme_provider.dart';
+import '../../widgets/search_pill_card.dart';
+import '../categories/categories_screen.dart' show ChannelSortOption;
 
 const double _kTabStripHeight = 48.0;
-const double _kToolbarHeight = 56.0;
 const double _kGridSpacing = 8.0;
 const double _kGridEdgeInset = 10.0;
 
@@ -61,9 +63,11 @@ class ChannelsScreen extends ConsumerStatefulWidget {
 class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
     with TickerProviderStateMixin {
   final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode(debugLabel: 'ChannelsSearch');
   final _searchQueryNotifier = ValueNotifier<String>('');
+  final _channelSortNotifier =
+      ValueNotifier<ChannelSortOption>(ChannelSortOption.defaultOrder);
   Timer? _debounceTimer;
-  bool _isSearching = false;
 
   TabController? _tabController;
 
@@ -133,7 +137,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     _searchQueryNotifier.dispose();
+    _channelSortNotifier.dispose();
     _debounceTimer?.cancel();
     _prefetchTimer?.cancel();
     _prefetchGeneration++;
@@ -365,16 +371,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
     );
   }
 
-  // ─── Search ─────────────────────────────────────────────────
-
-  void _openSearch() => setState(() => _isSearching = true);
-
-  void _closeSearch() {
-    _debounceTimer?.cancel();
-    _searchController.clear();
-    _searchQueryNotifier.value = '';
-    setState(() => _isSearching = false);
-  }
+  // ─── Search & Filters ───────────────────────────────────────
 
   void _onSearchChanged(String value) {
     _debounceTimer?.cancel();
@@ -385,13 +382,285 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
   }
 
   void _onSearchClearPressed() {
-    if (_searchController.text.isEmpty) {
-      _closeSearch();
-      return;
-    }
     _debounceTimer?.cancel();
     _searchController.clear();
     _searchQueryNotifier.value = '';
+  }
+
+  void _showChannelsFilterSheet(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF161616) : cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (bottomSheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final hasActiveFilters =
+                _channelSortNotifier.value != ChannelSortOption.defaultOrder;
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Drag Handle
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: cs.onSurface.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Header Row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Filters & Sorting',
+                          style: (Theme.of(context).textTheme.titleMedium ??
+                                  GoPlayType.title)
+                              .copyWith(
+                            color: cs.onSurface,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (hasActiveFilters)
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              foregroundColor: GoPlayTheme.primary,
+                              visualDensity: VisualDensity.compact,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 10),
+                            ),
+                            onPressed: () {
+                              HapticFeedback.selectionClick();
+                              _channelSortNotifier.value =
+                                  ChannelSortOption.defaultOrder;
+                              setSheetState(() {});
+                            },
+                            child: const Text('Reset'),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Sort Options
+                    Text(
+                      'SORT BY',
+                      style: GoPlayType.labelSmall.copyWith(
+                        color: cs.onSurfaceVariant,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF202020)
+                            : cs.surfaceContainerHighest.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        children: [
+                          _buildSortTile(
+                            context: context,
+                            title: 'Default (Original order)',
+                            icon: Icons.sort_rounded,
+                            isSelected: _channelSortNotifier.value ==
+                                ChannelSortOption.defaultOrder,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              _channelSortNotifier.value =
+                                  ChannelSortOption.defaultOrder;
+                              setSheetState(() {});
+                            },
+                          ),
+                          Divider(
+                            height: 1,
+                            color: cs.onSurface.withValues(alpha: 0.06),
+                            indent: 48,
+                          ),
+                          _buildSortTile(
+                            context: context,
+                            title: 'Alphabetical (A to Z)',
+                            icon: Icons.sort_by_alpha_rounded,
+                            isSelected: _channelSortNotifier.value ==
+                                ChannelSortOption.nameAsc,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              _channelSortNotifier.value =
+                                  ChannelSortOption.nameAsc;
+                              setSheetState(() {});
+                            },
+                          ),
+                          Divider(
+                            height: 1,
+                            color: cs.onSurface.withValues(alpha: 0.06),
+                            indent: 48,
+                          ),
+                          _buildSortTile(
+                            context: context,
+                            title: 'Alphabetical (Z to A)',
+                            icon: Icons.sort_by_alpha_rounded,
+                            isSelected: _channelSortNotifier.value ==
+                                ChannelSortOption.nameDesc,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              _channelSortNotifier.value =
+                                  ChannelSortOption.nameDesc;
+                              setSheetState(() {});
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Quick Actions
+                    Text(
+                      'QUICK ACTIONS',
+                      style: GoPlayType.labelSmall.copyWith(
+                        color: cs.onSurfaceVariant,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildActionCard(
+                            context: context,
+                            icon: Icons.refresh_rounded,
+                            label: 'Refresh',
+                            onTap: () {
+                              Navigator.pop(bottomSheetContext);
+                              HapticFeedback.mediumImpact();
+                              ref.invalidate(channelsProvider);
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildActionCard(
+                            context: context,
+                            icon: Icons.settings_outlined,
+                            label: 'Settings',
+                            onTap: () {
+                              Navigator.pop(bottomSheetContext);
+                              context.push('/settings');
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSortTile({
+    required BuildContext context,
+    required String title,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: isSelected ? GoPlayTheme.primary : cs.onSurfaceVariant,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontFamily: GoPlayType.family,
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  color: isSelected ? GoPlayTheme.primary : cs.onSurface,
+                ),
+              ),
+            ),
+            if (isSelected)
+              const Icon(
+                Icons.check_rounded,
+                size: 20,
+                color: GoPlayTheme.primary,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionCard({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Material(
+      color: isDark
+          ? const Color(0xFF202020)
+          : cs.surfaceContainerHighest.withValues(alpha: 0.5),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: cs.onSurface),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: GoPlayType.family,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: cs.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // ─── Build ──────────────────────────────────────────────────
@@ -406,52 +675,53 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
     final controller = _tabController;
     final categories = activeCatsAsync.value;
 
-    return PopScope(
-      // Back closes the search field first instead of leaving the screen with
-      // search still open.
-      canPop: !_isSearching,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _isSearching) _closeSearch();
-      },
-      child: Material(
-        color: cs.surface,
-        child: Column(
-          children: [
-            // Channels Header: Status Bar + AppBar + Category Tab Bar
-            // Uses headerBg matching the bottom navigation bar and AppThemeMode
-            Container(
-              color: headerBg,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AppBar(
-                    automaticallyImplyLeading: false,
-                    backgroundColor: Colors.transparent,
-                    surfaceTintColor: Colors.transparent,
-                    elevation: 0,
-                    scrolledUnderElevation: 0,
-                    titleSpacing: 16,
-                    toolbarHeight: _kToolbarHeight,
-                    title: _isSearching
-                        ? _SearchField(
-                            controller: _searchController,
-                            onChanged: _onSearchChanged,
-                            onClear: _onSearchClearPressed,
-                          )
-                        : Text('Channels', style: theme.appBarTheme.titleTextStyle),
-                    actions: _isSearching
-                        ? null
-                        : [
-                            IconButton(
-                              tooltip: 'Search channels',
-                              icon: Icon(Icons.search_rounded,
-                                  color: cs.onSurface, size: 22),
-                              onPressed: _openSearch,
-                            ),
-                            const AppOverflowMenu(),
-                            const SizedBox(width: 8),
-                          ],
-                  ),
+    return ListenableBuilder(
+      listenable: Listenable.merge([_searchController, _channelSortNotifier]),
+      builder: (context, _) {
+        final canPop = _searchController.text.isEmpty &&
+            _channelSortNotifier.value == ChannelSortOption.defaultOrder;
+        return PopScope(
+          canPop: canPop,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop) {
+              if (_searchController.text.isNotEmpty) {
+                _onSearchClearPressed();
+              } else if (_channelSortNotifier.value !=
+                  ChannelSortOption.defaultOrder) {
+                _channelSortNotifier.value = ChannelSortOption.defaultOrder;
+              }
+            }
+          },
+          child: Material(
+            color: cs.surface,
+            child: Column(
+              children: [
+                // Channels Header: Status Bar + SearchPillCard + Category Tab Bar
+                // Uses headerBg matching the bottom navigation bar and AppThemeMode
+                Container(
+                  color: headerBg,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SafeArea(
+                        bottom: false,
+                        child: ValueListenableBuilder<ChannelSortOption>(
+                          valueListenable: _channelSortNotifier,
+                          builder: (context, currentSort, _) {
+                            return SearchPillCard(
+                              controller: _searchController,
+                              focusNode: _searchFocusNode,
+                              hintText: 'Search channels...',
+                              isFilterActive: currentSort !=
+                                  ChannelSortOption.defaultOrder,
+                              onChanged: _onSearchChanged,
+                              onClear: _onSearchClearPressed,
+                              onFilterTap: () =>
+                                  _showChannelsFilterSheet(context),
+                            );
+                          },
+                        ),
+                      ),
 
                   // The tab strip occupies the same 48dp in every state, so the grid
                   // no longer jumps down when categories finish loading.
@@ -487,6 +757,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
         ),
       ),
     );
+      },
+    );
   }
 
   Widget _buildBody(
@@ -519,70 +791,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
             coordinator: _coordinator,
             scrollController: _scrollControllerFor(_categoryIds[i]),
             searchQueryNotifier: _searchQueryNotifier,
+            sortNotifier: _channelSortNotifier,
           ),
       ],
     );
   }
 }
 
-// ─── Search Field ──────────────────────────────────────────────
-class _SearchField extends StatelessWidget {
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onClear;
-
-  const _SearchField({
-    required this.controller,
-    required this.onChanged,
-    required this.onClear,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    const radius = BorderRadius.all(Radius.circular(100));
-
-    return SizedBox(
-      height: 40,
-      child: TextField(
-        controller: controller,
-        autofocus: true,
-        onChanged: onChanged,
-        textInputAction: TextInputAction.search,
-        cursorColor: cs.primary,
-        style: GoPlayType.body.copyWith(color: cs.onSurface),
-        decoration: InputDecoration(
-          filled: true,
-          fillColor: cs.surfaceContainerHigh,
-          contentPadding:
-              const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-          hintText: 'Search by name, country, language…',
-          hintStyle: GoPlayType.body.copyWith(color: cs.onSurfaceVariant),
-          isDense: true,
-          border: const OutlineInputBorder(
-            borderRadius: radius,
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: const OutlineInputBorder(
-            borderRadius: radius,
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: const OutlineInputBorder(
-            borderRadius: radius,
-            borderSide: BorderSide.none,
-          ),
-          prefixIcon:
-              Icon(Icons.search_rounded, color: cs.onSurfaceVariant, size: 20),
-          suffixIcon: IconButton(
-            tooltip: 'Clear search',
-            icon: Icon(Icons.close_rounded, color: cs.onSurfaceVariant, size: 18),
-            onPressed: onClear,
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 // ─── Empty State ──────────────────────────────────────────────
 class _EmptyState extends StatelessWidget {
@@ -1104,6 +1319,7 @@ class _ResponsiveGrid extends ConsumerStatefulWidget {
   final int pageIndex;
   final _PageCoordinator coordinator;
   final ValueNotifier<String> searchQueryNotifier;
+  final ValueNotifier<ChannelSortOption> sortNotifier;
   final VoidCallback onClearSearch;
   final VoidCallback onViewAll;
 
@@ -1113,6 +1329,7 @@ class _ResponsiveGrid extends ConsumerStatefulWidget {
     required this.pageIndex,
     required this.coordinator,
     required this.searchQueryNotifier,
+    required this.sortNotifier,
     required this.onClearSearch,
     required this.onViewAll,
   });
@@ -1124,12 +1341,14 @@ class _ResponsiveGrid extends ConsumerStatefulWidget {
 class _ResponsiveGridState extends ConsumerState<_ResponsiveGrid> {
   List<Channel>? _filtered;
   String _lastQuery = '';
+  ChannelSortOption _lastSort = ChannelSortOption.defaultOrder;
   List<Channel>? _lastChannels;
 
   @override
   void initState() {
     super.initState();
     widget.searchQueryNotifier.addListener(_onSearchChanged);
+    widget.sortNotifier.addListener(_onSearchChanged);
   }
 
   @override
@@ -1139,11 +1358,16 @@ class _ResponsiveGridState extends ConsumerState<_ResponsiveGrid> {
       oldWidget.searchQueryNotifier.removeListener(_onSearchChanged);
       widget.searchQueryNotifier.addListener(_onSearchChanged);
     }
+    if (oldWidget.sortNotifier != widget.sortNotifier) {
+      oldWidget.sortNotifier.removeListener(_onSearchChanged);
+      widget.sortNotifier.addListener(_onSearchChanged);
+    }
   }
 
   @override
   void dispose() {
     widget.searchQueryNotifier.removeListener(_onSearchChanged);
+    widget.sortNotifier.removeListener(_onSearchChanged);
     super.dispose();
   }
 
@@ -1161,20 +1385,30 @@ class _ResponsiveGridState extends ConsumerState<_ResponsiveGrid> {
 
   List<Channel> _computeFiltered() {
     final query = widget.searchQueryNotifier.value.trim().toLowerCase();
+    final sort = widget.sortNotifier.value;
     if (_filtered != null &&
         _lastQuery == query &&
+        _lastSort == sort &&
         identical(_lastChannels, widget.channels)) {
       return _filtered!;
     }
     _lastQuery = query;
+    _lastSort = sort;
     _lastChannels = widget.channels;
-    // One `contains` against a cached, pre-lowercased index per channel instead
-    // of three fresh `toLowerCase()` allocations.
-    _filtered = query.isEmpty
-        ? widget.channels
+
+    final list = query.isEmpty
+        ? List<Channel>.of(widget.channels)
         : widget.channels
             .where((ch) => ch.searchIndex.contains(query))
             .toList();
+
+    if (sort == ChannelSortOption.nameAsc) {
+      list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    } else if (sort == ChannelSortOption.nameDesc) {
+      list.sort((a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()));
+    }
+
+    _filtered = list;
     return _filtered!;
   }
 
@@ -1274,6 +1508,7 @@ class _CategoryPageContent extends ConsumerStatefulWidget {
   final _PageCoordinator coordinator;
   final ScrollController scrollController;
   final ValueNotifier<String> searchQueryNotifier;
+  final ValueNotifier<ChannelSortOption> sortNotifier;
 
   const _CategoryPageContent({
     super.key,
@@ -1282,6 +1517,7 @@ class _CategoryPageContent extends ConsumerStatefulWidget {
     required this.coordinator,
     required this.scrollController,
     required this.searchQueryNotifier,
+    required this.sortNotifier,
   });
 
   @override
@@ -1400,6 +1636,7 @@ class _CategoryPageContentState extends ConsumerState<_CategoryPageContent>
               pageIndex: widget.pageIndex,
               coordinator: widget.coordinator,
               searchQueryNotifier: widget.searchQueryNotifier,
+              sortNotifier: widget.sortNotifier,
               onClearSearch: () => widget.searchQueryNotifier.value = '',
               onViewAll: () =>
                   ref.read(selectedCategoryProvider.notifier).select('all'),
