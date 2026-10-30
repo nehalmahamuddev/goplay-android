@@ -127,8 +127,9 @@ class UpdateNotifier extends Notifier<UpdateState> {
 
   /// Checks for updates.
   /// Set [isManual] to true if triggered by the user clicking a button.
+  /// Set [isStartup] to true when triggered upon cold app launch.
   /// Non-manual checks handle network errors gracefully without interrupting the user.
-  Future<void> checkForUpdates({bool isManual = false}) async {
+  Future<void> checkForUpdates({bool isManual = false, bool isStartup = false}) async {
     if (state.status == UpdateStatus.checking || state.status == UpdateStatus.downloading) {
       return;
     }
@@ -141,7 +142,10 @@ class UpdateNotifier extends Notifier<UpdateState> {
 
     try {
       final repo = ref.read(updateRepositoryProvider);
-      final result = await repo.checkForUpdates(forceCheck: isManual);
+      final result = await repo.checkForUpdates(
+        forceCheck: isManual,
+        isStartup: isStartup,
+      );
       final lastCheck = repo.getLastCheckTimestamp();
 
       if (result.error != null && isManual) {

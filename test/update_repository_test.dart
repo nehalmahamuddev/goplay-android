@@ -104,6 +104,55 @@ void main() {
       expect(mockService.fetchCallCount, equals(1));
       expect(forcedResult.isUpdateAvailable, isTrue);
     });
+
+    test('isStartup bypasses cooldown on fresh app launch', () async {
+      final oneMinuteAgo = DateTime.now().subtract(const Duration(minutes: 1));
+      await settingsBox.put('last_update_check_time', oneMinuteAgo.toIso8601String());
+
+      // Normal background check would be skipped by cooldown
+      final regularResult = await repository.checkForUpdates(forceCheck: false, isStartup: false);
+      expect(mockService.fetchCallCount, equals(0));
+      expect(regularResult.isUpdateAvailable, isFalse);
+
+      // isStartup triggers immediate check
+      final startupResult = await repository.checkForUpdates(forceCheck: false, isStartup: true);
+      expect(mockService.fetchCallCount, equals(1));
+      expect(startupResult.isUpdateAvailable, isTrue);
+    });
+  });
+
+  group('UpdateInfo - Direct GitHub Release parsing', () {
+    test('parses GitHub API response and detects [MANDATORY] flag', () {
+      final json = {
+        'tag_name': 'v2.3.3',
+        'body': '• Critical security update\n• [MANDATORY] Please update immediately\n• Fix stream buffering',
+        'assets': [
+          {
+            'name': 'goplay.apk',
+            'content_type': 'application/vnd.android.package-archive',
+            'browser_download_url': 'https://github.com/nehalmahamuddev/goplay-android/releases/download/v2.3.3/goplay.apk',
+          }
+        ],
+        'published_at': '2026-10-31T00:00:00Z',
+      };
+
+      final info = UpdateInfo.fromGithubRelease(json);
+      expect(info.latestVersion, equals('2.3.3'));
+      expect(info.forceUpdate, isTrue);
+      expect(info.apkUrl, equals('https://github.com/nehalmahamuddev/goplay-android/releases/download/v2.3.3/goplay.apk'));
+      expect(info.releaseNotes, contains('Critical security update'));
+      expect(info.releaseNotes, contains('Fix stream buffering'));
+    });
+
+    test('fromTag constructs direct GitHub release download URL', () {
+      final info = UpdateInfo.fromTag(tag: 'v2.3.4');
+      expect(info.latestVersion, equals('2.3.4'));
+      expect(info.forceUpdate, isFalse);
+      expect(
+        info.apkUrl,
+        equals('https://github.com/${AppConstants.githubOwner}/${AppConstants.githubRepo}/releases/download/v2.3.4/goplay.apk'),
+      );
+    });
   });
 
   group('UpdateState - isManualCheck tracking', () {

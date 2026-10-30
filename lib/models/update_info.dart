@@ -1,3 +1,5 @@
+import '../core/constants.dart';
+
 /// Data model representing the remote update configuration.
 class UpdateInfo {
   final String latestVersion;
@@ -51,8 +53,17 @@ class UpdateInfo {
       }
     }
 
-    // 3. Parse Release Notes from Body
+    // Fallback direct download URL if asset wasn't matched explicitly
+    if (apkDownloadUrl.isEmpty && tagName.isNotEmpty) {
+      apkDownloadUrl =
+          'https://github.com/${AppConstants.githubOwner}/${AppConstants.githubRepo}/releases/download/$tagName/goplay.apk';
+    }
+
+    // 3. Parse Release Notes from Body & check for mandatory flag
     final body = json['body'] as String? ?? '';
+    final bodyUpper = body.toUpperCase();
+    final isForce = bodyUpper.contains('[MANDATORY]') || bodyUpper.contains('[FORCE_UPDATE]');
+
     final notes = <String>[];
     for (final rawLine in body.split('\n')) {
       final line = rawLine.trim();
@@ -83,10 +94,34 @@ class UpdateInfo {
     return UpdateInfo(
       latestVersion: cleanVersion.isNotEmpty ? cleanVersion : tagName,
       minimumVersion: '1.0.0',
-      forceUpdate: false,
+      forceUpdate: isForce,
       apkUrl: apkDownloadUrl,
       releaseNotes: notes,
       publishedAt: publishedAt,
+    );
+  }
+
+  /// Factory constructor when resolving tag directly from GitHub web redirect.
+  factory UpdateInfo.fromTag({
+    required String tag,
+    String? apkUrl,
+    List<String>? releaseNotes,
+    bool isForce = false,
+    DateTime? publishedAt,
+  }) {
+    final cleanVersion = tag.replaceFirst(RegExp(r'^[vV]'), '').split('-').first.trim();
+    final finalApkUrl = (apkUrl != null && apkUrl.isNotEmpty)
+        ? apkUrl
+        : 'https://github.com/${AppConstants.githubOwner}/${AppConstants.githubRepo}/releases/download/$tag/goplay.apk';
+    return UpdateInfo(
+      latestVersion: cleanVersion.isNotEmpty ? cleanVersion : tag,
+      minimumVersion: '1.0.0',
+      forceUpdate: isForce,
+      apkUrl: finalApkUrl,
+      releaseNotes: releaseNotes ?? const [
+        'Latest updates and performance improvements from GitHub Release.',
+      ],
+      publishedAt: publishedAt ?? DateTime.now(),
     );
   }
 

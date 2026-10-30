@@ -28,9 +28,9 @@ class _UpdateHandlerState extends ConsumerState<UpdateHandler> with WidgetsBindi
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // Trigger initial check for updates on app startup
+    // Trigger initial check for updates on app startup (immediate check against GitHub)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(updateProvider.notifier).checkForUpdates(isManual: false);
+      ref.read(updateProvider.notifier).checkForUpdates(isManual: false, isStartup: true);
     });
   }
 

@@ -13,15 +13,18 @@ class UpdateService {
 
   UpdateService(this._dio);
 
-  /// Fetches update info from GitHub Releases API, falling back to static update.json if needed.
+  /// Fetches update info exclusively from GitHub Releases.
+  /// Uses GitHub Releases API as primary, falling back to direct GitHub web redirect
+  /// (which has no rate limits) if the REST API is rate-limited or unavailable.
   Future<UpdateInfo> fetchLatestRelease() async {
+    // 1. Primary: Fetch from GitHub REST API
     try {
-      // 1. Primary: Fetch from GitHub Releases API
       final response = await _dio.get(
         AppConstants.githubLatestReleaseUrl,
         options: Options(
           headers: {
             'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'GoPlay-App/${AppConstants.appVersion}',
             'Cache-Control': 'no-cache',
             'Pragma': 'no-cache',
             'Expires': '0',
@@ -36,49 +39,81 @@ class UpdateService {
             : (data is String ? jsonDecode(data) as Map<String, dynamic> : null);
 
         if (jsonMap != null) {
-          final info = UpdateInfo.fromGithubRelease(jsonMap);
-          // If a valid APK was found in the GitHub release
-          if (info.apkUrl.isNotEmpty) {
-            return info;
+          final isDraft = jsonMap['draft'] as bool? ?? false;
+          final isPrerelease = jsonMap['prerelease'] as bool? ?? false;
+          if (!isDraft && !isPrerelease) {
+            final info = UpdateInfo.fromGithubRelease(jsonMap);
+            if (info.apkUrl.isNotEmpty) {
+              return info;
+            }
           }
         }
       }
     } catch (_) {
-      // GitHub API rate limited, release not yet created, or offline -> proceed to fallback
+      // GitHub REST API rate limited (HTTP 403), network error, or offline -> proceed to GitHub Web fallback
     }
 
-    // 2. Fallback: Fetch from static update.json
-    return fetchUpdateInfo(AppConstants.fallbackUpdateJsonUrl);
+    // 2. Fallback: Direct GitHub Web Redirect (Zero rate limits, zero middleman)
+    return fetchLatestReleaseFromWebRedirect();
   }
 
-  /// Fetches the update configuration from the remote JSON file.
-  Future<UpdateInfo> fetchUpdateInfo(String url) async {
+  /// Fallback mechanism that checks GitHub's public web release redirect.
+  /// https://github.com/owner/repo/releases/latest returns HTTP 302 Found redirecting
+  /// to https://github.com/owner/repo/releases/tag/vX.Y.Z
+  Future<UpdateInfo> fetchLatestReleaseFromWebRedirect() async {
     try {
       final response = await _dio.get(
-        url,
+        AppConstants.githubLatestWebReleaseUrl,
         options: Options(
+          followRedirects: false,
+          validateStatus: (status) => status != null && status < 400,
           headers: {
+            'User-Agent': 'GoPlay-App/${AppConstants.appVersion}',
             'Cache-Control': 'no-cache',
             'Pragma': 'no-cache',
             'Expires': '0',
           },
         ),
       );
-      if (response.statusCode == 200) {
-        final data = response.data;
-        if (data is Map<String, dynamic>) {
-          return UpdateInfo.fromJson(data);
-        } else if (data is String) {
-          return UpdateInfo.fromJson(jsonDecode(data) as Map<String, dynamic>);
-        }
-        throw Exception('Invalid update.json format');
+
+      String? redirectLocation = response.headers.value('location');
+      if (redirectLocation == null || redirectLocation.isEmpty) {
+        redirectLocation = response.realUri.toString();
       }
-      throw Exception('Failed to fetch update info: ${response.statusCode}');
-    } on DioException catch (e) {
-      throw Exception('Network error checking for updates: ${e.message ?? e.toString()}');
-    } catch (e) {
-      throw Exception('Failed to parse update info: $e');
+
+      if (redirectLocation.contains('/tag/')) {
+        final tag = redirectLocation.split('/tag/').last.split('?').first.split('#').first.trim();
+        if (tag.isNotEmpty) {
+          return UpdateInfo.fromTag(tag: tag);
+        }
+      }
+    } catch (_) {
+      // If HEAD/no-redirect failed, try with redirects followed
+      try {
+        final response = await _dio.get(
+          AppConstants.githubLatestWebReleaseUrl,
+          options: Options(
+            followRedirects: true,
+            maxRedirects: 5,
+            headers: {
+              'User-Agent': 'GoPlay-App/${AppConstants.appVersion}',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache',
+              'Expires': '0',
+            },
+          ),
+        );
+        final realUriStr = response.realUri.toString();
+        if (realUriStr.contains('/tag/')) {
+          final tag = realUriStr.split('/tag/').last.split('?').first.split('#').first.trim();
+          if (tag.isNotEmpty) {
+            return UpdateInfo.fromTag(tag: tag);
+          }
+        }
+      } catch (_) {}
     }
+
+    throw Exception('Unable to check GitHub Releases. Please verify your internet connection.');
   }
 
   /// Gets the current application version using [package_info_plus].

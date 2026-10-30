@@ -59,11 +59,15 @@ class UpdateRepository {
   }
 
   /// Fetches update info and determines if an update is available.
-  Future<UpdateCheckResult> checkForUpdates({bool forceCheck = false}) async {
+  Future<UpdateCheckResult> checkForUpdates({
+    bool forceCheck = false,
+    bool isStartup = false,
+  }) async {
     final currentVersion = await getCurrentVersion();
     
-    // Check if we should skip check based on 5-minute safety cooldown or disabled setting
-    if (!forceCheck && !shouldCheckForUpdate()) {
+    // Check if we should skip check based on 5-minute safety cooldown or disabled setting.
+    // Startup checks (fresh app launch) and manual user checks bypass the cooldown.
+    if (!forceCheck && !isStartup && !shouldCheckForUpdate()) {
       final cachedInfo = _getCachedUpdateInfo();
       if (cachedInfo != null) {
         final hasUpdate = VersionUtils.compare(cachedInfo.latestVersion, currentVersion) > 0;
