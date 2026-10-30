@@ -125,9 +125,10 @@ const List<Category> defaultUnifiedCategories = [
   ),
 ];
 
-/// Provides Categories from merged Supabase categories table
+/// Provides Categories from merged Supabase categories table (filtered for active categories)
 final playzCategoriesProvider = FutureProvider<List<Category>>((ref) async {
-  return ref.watch(categoriesProvider.future);
+  final categories = await ref.watch(categoriesProvider.future);
+  return categories.where((c) => c.active).toList();
 });
 
 /// Holds the currently selected Category for single-screen expansion
@@ -146,6 +147,7 @@ class PlayzSelectedCategoryNotifier extends Notifier<Category?> {
 /// Fetches channels for a selected Category (Supabase-first + PlayZ fallback)
 final playzCategoryChannelsProvider =
     FutureProvider.family<List<Channel>, Category>((ref, category) async {
+  if (!category.active) return const [];
   final supabase = ref.watch(supabaseServiceProvider);
 
   // 1. Supabase-first: check merged channels table
@@ -171,5 +173,8 @@ final playzCategoryChannelsProvider =
     if (direct.isNotEmpty) return direct;
   }
 
-  return const [];
+  // 3. Fallback to local cache if offline or direct fetch returns empty
+  final cache = ref.watch(cacheServiceProvider);
+  final local = cache.getLocalChannels();
+  return local.where((c) => c.category == category.id).toList();
 });

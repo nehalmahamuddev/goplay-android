@@ -1,12 +1,11 @@
 {
-  "latestVersion": "2.3.1",
+  "latestVersion": "2.3.2",
   "minimumVersion": "2.0.0",
   "forceUpdate": false,
-  "apkUrl": "https://pub-0440e8e4ec654c10b2471b3b64aa4265.r2.dev/goplay-2.3.1.apk",
+  "apkUrl": "https://pub-0440e8e4ec654c10b2471b3b64aa4265.r2.dev/goplay-2.3.2.apk",
   "releaseNotes": [
-    "Fixed automatic update detection on app startup with smooth landing presentation.",
-    "Dynamic theme color integration across update popup with zero-border design.",
-    "Persistent 'Show app updates' setting and session dismissal handling."
+    "Improved Categories view with strict active status filtering and channel mapping.",
+    "Enhanced in-app update stability and seamless package installer handling."
   ],
-  "publishedAt": "2026-10-30 21:40:00+06:00"
+  "publishedAt": "2026-10-30 22:05:00+06:00"
 }

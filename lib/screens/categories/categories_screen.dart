@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme.dart';
 import '../../core/typography.dart';
 import '../../models/category.dart';
+import '../../models/channel.dart';
 import '../../providers/app_providers.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/playz_providers.dart';
@@ -178,6 +179,19 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     final headerBg = theme.bottomNavigationBarTheme.backgroundColor ?? themeMode.bottomNavColor;
     final categoriesAsync = ref.watch(playzCategoriesProvider);
     final favoriteIds = ref.watch(favoriteChannelIdsProvider);
+    final channelsByCategoryAsync = ref.watch(channelsByCategoryMapProvider);
+    final channelsMap = channelsByCategoryAsync.value;
+
+    // If currently selected category is no longer active, fall back to categories list
+    if (_selectedCategory != null && categoriesAsync.hasValue) {
+      final activeList = categoriesAsync.value ?? const [];
+      final isStillActive = activeList.any((c) => c.id == _selectedCategory!.id && c.active);
+      if (!isStillActive) {
+        _selectedCategory = null;
+      }
+    }
+
+
     final isDark = theme.brightness == Brightness.dark;
 
     final overlayStyle = SystemUiOverlayStyle(
@@ -235,7 +249,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
               );
             },
             child: _selectedCategory == null
-                ? _buildCategoriesPage(context, categoriesAsync, favoriteIds, headerBg, overlayStyle)
+                ? _buildCategoriesPage(context, categoriesAsync, channelsMap, favoriteIds, headerBg, overlayStyle)
                 : _buildChannelsPage(context, _selectedCategory!, favoriteIds, headerBg, overlayStyle),
           ),
         ),
@@ -249,12 +263,11 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
   Widget _buildCategoriesPage(
     BuildContext context,
     AsyncValue<List<Category>> categoriesAsync,
+    Map<String, List<Channel>>? channelsMap,
     Set<String> favoriteIds,
     Color headerBg,
     SystemUiOverlayStyle overlayStyle,
   ) {
-    final channelsByCategoryAsync = ref.watch(channelsByCategoryMapProvider);
-    final channelsMap = channelsByCategoryAsync.value;
 
     final isFilterActive = _filterFavoriteCategories || _categorySort != CategorySortOption.defaultOrder;
 
@@ -284,7 +297,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
         Expanded(
           child: categoriesAsync.when(
             data: (categories) {
-              var displayList = categories.toList();
+              var displayList = categories.where((c) => c.active).toList();
 
               // Text search filter
               if (_categorySearchQuery.isNotEmpty) {
