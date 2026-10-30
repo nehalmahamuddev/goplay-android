@@ -71,22 +71,19 @@ class GeneralSettingsScreen extends ConsumerWidget {
                 icon: Icons.send_rounded,
                 title: 'Official Telegram',
                 subtitle: 'Join for live match schedules, news & stream updates',
-                onTap: () => _launchUrlSafe(context, 'https://t.me/goplay_stream'),
+                onTap: () => _launchUrlSafe(context, AppConstants.telegramCommunityUrl),
+              ),
+              SettingTile(
+                icon: Icons.facebook_rounded,
+                title: 'Official Facebook',
+                subtitle: 'Follow our official page for announcements & updates',
+                onTap: () => _launchUrlSafe(context, AppConstants.facebookCommunityUrl),
               ),
               SettingTile(
                 icon: Icons.forum_outlined,
                 title: 'Discord Community',
                 subtitle: 'Chat with developers and get instant streaming support',
-                onTap: () => _launchUrlSafe(context, 'https://discord.gg/goplay'),
-              ),
-              SettingTile(
-                icon: Icons.code_rounded,
-                title: 'GitHub Source Repository',
-                subtitle: 'github.com/${AppConstants.githubOwner}/${AppConstants.githubRepo}',
-                onTap: () => _launchUrlSafe(
-                  context,
-                  'https://github.com/${AppConstants.githubOwner}/${AppConstants.githubRepo}',
-                ),
+                onTap: () => _launchUrlSafe(context, AppConstants.discordCommunityUrl),
               ),
 
               const SizedBox(height: 12),

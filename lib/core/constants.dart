@@ -21,6 +21,12 @@ class AppConstants {
   static const String appName = 'GoPlay';
   static const String appVersion = '2.3.3';
   
+  // Community & Social Links
+  static const String telegramCommunityUrl = 'https://t.me/goplaycommunity';
+  static const String facebookCommunityUrl =
+      'https://www.facebook.com/people/GoPlay/61591500824688/';
+  static const String discordCommunityUrl = 'https://discord.gg/goplay';
+
   // Updates (Direct from GitHub Releases)
   static const String githubOwner = 'nehalmahamuddev';
   static const String githubRepo = 'goplay-android';

@@ -24,14 +24,13 @@ class HomeSliverAppBar extends ConsumerWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final statusBarHeight = MediaQuery.paddingOf(context).top;
     final brandWordmark = ref.watch(uiConfigProvider).navigationBranding.brandWordmark;
 
-    // Flutter's SliverAppBar internally adds topPadding (statusBarHeight) to expandedHeight
-    final double minHeight = kToolbarHeight + statusBarHeight;
-    final double maxHeight = contentExpandedHeight + statusBarHeight;
+    const double minHeight = kToolbarHeight;
+    const double maxHeight = contentExpandedHeight;
 
     return SliverAppBar(
+      primary: false,
       expandedHeight: contentExpandedHeight,
       floating: false,
       pinned: true,
@@ -52,27 +51,25 @@ class HomeSliverAppBar extends ConsumerWidget {
 
           return Container(
             color: cs.surface,
-            child: Padding(
-              padding: EdgeInsets.only(top: statusBarHeight),
-              child: Stack(
-                children: [
-                  // Brand Wordmark (comfortable 12dp spacing from search pill when expanded, centered when pinned)
-                  Positioned(
-                    left: 10,
-                    top: 0,
-                    height: 38 + (18 * collapseRatio),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        brandWordmark,
-                        style: GoPlayType.wordmark.copyWith(
-                          color: GoPlayTheme.onSurface,
-                          fontSize: GoPlayType.xl - ((GoPlayType.xl - GoPlayType.lg) * collapseRatio),
-                        ),
-                        maxLines: 1,
+            child: Stack(
+              children: [
+                // Brand Wordmark (comfortable 12dp spacing from search pill when expanded, centered when pinned)
+                Positioned(
+                  left: 10,
+                  top: 0,
+                  height: 38 + (18 * collapseRatio),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      brandWordmark,
+                      style: GoPlayType.wordmark.copyWith(
+                        color: GoPlayTheme.onSurface,
+                        fontSize: GoPlayType.xl - ((GoPlayType.xl - GoPlayType.lg) * collapseRatio),
                       ),
+                      maxLines: 1,
                     ),
                   ),
+                ),
 
                   // Collapsed Search Icon (appears smoothly when toolbar collapses past 50%)
                   if (collapseRatio >= 0.5)
@@ -154,7 +151,6 @@ class HomeSliverAppBar extends ConsumerWidget {
                     ),
                 ],
               ),
-            ),
           );
         },
       ),

@@ -801,7 +801,7 @@ class CommunityLinksConfig {
   });
 
   const CommunityLinksConfig.defaults()
-      : telegramUrl = 'https://t.me/goplay_official',
+      : telegramUrl = 'https://t.me/goplaycommunity',
         discordUrl = '',
         whatsappUrl = '',
         websiteUrl = 'https://goplay.tv';

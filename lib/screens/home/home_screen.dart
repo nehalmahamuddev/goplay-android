@@ -114,61 +114,64 @@ class HomeScreen extends ConsumerWidget {
     final isTv = MediaQuery.navigationModeOf(context) == NavigationMode.directional ||
         FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
     final isDesktop = isLandscape || isTv;
-    final statusBarHeight = MediaQuery.paddingOf(context).top;
     final bottomPadding = MediaQuery.paddingOf(context).bottom;
     final bottomSpacing = isDesktop ? 24.0 : (80.0 + bottomPadding);
 
     return Material(
       color: cs.surface,
-      child: RefreshIndicator(
-        color: cs.primary,
-        backgroundColor: cs.surfaceContainerHighest,
-        // Emerge smoothly from directly below the search input pill
-        edgeOffset: statusBarHeight + HomeSliverAppBar.contentExpandedHeight,
-        displacement: 36.0,
-        onRefresh: () async {
-          HapticFeedback.mediumImpact();
-          final minDelay = Future.delayed(const Duration(milliseconds: 600));
+      child: SafeArea(
+        top: true,
+        bottom: false,
+        child: RefreshIndicator(
+          color: cs.primary,
+          backgroundColor: cs.surfaceContainerHighest,
+          // Emerge smoothly from directly below the search input pill
+          edgeOffset: HomeSliverAppBar.contentExpandedHeight,
+          displacement: 36.0,
+          onRefresh: () async {
+            HapticFeedback.mediumImpact();
+            final minDelay = Future.delayed(const Duration(milliseconds: 600));
 
-          try {
-            await ref.read(syncServiceProvider).sync();
-          } catch (_) {}
+            try {
+              await ref.read(syncServiceProvider).sync();
+            } catch (_) {}
 
-          ref.invalidate(eventsProvider);
-          ref.invalidate(channelsProvider);
-          ref.invalidate(heroBannersProvider);
-          ref.invalidate(announcementsProvider);
-          ref.invalidate(trendingChannelsProvider);
+            ref.invalidate(eventsProvider);
+            ref.invalidate(channelsProvider);
+            ref.invalidate(heroBannersProvider);
+            ref.invalidate(announcementsProvider);
+            ref.invalidate(trendingChannelsProvider);
 
-          try {
-            await Future.wait([
-              ref.read(eventsProvider.future),
-              ref.read(channelsProvider.future),
-              ref.read(heroBannersProvider.future),
-              ref.read(announcementsProvider.future),
-              minDelay,
-            ]).timeout(const Duration(seconds: 6));
-          } catch (_) {
-            await minDelay;
-          }
+            try {
+              await Future.wait([
+                ref.read(eventsProvider.future),
+                ref.read(channelsProvider.future),
+                ref.read(heroBannersProvider.future),
+                ref.read(announcementsProvider.future),
+                minDelay,
+              ]).timeout(const Duration(seconds: 6));
+            } catch (_) {
+              await minDelay;
+            }
 
-          HapticFeedback.lightImpact();
-        },
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(
-            parent: ClampingScrollPhysics(),
+            HapticFeedback.lightImpact();
+          },
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: ClampingScrollPhysics(),
+            ),
+            cacheExtent: 600.0,
+            slivers: [
+              // Collapsing Dark-Themed App Bar (flush with search bar bottom, safely padded under notch)
+              const HomeSliverAppBar(),
+
+              // Modular dynamic sections with tight 8dp gap below search and 16dp inter-section spacing
+              ..._buildModularSections(context, ref),
+
+              // Adaptive bottom spacing
+              SliverToBoxAdapter(child: SizedBox(height: bottomSpacing)),
+            ],
           ),
-          cacheExtent: 600.0,
-          slivers: [
-            // Collapsing Dark-Themed Edge-to-Edge App Bar (flush with search bar bottom)
-            const HomeSliverAppBar(),
-
-            // Modular dynamic sections with tight 8dp gap below search and 16dp inter-section spacing
-            ..._buildModularSections(context, ref),
-
-            // Adaptive bottom spacing
-            SliverToBoxAdapter(child: SizedBox(height: bottomSpacing)),
-          ],
         ),
       ),
     );
