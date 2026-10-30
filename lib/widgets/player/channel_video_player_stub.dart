@@ -1684,7 +1684,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
               onTap: _showServerSelectionModal,
               child: Padding(
                 padding: EdgeInsets.all(btnPadding),
-                child: Icon(Icons.tune_rounded, color: Colors.white, size: iconSize),
+                child: Icon(Icons.dns_rounded, color: Colors.white, size: iconSize),
               ),
             ),
             SizedBox(width: btnSpacing),
@@ -1815,6 +1815,12 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
                       padding: const EdgeInsets.fromLTRB(20, 14, 12, 14),
                       child: Row(
                         children: [
+                          Icon(
+                            Icons.dns_rounded,
+                            color: cs.primary,
+                            size: 19,
+                          ),
+                          const SizedBox(width: 8),
                           const Text(
                             'Servers',
                             style: TextStyle(

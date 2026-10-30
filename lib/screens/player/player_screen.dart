@@ -755,9 +755,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           onChannelSelected: (id) => _selectChannel(id, allChannels),
                           eventChannels: widget.eventChannels,
                           dynamicChannels: widget.dynamicChannels,
-                          servers: _currentChannelServers.length > 1 ? _currentChannelServers : null,
-                          activeServerIndex: _activeServerIndex,
-                          onServerSelected: _handleServerSelected,
                           isLocked: _isScreenLocked,
                           onToggleLock: _toggleScreenLock,
                           onFocusDown: () {
@@ -950,9 +947,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 if (widget.dynamicChannels != null) ...widget.dynamicChannels!,
                                 ..._resolvedDynamicChannels,
                               ],
-                              servers: _currentChannelServers.length > 1 ? _currentChannelServers : null,
-                              activeServerIndex: _activeServerIndex,
-                              onServerSelected: _handleServerSelected,
                               isLocked: _isScreenLocked,
                               onToggleLock: _toggleScreenLock,
                               onFocusDown: () {
@@ -1745,9 +1739,6 @@ class _FullscreenTopBar extends ConsumerWidget {
   final List<String>? eventChannels;
   final List<Channel>? dynamicChannels;
   final bool isFullscreen;
-  final List<Channel>? servers;
-  final int activeServerIndex;
-  final ValueChanged<int>? onServerSelected;
   final bool isLocked;
   final VoidCallback? onToggleLock;
   /// Called when D-Pad Down is pressed in the top bar, allowing the parent
@@ -1763,9 +1754,6 @@ class _FullscreenTopBar extends ConsumerWidget {
     this.eventChannels,
     this.dynamicChannels,
     this.isFullscreen = true,
-    this.servers,
-    this.activeServerIndex = 0,
-    this.onServerSelected,
     this.isLocked = false,
     this.onToggleLock,
     this.onFocusDown,
@@ -1811,25 +1799,7 @@ class _FullscreenTopBar extends ConsumerWidget {
                   ),
                 ),
 
-                // 2. Stream Servers (if multiple servers available for active channel)
-                if (servers != null && servers!.length > 1) ...[
-                  const SizedBox(width: 4),
-                  _FullscreenServersList(
-                    servers: servers!,
-                    activeServerIndex: activeServerIndex,
-                    onServerSelected: onServerSelected,
-                    onFocusDown: onFocusDown,
-                    onInteract: onInteract,
-                  ),
-                  Container(
-                    height: 20,
-                    width: 1,
-                    margin: const EdgeInsets.symmetric(horizontal: 8),
-                    color: Colors.white.withValues(alpha: 0.18),
-                  ),
-                ],
-
-                // 3. Horizontal Channels list
+                // 2. Horizontal Channels list
                 Expanded(
                   child: channelsAsync.when(
                     data: (channels) {
@@ -1927,138 +1897,6 @@ class _FullscreenTopBar extends ConsumerWidget {
         return KeyEventResult.ignored;
       },
       child: bar,
-    );
-  }
-}
-
-// ─── Inline Fullscreen Server Selector ──────────────────────────
-
-class _FullscreenServersList extends StatelessWidget {
-  final List<Channel> servers;
-  final int activeServerIndex;
-  final ValueChanged<int>? onServerSelected;
-  final VoidCallback? onFocusDown;
-  final VoidCallback? onInteract;
-
-  const _FullscreenServersList({
-    required this.servers,
-    required this.activeServerIndex,
-    this.onServerSelected,
-    this.onFocusDown,
-    this.onInteract,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(right: 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.dns_rounded,
-                  size: 15,
-                  color: cs.primary,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'SERVER',
-                  style: TextStyle(
-                    fontFamily: GoPlayType.family,
-                    color: Colors.white.withValues(alpha: 0.65),
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          for (int i = 0; i < servers.length; i++) ...[
-            if (i > 0) const SizedBox(width: 5),
-            _ServerPill(
-              label: servers[i].name.isNotEmpty ? servers[i].name : 'Server ${i + 1}',
-              isSelected: i == activeServerIndex,
-              onTap: () {
-                HapticFeedback.lightImpact();
-                onInteract?.call();
-                onServerSelected?.call(i);
-              },
-              onFocusDown: onFocusDown,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _ServerPill extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final VoidCallback? onFocusDown;
-
-  const _ServerPill({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-    this.onFocusDown,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return TvFocusable(
-      borderRadius: BorderRadius.circular(16),
-      onTap: isSelected ? null : onTap,
-      child: GestureDetector(
-        onTap: isSelected ? null : onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? cs.primary
-                : Colors.white.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isSelected
-                  ? cs.primary
-                  : Colors.white.withValues(alpha: 0.22),
-              width: 1.0,
-            ),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: cs.primary.withValues(alpha: 0.4),
-                      blurRadius: 8,
-                      offset: const Offset(0, 1),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontFamily: GoPlayType.family,
-              fontSize: 12,
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              color: isSelected ? cs.onPrimary : Colors.white,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
