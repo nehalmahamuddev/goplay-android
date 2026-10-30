@@ -264,14 +264,14 @@ class _PlayZEventCardState extends ConsumerState<PlayZEventCard>
                                   child: Align(
                                     alignment: Alignment.centerLeft,
                                     child: Padding(
-                                      padding: const EdgeInsets.only(left: 3.0, right: 6.0),
+                                      padding: const EdgeInsets.only(left: 10.0, right: 6.0),
                                       child: Column(
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           TeamFlagWidget(
                                             flag: event.homeTeam.flag,
-                                            size: 26,
+                                            size: 32,
                                             fit: BoxFit.contain,
                                             showBorder: false,
                                           ),
@@ -283,7 +283,7 @@ class _PlayZEventCardState extends ConsumerState<PlayZEventCard>
                                             textAlign: TextAlign.center,
                                             style: TextStyle(
                                               fontFamily: GoPlayType.family,
-                                              fontSize: 11.0,
+                                              fontSize: 10.0,
                                               fontWeight: FontWeight.w500,
                                               color: onSurface,
                                             ),
@@ -429,14 +429,14 @@ class _PlayZEventCardState extends ConsumerState<PlayZEventCard>
                                   child: Align(
                                     alignment: Alignment.centerRight,
                                     child: Padding(
-                                      padding: const EdgeInsets.only(left: 6.0, right: 3.0),
+                                      padding: const EdgeInsets.only(left: 6.0, right: 10.0),
                                       child: Column(
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           TeamFlagWidget(
                                             flag: event.awayTeam.flag,
-                                            size: 26,
+                                            size: 32,
                                             fit: BoxFit.contain,
                                             showBorder: false,
                                           ),
@@ -448,7 +448,7 @@ class _PlayZEventCardState extends ConsumerState<PlayZEventCard>
                                             textAlign: TextAlign.center,
                                             style: TextStyle(
                                               fontFamily: GoPlayType.family,
-                                              fontSize: 11.0,
+                                              fontSize: 10.0,
                                               fontWeight: FontWeight.w500,
                                               color: onSurface,
                                             ),

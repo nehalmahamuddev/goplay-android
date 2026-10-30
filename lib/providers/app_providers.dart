@@ -304,8 +304,8 @@ final sortedSportCategoriesProvider = Provider<AsyncValue<List<String>>>((ref) {
 });
 
 // ─── Filtered Events by Sport across all tabs ────────────────────────
-final filteredLiveEventsProvider =
-    Provider.family<AsyncValue<List<SportEvent>>, String>((ref, sport) {
+final filteredLiveEventsProvider = Provider.autoDispose
+    .family<AsyncValue<List<SportEvent>>, String>((ref, sport) {
   final liveAsync = ref.watch(liveEventsProvider);
   return liveAsync.whenData((allEvents) {
     final target = sport.trim().toLowerCase();
@@ -316,8 +316,8 @@ final filteredLiveEventsProvider =
   });
 });
 
-final filteredTodayEventsProvider =
-    Provider.family<AsyncValue<List<SportEvent>>, String>((ref, sport) {
+final filteredTodayEventsProvider = Provider.autoDispose
+    .family<AsyncValue<List<SportEvent>>, String>((ref, sport) {
   final todayState = ref.watch(todayEventsProvider);
   return todayState.whenData((allEvents) {
     final target = sport.trim().toLowerCase();
