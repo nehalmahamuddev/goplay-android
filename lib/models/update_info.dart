@@ -77,6 +77,11 @@ class UpdateInfo {
       }
       // Remove markdown links e.g. [text](url) -> text
       cleaned = cleaned.replaceAllMapped(RegExp(r'\[(.*?)\]\(.*?\)'), (m) => m[1] ?? '');
+      // Filter out [MANDATORY] / [FORCE_UPDATE] tag indicators from display notes list
+      final upperCleaned = cleaned.toUpperCase().trim();
+      if (upperCleaned == '[MANDATORY]' || upperCleaned == '[FORCE_UPDATE]') {
+        continue;
+      }
       if (cleaned.isNotEmpty && !cleaned.toLowerCase().contains('full changelog')) {
         notes.add(cleaned);
       }
