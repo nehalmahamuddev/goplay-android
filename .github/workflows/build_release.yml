@@ -66,37 +66,7 @@ jobs:
           if [ -n "$MANUAL_NOTES" ]; then
             printf "%s\n" "$MANUAL_NOTES" > release_notes.md
           else
-            export TARGET_VER="$TAG_CLEAN"
-            export TARGET_TAG="$TAG_NAME"
-            python3 - << 'EOF'
-import os
-import re
-import subprocess
-
-ver = os.environ.get('TARGET_VER', '')
-tag = os.environ.get('TARGET_TAG', '')
-
-notes = ''
-if os.path.exists('CHANGELOG.md'):
-    try:
-        with open('CHANGELOG.md', 'r', encoding='utf-8') as f:
-            content = f.read()
-        pattern = rf'## \[{re.escape(ver)}\][^\n]*\n([\s\S]*?)(?=\n## \[|\Z)'
-        m = re.search(pattern, content)
-        if m:
-            notes = m.group(1).strip().rstrip('---').strip()
-    except Exception:
-        pass
-
-if not notes:
-    try:
-        notes = subprocess.check_output(['git', 'log', '-1', '--pretty=%B'], text=True).strip()
-    except Exception:
-        notes = f'✨ Release {tag}'
-
-with open('release_notes.md', 'w', encoding='utf-8') as out:
-    out.write(notes)
-EOF
+            python3 .github/scripts/extract_changelog.py "$TAG_CLEAN" "$TAG_NAME"
           fi
 
       - name: Set up JDK 17
