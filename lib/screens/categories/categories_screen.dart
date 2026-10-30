@@ -205,8 +205,19 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     final headerBg = theme.bottomNavigationBarTheme.backgroundColor ?? themeMode.bottomNavColor;
     final categoriesAsync = ref.watch(playzCategoriesProvider);
     final favoriteIds = ref.watch(favoriteChannelIdsProvider);
+    final isDark = theme.brightness == Brightness.dark;
 
-    return PopScope(
+    final overlayStyle = SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+    );
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      child: PopScope(
       canPop: _selectedCategory == null &&
           !_isCategorySearchOpen &&
           !_filterFavoriteCategories,
@@ -244,8 +255,9 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
               );
             },
             child: _selectedCategory == null
-                ? _buildCategoriesPage(context, categoriesAsync, favoriteIds, headerBg)
-                : _buildChannelsPage(context, _selectedCategory!, favoriteIds, headerBg),
+                ? _buildCategoriesPage(context, categoriesAsync, favoriteIds, headerBg, overlayStyle)
+                : _buildChannelsPage(context, _selectedCategory!, favoriteIds, headerBg, overlayStyle),
+          ),
         ),
       ),
     );
@@ -259,6 +271,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     AsyncValue<List<Category>> categoriesAsync,
     Set<String> favoriteIds,
     Color headerBg,
+    SystemUiOverlayStyle overlayStyle,
   ) {
     final channelsByCategoryAsync = ref.watch(channelsByCategoryMapProvider);
     final channelsMap = channelsByCategoryAsync.value;
@@ -270,7 +283,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
           color: headerBg,
           child: SafeArea(
             bottom: false,
-            child: _buildCategoriesAppBar(context),
+            child: _buildCategoriesAppBar(context, overlayStyle),
           ),
         ),
         Expanded(
@@ -426,12 +439,13 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     );
   }
 
-  Widget _buildCategoriesAppBar(BuildContext context) {
+  Widget _buildCategoriesAppBar(BuildContext context, SystemUiOverlayStyle overlayStyle) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
     return AppBar(
       primary: false,
+      systemOverlayStyle: overlayStyle,
       automaticallyImplyLeading: false,
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
@@ -501,6 +515,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     Category category,
     Set<String> favoriteIds,
     Color headerBg,
+    SystemUiOverlayStyle overlayStyle,
   ) {
     final channelsAsync = ref.watch(playzCategoryChannelsProvider(category));
 
@@ -511,7 +526,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
           color: headerBg,
           child: SafeArea(
             bottom: false,
-            child: _buildChannelsAppBar(context, category),
+            child: _buildChannelsAppBar(context, category, overlayStyle),
           ),
         ),
         Expanded(
@@ -613,12 +628,13 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     );
   }
 
-  Widget _buildChannelsAppBar(BuildContext context, Category category) {
+  Widget _buildChannelsAppBar(BuildContext context, Category category, SystemUiOverlayStyle overlayStyle) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
     return AppBar(
       primary: false,
+      systemOverlayStyle: overlayStyle,
       automaticallyImplyLeading: false,
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
