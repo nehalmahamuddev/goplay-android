@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.3] - 2026-10-30
+
+### Added
+- **Player Enhancements**:
+  - Redesigned server selection modal into a compact, modern YouTube-style popup card.
+  - Replaced top header server actions with streamlined bottom bar server button using `dns_rounded` icon.
+  - Added fullscreen server switcher with touch screen lock mode and dynamic theme pill badges.
+- **Update System**:
+  - Direct GitHub Releases update system featuring web redirect fallback and startup checks.
+  - 5-minute safety cooldown for update detection with session dismissal memory.
+- **Home & Feed Interactions**:
+  - Native pull-to-refresh with Android clamping physics and full data synchronization across home feeds.
+  - Dynamic spacing collapse between search input and trending section.
+- **Search & Filter Experience**:
+  - Upstream-style `SearchPillCard` component for Categories and Channels headers.
+  - Channels sorting and filtering bottom sheet with active indicators and responsive grid integration.
+- **Community & Settings**:
+  - Updated community links in Settings (replaced GitHub link with Facebook and updated official Telegram link).
+  - Full Settings hub redesign matching Upstream UI standards with subpages for General, Player, Layout, and Accounts.
+
+### Fixed
+- **UI & Theming Polish**:
+  - Cleaned up search text field borders across surfaces for a borderless aesthetic.
+  - Adapted Settings search bar styling to dynamic theme colors.
+  - Resolved text overflow in the Account Info bottom sheet sync status indicator.
+  - Fixed mobile status bar visibility with seamless header background blending.
+  - Removed borders and outlines across dialog surfaces and action buttons.
+- **Build & Packaging**:
+  - Configured Gradle to use release signing configuration for debug builds when a release keystore is present.
+
+---
+
 ## [2.3.2] - 2026-10-30
 
 ### Fixed

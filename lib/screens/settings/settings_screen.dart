@@ -298,23 +298,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       decoration: BoxDecoration(
                         color: theme.cardTheme.color ?? theme.cardColor,
                         borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: _searchFocusNode.hasFocus
-                              ? cs.primary.withValues(alpha: 0.6)
-                              : (theme.brightness == Brightness.dark
-                                  ? Colors.white.withValues(alpha: 0.08)
-                                  : Colors.black.withValues(alpha: 0.08)),
-                          width: 1,
-                        ),
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Row(
                         children: [
                           Icon(
                             Icons.search_rounded,
-                            color: _searchFocusNode.hasFocus
-                                ? cs.primary
-                                : cs.onSurfaceVariant.withValues(alpha: 0.7),
+                            color: cs.onSurfaceVariant.withValues(alpha: 0.7),
                             size: 22,
                           ),
                           const SizedBox(width: 12),

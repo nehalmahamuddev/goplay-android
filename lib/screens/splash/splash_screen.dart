@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/theme.dart';
 import '../../core/typography.dart';
 import '../../main.dart' show appInitFuture;
 import '../../providers/app_providers.dart';
@@ -84,8 +83,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: cs.surface,
       body: SafeArea(
         child: Center(
           child: Column(
@@ -93,7 +94,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             children: [
               const Spacer(flex: 3),
 
-              // Clean Logo Display (No heavy gradients or glow halos)
+              // Clean Frameless Logo (Zero borders, modern subtle elevation)
               AnimatedBuilder(
                 animation: _animController,
                 builder: (context, child) {
@@ -106,41 +107,37 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   );
                 },
                 child: Container(
-                  width: 104,
-                  height: 104,
+                  width: 100,
+                  height: 100,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: const Color(0x28FFFFFF),
-                      width: 1.0,
-                    ),
                     boxShadow: const [
                       BoxShadow(
-                        color: Color(0x33000000),
-                        blurRadius: 16,
-                        offset: Offset(0, 4),
+                        color: Color(0x38000000),
+                        blurRadius: 20,
+                        offset: Offset(0, 6),
                       ),
                     ],
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(23),
+                    borderRadius: BorderRadius.circular(24),
                     child: Image.asset(
                       'assets/images/logo.png',
-                      width: 104,
-                      height: 104,
+                      width: 100,
+                      height: 100,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
-                          width: 104,
-                          height: 104,
+                          width: 100,
+                          height: 100,
                           decoration: BoxDecoration(
-                            color: GoPlayTheme.primary,
-                            borderRadius: BorderRadius.circular(23),
+                            color: cs.primary,
+                            borderRadius: BorderRadius.circular(24),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.play_arrow_rounded,
-                            size: 52,
-                            color: Color(0xFF0F0F0F),
+                            size: 50,
+                            color: cs.onPrimary,
                           ),
                         );
                       },
@@ -151,7 +148,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
               const SizedBox(height: 24),
 
-              // Minimalist Branding Text
+              // Clean Branding Text
               FadeTransition(
                 opacity: _fadeAnimation,
                 child: Column(
@@ -160,14 +157,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                     Text(
                       'GoPlay',
                       style: GoPlayType.wordmark.copyWith(
-                        color: GoPlayTheme.onSurface,
+                        color: cs.onSurface,
+                        letterSpacing: -0.5,
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       'LIVE SPORTS STREAMING',
                       style: GoPlayType.tagline.copyWith(
-                        color: GoPlayTheme.onSurfaceVariant,
+                        color: cs.onSurfaceVariant.withValues(alpha: 0.7),
+                        letterSpacing: 2.0,
+                        fontSize: 11,
                       ),
                     ),
                   ],
@@ -183,12 +183,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     SizedBox(
-                      width: 22,
-                      height: 22,
+                      width: 20,
+                      height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.0,
                         valueColor: AlwaysStoppedAnimation<Color>(
-                          GoPlayTheme.primary.withAlpha(220),
+                          cs.primary,
                         ),
                       ),
                     ),
