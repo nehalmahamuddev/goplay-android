@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../core/constants.dart';
 import '../core/typography.dart';
 import '../providers/app_providers.dart';
 import 'tv_focus_wrapper.dart';
@@ -35,8 +36,8 @@ class AppOverflowMenu extends ConsumerWidget {
           onAboutSelected: () {
             showAboutDialog(
               context: context,
-              applicationName: 'GoPlay Stream',
-              applicationVersion: 'v2.1.0 (Build 210)',
+              applicationName: AppConstants.appName,
+              applicationVersion: 'v${AppConstants.appVersion}',
               applicationLegalese: '© 2026 GoPlay Streaming Platform. All rights reserved.',
             );
           },
@@ -168,7 +169,7 @@ class _DropdownPositionDelegate extends SingleChildLayoutDelegate {
   }
 }
 
-/// Floating dark dropdown card matching Telegram's sleek popup aesthetics.
+/// Floating dark dropdown card matching the active theme aesthetics.
 class _TelegramDropdownCard extends StatelessWidget {
   final VoidCallback onFavoritesSelected;
   final VoidCallback onSettingsSelected;
@@ -182,26 +183,33 @@ class _TelegramDropdownCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final cardColor = theme.cardTheme.color ?? theme.cardColor;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Material(
       color: Colors.transparent,
       child: Container(
         width: 215,
         decoration: BoxDecoration(
-          color: const Color(0xFF222222), // Telegram-style deep slate dark surface
+          color: cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.white.withValues(alpha: 0.08),
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.08),
             width: 0.7,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.55),
+              color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.12),
               blurRadius: 28,
               spreadRadius: 2,
               offset: const Offset(0, 10),
             ),
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.25),
+              color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -217,7 +225,7 @@ class _TelegramDropdownCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _MenuItemTile(
-                    icon: Icons.bookmark_border_rounded,
+                    icon: Icons.bookmark_rounded,
                     title: 'Favorite Channels',
                     onTap: () {
                       Navigator.of(context).pop();
@@ -233,7 +241,7 @@ class _TelegramDropdownCard extends StatelessWidget {
                     },
                   ),
                   _MenuItemTile(
-                    icon: Icons.info_outline_rounded,
+                    icon: Icons.info_rounded,
                     title: 'About GoPlay',
                     onTap: () {
                       Navigator.of(context).pop();
@@ -250,7 +258,7 @@ class _TelegramDropdownCard extends StatelessWidget {
   }
 }
 
-/// Compact single-line row tile with Telegram touch feedback and Android TV D-Pad focus.
+/// Compact single-line row tile with touch feedback and Android TV D-Pad focus.
 class _MenuItemTile extends StatefulWidget {
   final IconData icon;
   final String title;
@@ -271,6 +279,15 @@ class _MenuItemTileState extends State<_MenuItemTile> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    final baseTextColor = cs.onSurface.withValues(alpha: 0.92);
+    final focusedTextColor = cs.onSurface;
+    final baseIconColor = cs.onSurface.withValues(alpha: 0.85);
+    final focusedIconColor = isDark ? Colors.white : cs.primary;
+
     return FocusableActionDetector(
       onShowFocusHighlight: (focused) => setState(() => _isFocused = focused),
       actions: {
@@ -284,15 +301,17 @@ class _MenuItemTileState extends State<_MenuItemTile> {
       },
       child: Material(
         color: _isFocused
-            ? Colors.white.withValues(alpha: 0.12)
+            ? (isDark
+                ? Colors.white.withValues(alpha: 0.12)
+                : cs.primary.withValues(alpha: 0.10))
             : Colors.transparent,
         child: InkWell(
           onTap: () {
             HapticFeedback.lightImpact();
             widget.onTap();
           },
-          splashColor: Colors.white.withValues(alpha: 0.08),
-          highlightColor: Colors.white.withValues(alpha: 0.05),
+          splashColor: (isDark ? Colors.white : cs.primary).withValues(alpha: 0.08),
+          highlightColor: (isDark ? Colors.white : cs.primary).withValues(alpha: 0.05),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
             child: Row(
@@ -300,9 +319,7 @@ class _MenuItemTileState extends State<_MenuItemTile> {
                 Icon(
                   widget.icon,
                   size: 20,
-                  color: _isFocused
-                      ? Colors.white
-                      : Colors.white.withValues(alpha: 0.85),
+                  color: _isFocused ? focusedIconColor : baseIconColor,
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -310,9 +327,7 @@ class _MenuItemTileState extends State<_MenuItemTile> {
                     widget.title,
                     style: TextStyle(
                       fontFamily: GoPlayType.family,
-                      color: _isFocused
-                          ? Colors.white
-                          : Colors.white.withValues(alpha: 0.92),
+                      color: _isFocused ? focusedTextColor : baseTextColor,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                       letterSpacing: -0.1,

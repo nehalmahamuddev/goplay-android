@@ -19,7 +19,7 @@ class AppConstants {
 
   // App Info
   static const String appName = 'GoPlay';
-  static const String appVersion = '2.3.2';
+  static const String appVersion = '2.3.3';
   
   // Updates (Direct from GitHub Releases)
   static const String githubOwner = 'nehalmahamuddev';
