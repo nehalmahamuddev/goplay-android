@@ -121,34 +121,49 @@ class HomeScreen extends ConsumerWidget {
     return Material(
       color: cs.surface,
       child: RefreshIndicator(
-        color: GoPlayTheme.primary,
-        backgroundColor: cs.surfaceContainerHigh,
+        color: cs.primary,
+        backgroundColor: cs.surfaceContainerHighest,
         // Emerge smoothly from directly below the search input pill
         edgeOffset: statusBarHeight + HomeSliverAppBar.contentExpandedHeight,
-        displacement: 32.0,
+        displacement: 36.0,
         onRefresh: () async {
           HapticFeedback.mediumImpact();
+          final minDelay = Future.delayed(const Duration(milliseconds: 600));
+
+          try {
+            await ref.read(syncServiceProvider).sync();
+          } catch (_) {}
+
           ref.invalidate(eventsProvider);
           ref.invalidate(channelsProvider);
           ref.invalidate(heroBannersProvider);
           ref.invalidate(announcementsProvider);
+          ref.invalidate(trendingChannelsProvider);
+
           try {
-            await ref.read(syncServiceProvider).sync();
-          } catch (_) {}
-          try {
-            await ref.read(eventsProvider.future);
-          } catch (_) {}
+            await Future.wait([
+              ref.read(eventsProvider.future),
+              ref.read(channelsProvider.future),
+              ref.read(heroBannersProvider.future),
+              ref.read(announcementsProvider.future),
+              minDelay,
+            ]).timeout(const Duration(seconds: 6));
+          } catch (_) {
+            await minDelay;
+          }
+
+          HapticFeedback.lightImpact();
         },
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(
-            parent: BouncingScrollPhysics(),
+            parent: ClampingScrollPhysics(),
           ),
           cacheExtent: 600.0,
           slivers: [
             // Collapsing Dark-Themed Edge-to-Edge App Bar (flush with search bar bottom)
             const HomeSliverAppBar(),
 
-            // Modular dynamic sections with tight 10dp gap below search and 20dp inter-section spacing
+            // Modular dynamic sections with tight 8dp gap below search and 16dp inter-section spacing
             ..._buildModularSections(context, ref),
 
             // Adaptive bottom spacing

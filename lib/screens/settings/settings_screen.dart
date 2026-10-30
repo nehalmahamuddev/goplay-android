@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants.dart';
 import '../../core/typography.dart';
-import '../../providers/theme_provider.dart';
 import 'widgets/account_info_sheet.dart';
 import 'widgets/setting_tile.dart';
 
@@ -195,8 +194,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final themeMode = ref.watch(activeThemeModeProvider);
-    final headerBg = theme.bottomNavigationBarTheme.backgroundColor ?? themeMode.bottomNavColor;
 
     final isSearching = _searchQuery.isNotEmpty;
     final searchResults = isSearching
@@ -205,44 +202,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     return Scaffold(
       backgroundColor: cs.surface,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          // ─── Pinned App Bar ───
-          SliverAppBar(
-            pinned: true,
-            floating: false,
-            backgroundColor: headerBg,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            automaticallyImplyLeading: false,
-            leading: IconButton(
-              icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
-              tooltip: 'Back',
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            title: Text(
-              'Settings',
-              style: TextStyle(
-                fontFamily: GoPlayType.family,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: cs.onSurface,
-                letterSpacing: -0.3,
-              ),
-            ),
-          ),
+      body: SafeArea(
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 12),
 
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 12),
-
-                  // ─── 1. Profile / Account Header (Screenshot 1) ───
+                    // ─── 1. Profile / Account Header (Screenshot 1) ───
                   InkWell(
                     onTap: () => AccountInfoSheet.show(context),
                     borderRadius: BorderRadius.circular(16),
@@ -506,7 +478,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const SizedBox(height: 32),
               ]),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
