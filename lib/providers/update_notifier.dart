@@ -28,6 +28,7 @@ class UpdateState {
   final DateTime? lastCheckTime;
   final String? errorMessage;
   final String? apkPath;
+  final bool isManualCheck;
 
   const UpdateState({
     this.status = UpdateStatus.idle,
@@ -38,6 +39,7 @@ class UpdateState {
     this.lastCheckTime,
     this.errorMessage,
     this.apkPath,
+    this.isManualCheck = false,
   });
 
   UpdateState copyWith({
@@ -49,6 +51,7 @@ class UpdateState {
     DateTime? lastCheckTime,
     String? errorMessage,
     String? apkPath,
+    bool? isManualCheck,
     bool clearError = false,
     bool clearApkPath = false,
   }) {
@@ -61,6 +64,7 @@ class UpdateState {
       lastCheckTime: lastCheckTime ?? this.lastCheckTime,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       apkPath: clearApkPath ? null : (apkPath ?? this.apkPath),
+      isManualCheck: isManualCheck ?? this.isManualCheck,
     );
   }
 }
@@ -131,6 +135,7 @@ class UpdateNotifier extends Notifier<UpdateState> {
 
     state = state.copyWith(
       status: UpdateStatus.checking,
+      isManualCheck: isManual,
       clearError: true,
     );
 
@@ -144,6 +149,7 @@ class UpdateNotifier extends Notifier<UpdateState> {
           status: UpdateStatus.error,
           errorMessage: result.error,
           lastCheckTime: lastCheck,
+          isManualCheck: isManual,
         );
         return;
       }
@@ -155,12 +161,14 @@ class UpdateNotifier extends Notifier<UpdateState> {
           currentVersion: result.currentVersion,
           isForceUpdate: result.isForceUpdate,
           lastCheckTime: lastCheck,
+          isManualCheck: isManual,
         );
       } else {
         state = state.copyWith(
           status: UpdateStatus.alreadyUpToDate,
           currentVersion: result.currentVersion,
           lastCheckTime: lastCheck,
+          isManualCheck: isManual,
         );
         
         // Reset manual checks back to idle after a brief moment
@@ -179,6 +187,7 @@ class UpdateNotifier extends Notifier<UpdateState> {
         status: isManual ? UpdateStatus.error : UpdateStatus.idle,
         errorMessage: e.toString(),
         lastCheckTime: lastCheck,
+        isManualCheck: isManual,
       );
     }
   }

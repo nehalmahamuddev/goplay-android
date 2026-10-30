@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive/hive.dart';
 import '../../../core/constants.dart';
 import '../../../core/typography.dart';
 import '../../../providers/app_providers.dart';
@@ -22,6 +23,25 @@ class _UpdatesSettingsScreenState extends ConsumerState<UpdatesSettingsScreen> {
   bool _useLegacyInstaller = false;
   bool _autoCheckUpdates = true;
   String _backupFrequency = 'Manual';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  void _loadSettings() {
+    try {
+      if (Hive.isBoxOpen(AppConstants.settingsBox)) {
+        final box = Hive.box(AppConstants.settingsBox);
+        setState(() {
+          _autoCheckUpdates = box.get('auto_check_updates', defaultValue: true) as bool? ?? true;
+          _installPreRelease = box.get('install_pre_release', defaultValue: false) as bool? ?? false;
+          _useLegacyInstaller = box.get('use_legacy_installer', defaultValue: false) as bool? ?? false;
+        });
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -103,7 +123,14 @@ class _UpdatesSettingsScreenState extends ConsumerState<UpdatesSettingsScreen> {
                 title: 'Install pre-release version',
                 subtitle: 'Include early beta builds and experimental releases',
                 value: _installPreRelease,
-                onChanged: (val) => setState(() => _installPreRelease = val),
+                onChanged: (val) async {
+                  setState(() => _installPreRelease = val);
+                  try {
+                    if (Hive.isBoxOpen(AppConstants.settingsBox)) {
+                      await Hive.box(AppConstants.settingsBox).put('install_pre_release', val);
+                    }
+                  } catch (_) {}
+                },
               ),
               SettingSwitchTile(
                 icon: Icons.phonelink_setup_rounded,
@@ -111,14 +138,28 @@ class _UpdatesSettingsScreenState extends ConsumerState<UpdatesSettingsScreen> {
                 subtitle:
                     'Some older Android devices do not support the modern package installer. Enable fallback if updates fail.',
                 value: _useLegacyInstaller,
-                onChanged: (val) => setState(() => _useLegacyInstaller = val),
+                onChanged: (val) async {
+                  setState(() => _useLegacyInstaller = val);
+                  try {
+                    if (Hive.isBoxOpen(AppConstants.settingsBox)) {
+                      await Hive.box(AppConstants.settingsBox).put('use_legacy_installer', val);
+                    }
+                  } catch (_) {}
+                },
               ),
               SettingSwitchTile(
                 icon: Icons.notifications_active_outlined,
                 title: 'Show app updates',
                 subtitle: 'Automatically search for new updates after starting the app.',
                 value: _autoCheckUpdates,
-                onChanged: (val) => setState(() => _autoCheckUpdates = val),
+                onChanged: (val) async {
+                  setState(() => _autoCheckUpdates = val);
+                  try {
+                    if (Hive.isBoxOpen(AppConstants.settingsBox)) {
+                      await Hive.box(AppConstants.settingsBox).put('auto_check_updates', val);
+                    }
+                  } catch (_) {}
+                },
               ),
 
               const SizedBox(height: 12),

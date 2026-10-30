@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../core/theme.dart';
 import '../core/typography.dart';
+import '../models/app_theme_options.dart';
+import '../providers/theme_provider.dart';
 import '../providers/update_notifier.dart';
 
 class UpdateDialog extends ConsumerWidget {
@@ -22,6 +23,10 @@ class UpdateDialog extends ConsumerWidget {
     final notifier = ref.read(updateProvider.notifier);
     final isForce = updateState.isForceUpdate;
 
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final themeMode = ref.watch(activeThemeModeProvider);
+
     // Use PopScope to prevent back button dismissals on force update
     return PopScope(
       canPop: !isForce,
@@ -32,12 +37,8 @@ class UpdateDialog extends ConsumerWidget {
         // GPU-safe: no BackdropFilter (crashes budget TV GPUs like Mali-G31)
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xF217181C), // Solid dark background (95% opacity)
+            color: themeMode.cardColor,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.08),
-              width: 1.0,
-            ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(24.0),
@@ -52,27 +53,11 @@ class UpdateDialog extends ConsumerWidget {
                       padding: const EdgeInsets.all(11),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(14),
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: isForce
-                              ? [
-                                  const Color(0xFFFF5A5F),
-                                  GoPlayTheme.error,
-                                ]
-                              : [
-                                  const Color(0xFF33C2C8),
-                                  GoPlayTheme.primary,
-                                ],
-                        ),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          width: 1,
-                        ),
+                        color: isForce ? cs.error : cs.primary,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.system_update_rounded,
-                        color: Colors.white,
+                        color: isForce ? cs.onError : cs.onPrimary,
                         size: 22,
                       ),
                     ),
@@ -87,7 +72,7 @@ class UpdateDialog extends ConsumerWidget {
                               fontFamily: GoPlayType.family,
                               fontSize: GoPlayType.md,
                               fontWeight: FontWeight.w800,
-                              color: isForce ? GoPlayTheme.error : GoPlayTheme.primary,
+                              color: isForce ? cs.error : cs.primary,
                               height: GoPlayType.leadingSnug,
                               letterSpacing: 1,
                             ),
@@ -98,7 +83,7 @@ class UpdateDialog extends ConsumerWidget {
                           Text(
                             isForce ? 'You must update to continue' : 'A new version is ready',
                             style: GoPlayType.bodySmall.copyWith(
-                              color: GoPlayTheme.onSurfaceVariant,
+                              color: cs.onSurfaceVariant,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -108,20 +93,20 @@ class UpdateDialog extends ConsumerWidget {
                     ),
                   ],
                 ),
-                
+
                 Container(
                   margin: const EdgeInsets.symmetric(vertical: 20),
                   height: 1,
-                  color: Colors.white.withValues(alpha: 0.06),
+                  color: themeMode.dividerColor,
                 ),
 
                 // Dynamic Body based on download/check status
-                _buildDialogBody(context, updateState),
+                _buildDialogBody(context, updateState, cs),
 
                 const SizedBox(height: 24),
 
                 // Action Buttons
-                _buildActionButtons(context, updateState, notifier),
+                _buildActionButtons(context, updateState, notifier, cs, themeMode),
               ],
             ),
           ),
@@ -130,7 +115,7 @@ class UpdateDialog extends ConsumerWidget {
     );
   }
 
-  Widget _buildDialogBody(BuildContext context, UpdateState state) {
+  Widget _buildDialogBody(BuildContext context, UpdateState state, ColorScheme cs) {
     switch (state.status) {
       case UpdateStatus.downloading:
         return Column(
@@ -139,7 +124,7 @@ class UpdateDialog extends ConsumerWidget {
               'Downloading update package...',
               style: GoPlayType.body.copyWith(
                 fontWeight: FontWeight.w500,
-                color: GoPlayTheme.onSurface,
+                color: cs.onSurface,
               ),
               textAlign: TextAlign.center,
             ),
@@ -148,8 +133,8 @@ class UpdateDialog extends ConsumerWidget {
               borderRadius: BorderRadius.circular(6),
               child: LinearProgressIndicator(
                 value: state.downloadProgress,
-                backgroundColor: Colors.white.withValues(alpha: 0.05),
-                valueColor: const AlwaysStoppedAnimation<Color>(GoPlayTheme.primary),
+                backgroundColor: cs.onSurface.withValues(alpha: 0.08),
+                valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
                 minHeight: 6,
               ),
             ),
@@ -161,7 +146,7 @@ class UpdateDialog extends ConsumerWidget {
                   '${(state.downloadProgress * 100).toStringAsFixed(0)}%',
                   style: GoPlayType.labelSmall.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: GoPlayTheme.primary,
+                    color: cs.primary,
                   ),
                   maxLines: 1,
                 ),
@@ -170,7 +155,7 @@ class UpdateDialog extends ConsumerWidget {
                   style: GoPlayType.inter(
                     fontSize: GoPlayType.xs,
                     height: GoPlayType.leadingSnug,
-                    color: GoPlayTheme.onSurfaceVariant,
+                    color: cs.onSurfaceVariant,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -183,11 +168,11 @@ class UpdateDialog extends ConsumerWidget {
       case UpdateStatus.installing:
         return Column(
           children: [
-            const SizedBox(
+            SizedBox(
               height: 36,
               width: 36,
               child: CircularProgressIndicator(
-                color: GoPlayTheme.primary,
+                color: cs.primary,
                 strokeWidth: 3,
               ),
             ),
@@ -197,7 +182,7 @@ class UpdateDialog extends ConsumerWidget {
               textAlign: TextAlign.center,
               style: GoPlayType.body.copyWith(
                 fontWeight: FontWeight.w500,
-                color: GoPlayTheme.onSurface,
+                color: cs.onSurface,
               ),
             ),
           ],
@@ -209,12 +194,12 @@ class UpdateDialog extends ConsumerWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.error_outline_rounded, color: GoPlayTheme.error, size: 20),
+                Icon(Icons.error_outline_rounded, color: cs.error, size: 20),
                 const SizedBox(width: 8),
-                const Text(
+                Text(
                   'Download Failed',
                   style: TextStyle(
-                    color: GoPlayTheme.error,
+                    color: cs.error,
                     fontWeight: FontWeight.w700,
                     fontSize: GoPlayType.base,
                   ),
@@ -225,17 +210,14 @@ class UpdateDialog extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: GoPlayTheme.error.withValues(alpha: 0.06),
+                color: cs.error.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: GoPlayTheme.error.withValues(alpha: 0.15),
-                  width: 1,
-                ),
               ),
               child: Text(
-                state.errorMessage ?? 'An unexpected network error occurred while downloading the APK file. Please check your connection.',
+                state.errorMessage ??
+                    'An unexpected network error occurred while downloading the APK file. Please check your connection.',
                 style: GoPlayType.bodySmall.copyWith(
-                  color: GoPlayTheme.onSurface,
+                  color: cs.onSurface,
                 ),
                 // errorMessage comes off the wire and can be arbitrarily long.
                 maxLines: 5,
@@ -257,11 +239,12 @@ class UpdateDialog extends ConsumerWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildInfoTile('CURRENT', state.currentVersion),
-                _buildInfoTile('LATEST', info.latestVersion, isHighlight: true),
+                _buildInfoTile('CURRENT', state.currentVersion, cs),
+                _buildInfoTile('LATEST', info.latestVersion, cs, isHighlight: true),
                 _buildInfoTile(
                   'PUBLISHED',
                   DateFormat('MMM dd, yyyy').format(info.publishedAt),
+                  cs,
                 ),
               ],
             ),
@@ -271,7 +254,7 @@ class UpdateDialog extends ConsumerWidget {
             Text(
               'WHAT\'S NEW',
               style: GoPlayType.meta.copyWith(
-                color: GoPlayTheme.onSurfaceVariant,
+                color: cs.onSurfaceVariant,
                 letterSpacing: GoPlayType.trackingWide,
               ),
               maxLines: 1,
@@ -293,11 +276,11 @@ class UpdateDialog extends ConsumerWidget {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               '• ',
                               style: TextStyle(
                                 fontFamily: GoPlayType.family,
-                                color: GoPlayTheme.primary,
+                                color: cs.primary,
                                 fontSize: GoPlayType.base,
                                 fontWeight: FontWeight.w700,
                                 height: GoPlayType.leadingBody,
@@ -310,7 +293,7 @@ class UpdateDialog extends ConsumerWidget {
                               child: Text(
                                 note,
                                 style: GoPlayType.body.copyWith(
-                                  color: GoPlayTheme.onSurface,
+                                  color: cs.onSurface,
                                 ),
                                 maxLines: 6,
                                 overflow: TextOverflow.ellipsis,
@@ -329,14 +312,14 @@ class UpdateDialog extends ConsumerWidget {
     }
   }
 
-  Widget _buildInfoTile(String label, String value, {bool isHighlight = false}) {
+  Widget _buildInfoTile(String label, String value, ColorScheme cs, {bool isHighlight = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
           style: GoPlayType.meta.copyWith(
-            color: GoPlayTheme.onSurfaceVariant,
+            color: cs.onSurfaceVariant,
             letterSpacing: 0.5,
           ),
           maxLines: 1,
@@ -349,7 +332,7 @@ class UpdateDialog extends ConsumerWidget {
             fontSize: GoPlayType.base,
             fontWeight: FontWeight.w800,
             height: GoPlayType.leadingSnug,
-            color: isHighlight ? GoPlayTheme.primary : GoPlayTheme.onSurface,
+            color: isHighlight ? cs.primary : cs.onSurface,
           ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -358,7 +341,13 @@ class UpdateDialog extends ConsumerWidget {
     );
   }
 
-  Widget _buildActionButtons(BuildContext context, UpdateState state, UpdateNotifier notifier) {
+  Widget _buildActionButtons(
+    BuildContext context,
+    UpdateState state,
+    UpdateNotifier notifier,
+    ColorScheme cs,
+    AppThemeMode themeMode,
+  ) {
     final isForce = state.isForceUpdate;
 
     if (state.status == UpdateStatus.downloading) {
@@ -366,11 +355,12 @@ class UpdateDialog extends ConsumerWidget {
         onPressed: () {
           notifier.cancelDownload();
         },
-        icon: const Icon(Icons.cancel_rounded, color: GoPlayTheme.error, size: 18),
+        icon: Icon(Icons.cancel_rounded, color: cs.error, size: 18),
         label: const Text('CANCEL DOWNLOAD'),
         style: TextButton.styleFrom(
-          foregroundColor: GoPlayTheme.error,
-          backgroundColor: GoPlayTheme.error.withValues(alpha: 0.08),
+          foregroundColor: cs.error,
+          backgroundColor: cs.error.withValues(alpha: 0.12),
+          side: BorderSide.none,
           padding: const EdgeInsets.symmetric(vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: const TextStyle(
@@ -392,18 +382,27 @@ class UpdateDialog extends ConsumerWidget {
         children: [
           if (!isForce)
             Expanded(
-              child: OutlinedButton(
+              child: ElevatedButton(
                 onPressed: () {
                   notifier.resetStatus();
                   Navigator.of(context).pop();
                 },
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-                  backgroundColor: Colors.white.withValues(alpha: 0.02),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: themeMode.surfaceContainerHigh,
+                  foregroundColor: cs.onSurfaceVariant,
+                  elevation: 0,
+                  shadowColor: Colors.transparent,
+                  side: BorderSide.none,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  textStyle: const TextStyle(
+                    fontFamily: GoPlayType.family,
+                    fontSize: GoPlayType.base,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
                 ),
-                child: Text('LATER', style: GoPlayType.label.copyWith(color: GoPlayTheme.onSurfaceVariant)),
+                child: const Text('LATER'),
               ),
             ),
           if (!isForce) const SizedBox(width: 12),
@@ -413,10 +412,11 @@ class UpdateDialog extends ConsumerWidget {
                 notifier.retryDownload();
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: GoPlayTheme.primary,
-                foregroundColor: const Color(0xFF071F21),
+                backgroundColor: cs.primary,
+                foregroundColor: cs.onPrimary,
                 elevation: 0,
                 shadowColor: Colors.transparent,
+                side: BorderSide.none,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 textStyle: const TextStyle(
@@ -440,7 +440,7 @@ class UpdateDialog extends ConsumerWidget {
           if (state.errorMessage != null) ...[
             Text(
               state.errorMessage!,
-              style: GoPlayType.bodySmall.copyWith(color: GoPlayTheme.error),
+              style: GoPlayType.bodySmall.copyWith(color: cs.error),
               textAlign: TextAlign.center,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
@@ -451,18 +451,27 @@ class UpdateDialog extends ConsumerWidget {
             children: [
               if (!isForce)
                 Expanded(
-                  child: OutlinedButton(
+                  child: ElevatedButton(
                     onPressed: () {
                       notifier.resetStatus();
                       Navigator.of(context).pop();
                     },
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-                      backgroundColor: Colors.white.withValues(alpha: 0.02),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: themeMode.surfaceContainerHigh,
+                      foregroundColor: cs.onSurfaceVariant,
+                      elevation: 0,
+                      shadowColor: Colors.transparent,
+                      side: BorderSide.none,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      textStyle: const TextStyle(
+                        fontFamily: GoPlayType.family,
+                        fontSize: GoPlayType.base,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
                     ),
-                    child: Text('LATER', style: GoPlayType.label.copyWith(color: GoPlayTheme.onSurfaceVariant)),
+                    child: const Text('LATER'),
                   ),
                 ),
               if (!isForce) const SizedBox(width: 12),
@@ -472,10 +481,11 @@ class UpdateDialog extends ConsumerWidget {
                     notifier.installApk();
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: GoPlayTheme.primary,
-                    foregroundColor: const Color(0xFF071F21),
+                    backgroundColor: cs.primary,
+                    foregroundColor: cs.onPrimary,
                     elevation: 0,
                     shadowColor: Colors.transparent,
+                    side: BorderSide.none,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     textStyle: const TextStyle(
@@ -499,23 +509,26 @@ class UpdateDialog extends ConsumerWidget {
       children: [
         if (!isForce)
           Expanded(
-            child: OutlinedButton(
+            child: ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-                backgroundColor: Colors.white.withValues(alpha: 0.02),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: themeMode.surfaceContainerHigh,
+                foregroundColor: cs.onSurfaceVariant,
+                elevation: 0,
+                shadowColor: Colors.transparent,
+                side: BorderSide.none,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text(
-                'LATER',
-                style: GoPlayType.label.copyWith(
-                  color: GoPlayTheme.onSurfaceVariant,
+                textStyle: const TextStyle(
+                  fontFamily: GoPlayType.family,
+                  fontSize: GoPlayType.base,
                   fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
                 ),
               ),
+              child: const Text('LATER'),
             ),
           ),
         if (!isForce) const SizedBox(width: 12),
@@ -526,10 +539,11 @@ class UpdateDialog extends ConsumerWidget {
               notifier.startDownload();
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: GoPlayTheme.primary,
-              foregroundColor: const Color(0xFF071F21),
+              backgroundColor: cs.primary,
+              foregroundColor: cs.onPrimary,
               elevation: 0,
               shadowColor: Colors.transparent,
+              side: BorderSide.none,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               textStyle: const TextStyle(

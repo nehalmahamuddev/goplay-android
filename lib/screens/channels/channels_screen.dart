@@ -300,8 +300,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
         channels = ref.read(trendingChannelsProvider).value ??
             allChannels?.where((c) => c.isTrending).toList();
       } else if (id == 'favorite') {
-        final favIds = ref.read(favoriteChannelIdsProvider);
-        channels = allChannels?.where((c) => favIds.contains(c.id)).toList();
+        channels = ref.read(favoriteChannelsProvider).value;
       } else {
         channels = grouped?[id];
       }
@@ -770,6 +769,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
         title: 'Could not load categories',
         error: async.error,
         onRetry: () {
+          ref.invalidate(rawChannelsProvider);
           ref.invalidate(categoriesProvider);
           ref.invalidate(channelsProvider);
         },

@@ -1,15 +1,12 @@
 {
-  "latestVersion": "2.3.0",
+  "latestVersion": "2.3.1",
   "minimumVersion": "2.0.0",
   "forceUpdate": false,
-  "apkUrl": "https://pub-0440e8e4ec654c10b2471b3b64aa4265.r2.dev/goplay-2.3.0.apk",
+  "apkUrl": "https://pub-0440e8e4ec654c10b2471b3b64aa4265.r2.dev/goplay-2.3.1.apk",
   "releaseNotes": [
-    "New Upstream-style Settings hub with dedicated subpages & build stamp.",
-    "Integrated live video player server switcher sheet and touch lock mode.",
-    "Unified search pill headers across Categories, Channels, and Events.",
-    "Edge-to-edge status bar spacing and seamless collapsing header tabs.",
-    "Openstream dark & AMOLED theme palette sync with borderless card surfaces.",
-    "Improved stream stability, offline fallbacks, and performance optimizations."
+    "Fixed automatic update detection on app startup with smooth landing presentation.",
+    "Dynamic theme color integration across update popup with zero-border design.",
+    "Persistent 'Show app updates' setting and session dismissal handling."
   ],
-  "publishedAt": "2026-10-30 20:30:00+06:00"
+  "publishedAt": "2026-10-30 21:40:00+06:00"
 }

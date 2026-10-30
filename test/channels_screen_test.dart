@@ -36,8 +36,8 @@ Channel channel(String id, String name, String? category) => Channel(
       streamUrl: 'https://example.test/$id.m3u8',
     );
 
-Category category(String id, String name, int sortOrder) =>
-    Category(id: id, name: name, sortOrder: sortOrder);
+Category category(String id, String name, int sortOrder, {bool active = true}) =>
+    Category(id: id, name: name, sortOrder: sortOrder, active: active);
 
 Future<ProviderContainer> pumpScreen(WidgetTester tester) async {
   final cache = _FakeCache(
@@ -227,6 +227,102 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('No bookmarks available'), findsOneWidget);
       expect(find.text('Explore channels'), findsOneWidget);
+    });
+    testWidgets('inactive category channels do not show on All tab or category tabs',
+        (tester) async {
+      final cache = _FakeCache(
+        channels: [
+          channel('c1', 'Alpha One', 'sports'),
+          channel('c2', 'Bravo Two', 'sports'),
+          channel('c3', 'Charlie Three', 'news'),
+          channel('c4', 'Delta Four', 'movies'),
+        ],
+        categories: [
+          category('sports', 'Sports', 0, active: true),
+          category('news', 'News', 1, active: true),
+          category('movies', 'Movies', 2, active: false),
+        ],
+      );
+
+      final container = ProviderContainer(
+        overrides: [cacheServiceProvider.overrideWithValue(cache)],
+      );
+      addTearDown(container.dispose);
+
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: ChannelsScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Movies tab should not exist
+      expect(find.text('Movies'), findsNothing);
+
+      // On All tab, Delta Four (movies) should not be present, only the 3 active channels
+      await tester.tap(find.text('All'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Alpha One'), findsOneWidget);
+      expect(find.text('Bravo Two'), findsOneWidget);
+      expect(find.text('Charlie Three'), findsOneWidget);
+      expect(find.text('Delta Four'), findsNothing);
+      expect(find.byType(ChannelCard), findsNWidgets(3));
+    });
+
+    testWidgets('bookmarked channel belonging to inactive category still appears in Favorite tab',
+        (tester) async {
+      final cache = _FakeCache(
+        channels: [
+          channel('c1', 'Alpha One', 'sports'),
+          channel('c4', 'Delta Four', 'movies'),
+        ],
+        categories: [
+          category('sports', 'Sports', 0, active: true),
+          category('movies', 'Movies', 1, active: false),
+        ],
+      );
+
+      final container = ProviderContainer(
+        overrides: [cacheServiceProvider.overrideWithValue(cache)],
+      );
+      addTearDown(container.dispose);
+
+      // Bookmark Delta Four (which has inactive category 'movies')
+      container.read(favoriteChannelIdsProvider.notifier).toggle('c4');
+
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: ChannelsScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Delta Four should NOT show on All tab
+      await tester.tap(find.text('All'));
+      await tester.pumpAndSettle();
+      expect(find.text('Delta Four'), findsNothing);
+
+      // Delta Four SHOULD show on Favorite tab
+      await tester.tap(find.text('Favorite'));
+      await tester.pumpAndSettle();
+      expect(find.text('Delta Four'), findsOneWidget);
     });
   });
 }

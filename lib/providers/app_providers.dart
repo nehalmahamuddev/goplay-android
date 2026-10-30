@@ -56,8 +56,8 @@ final appThemeProvider = Provider<ThemeData>((ref) {
   return ref.watch(activeAppThemeProvider);
 });
 
-// ─── Channels ─────────────────────────────────────────────────
-final channelsProvider = FutureProvider<List<Channel>>((ref) async {
+// ─── Raw Channels (unfiltered) ──────────────────────────────
+final rawChannelsProvider = FutureProvider<List<Channel>>((ref) async {
   final supabase = ref.watch(supabaseServiceProvider);
   final cache = ref.watch(cacheServiceProvider);
 
@@ -78,13 +78,21 @@ final channelsProvider = FutureProvider<List<Channel>>((ref) async {
     channelsList = cache.getLocalChannels();
   }
 
-  // Filter channels to only show those that belong to active categories (or have no category)
-  final localCategories = cache.getLocalCategories();
-  final activeCategoryIds = localCategories.map((c) => c.id).toSet();
+  return channelsList;
+});
 
-  return channelsList.where((ch) {
+// ─── Channels (Filtered by active categories) ─────────────────
+final channelsProvider = FutureProvider<List<Channel>>((ref) async {
+  final rawChannels = await ref.watch(rawChannelsProvider.future);
+  final categories = await ref.watch(categoriesProvider.future);
+
+  final activeCategoryIds =
+      categories.where((c) => c.active).map((c) => c.id).toSet();
+
+  // Strict mode: Only show channels belonging to an explicitly active category
+  return rawChannels.where((ch) {
     final cat = ch.category;
-    return cat == null || cat.isEmpty || activeCategoryIds.contains(cat);
+    return cat != null && cat.isNotEmpty && activeCategoryIds.contains(cat);
   }).toList();
 });
 
@@ -146,7 +154,8 @@ final channelsByCategoryProvider = Provider.autoDispose
 
 final channelProvider =
     FutureProvider.family<Channel?, String>((ref, id) async {
-  final channels = await ref.watch(channelsProvider.future);
+  // Read from rawChannelsProvider so favorited/bookmarked channels can still be played
+  final channels = await ref.watch(rawChannelsProvider.future);
   try {
     return channels.firstWhere((ch) => ch.id == id);
   } catch (_) {
@@ -541,7 +550,8 @@ class FavoriteNotifier extends Notifier<Set<String>> {
 }
 
 final favoriteChannelsProvider = Provider<AsyncValue<List<Channel>>>((ref) {
-  final channelsAsync = ref.watch(channelsProvider);
+  // Read from rawChannelsProvider so bookmarked channels remain visible even if their category is inactive
+  final channelsAsync = ref.watch(rawChannelsProvider);
   final favIds = ref.watch(favoriteChannelIdsProvider);
 
   return channelsAsync.whenData((channels) {

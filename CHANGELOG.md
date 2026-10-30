@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.1] - 2026-10-30
+
+### Fixed
+- **In-App Updater Auto-Check**:
+  - Replaced the 6-hour delay with a 5-minute safety cooldown to detect releases immediately on app launch.
+  - Added smooth transition settle delay when displaying the update dialog after navigating away from splash.
+  - Implemented session dismissal state for optional updates so users aren't repeatedly interrupted.
+  - Linked the "Show app updates" toggle in Settings to persistent storage.
+
+### Changed
+- **Update Dialog Theme Integration**:
+  - Adapted dialog background to active `AppThemeMode.cardColor` across AMOLED, Cyber Lime, Dracula, and Dark modes.
+  - Applied dynamic accent colors (`colorScheme.primary` and `colorScheme.onPrimary`) to the icon badge, headers, progress bars, and buttons.
+  - Removed all borders and outline strokes across card surfaces and buttons for a borderless aesthetic.
+
+---
+
 ## [2.3.0] - 2026-10-30
 
 ### Added

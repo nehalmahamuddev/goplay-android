@@ -21,6 +21,7 @@ class UpdateHandler extends ConsumerStatefulWidget {
 
 class _UpdateHandlerState extends ConsumerState<UpdateHandler> with WidgetsBindingObserver {
   bool _isDialogShowing = false;
+  bool _dismissedInCurrentSession = false;
 
   @override
   void initState() {
@@ -49,26 +50,35 @@ class _UpdateHandlerState extends ConsumerState<UpdateHandler> with WidgetsBindi
     }
   }
 
-  void _triggerUpdateDialog() async {
+  void _triggerUpdateDialog({bool isManual = false}) async {
     if (_isDialogShowing) return;
+    if (_dismissedInCurrentSession && !isManual) return;
 
     _isDialogShowing = true;
     try {
       // If the app is currently on the splash screen ('/'), wait until it navigates away
       // to avoid showing/dismissing the dialog during the initial route transition.
-      if (appRouter.routerDelegate.currentConfiguration.uri.path == '/') {
-        await Future.doWhile(() async {
-          await Future.delayed(const Duration(milliseconds: 200));
-          return appRouter.routerDelegate.currentConfiguration.uri.path == '/';
-        });
+      int waitedMs = 0;
+      while (appRouter.routerDelegate.currentConfiguration.uri.path == '/' && waitedMs < 10000) {
+        await Future.delayed(const Duration(milliseconds: 200));
+        waitedMs += 200;
       }
+
+      // Settle delay: give the home screen 500ms to mount and finish transition animations
+      await Future.delayed(const Duration(milliseconds: 500));
 
       final context = rootNavigatorKey.currentContext;
       if (context != null && context.mounted) {
         await UpdateDialog.show(context);
+        // If the user closed or dismissed the dialog (e.g. Later), track dismissal for current session
+        final current = ref.read(updateProvider);
+        if (current.status != UpdateStatus.downloading &&
+            current.status != UpdateStatus.installing) {
+          _dismissedInCurrentSession = true;
+        }
       }
-    } catch (_) {
-      // Dialog failed to open or closed unexpectedly
+    } catch (e) {
+      debugPrint('UpdateDialog presentation error: $e');
     } finally {
       _isDialogShowing = false;
     }
@@ -80,7 +90,10 @@ class _UpdateHandlerState extends ConsumerState<UpdateHandler> with WidgetsBindi
     ref.listen<UpdateState>(updateProvider, (previous, next) {
       if (next.status == UpdateStatus.updateAvailable &&
           previous?.status != UpdateStatus.updateAvailable) {
-        _triggerUpdateDialog();
+        if (next.isManualCheck) {
+          _dismissedInCurrentSession = false;
+        }
+        _triggerUpdateDialog(isManual: next.isManualCheck);
       }
     });
 

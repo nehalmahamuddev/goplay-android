@@ -12,18 +12,25 @@ class UpdateRepository {
   /// Gets the current version of the app.
   Future<String> getCurrentVersion() => _updateService.getCurrentVersion();
 
-  /// Checks if a check is needed (i.e. more than 6 hours have passed since the last check).
+  /// Checks if an automatic check is needed (auto-check enabled in settings and at least 5 minutes passed since last check).
   bool shouldCheckForUpdate() {
     try {
+      if (!Hive.isBoxOpen(AppConstants.settingsBox)) return true;
       final box = Hive.box(AppConstants.settingsBox);
+
+      // Check if user disabled automatic update checks in Settings
+      final autoCheck = box.get('auto_check_updates', defaultValue: true) as bool? ?? true;
+      if (!autoCheck) return false;
+
       final lastCheckStr = box.get('last_update_check_time') as String?;
       if (lastCheckStr == null) return true;
       
       final lastCheck = DateTime.tryParse(lastCheckStr);
       if (lastCheck == null) return true;
 
+      // 5-minute safety cooldown between automatic checks to avoid rate limiting
       final difference = DateTime.now().difference(lastCheck);
-      return difference.inHours >= 6;
+      return difference.inMinutes >= 5;
     } catch (_) {
       return true;
     }
@@ -55,7 +62,7 @@ class UpdateRepository {
   Future<UpdateCheckResult> checkForUpdates({bool forceCheck = false}) async {
     final currentVersion = await getCurrentVersion();
     
-    // Check if we should skip check based on 6-hour caching rule
+    // Check if we should skip check based on 5-minute safety cooldown or disabled setting
     if (!forceCheck && !shouldCheckForUpdate()) {
       final cachedInfo = _getCachedUpdateInfo();
       if (cachedInfo != null) {

@@ -80,6 +80,7 @@ class SyncService {
       // 5. Invalidate channels/categories providers if anything changed
       if (channelsUpdated) {
         debugPrint('SyncService: Invalidating channels and categories providers...');
+        _ref.invalidate(rawChannelsProvider);
         _ref.invalidate(channelsProvider);
         _ref.invalidate(categoriesProvider);
         _ref.invalidate(playzCategoriesProvider);
