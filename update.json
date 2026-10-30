@@ -1,14 +1,15 @@
 {
-  "latestVersion": "2.2.2",
+  "latestVersion": "2.3.0",
   "minimumVersion": "2.0.0",
   "forceUpdate": false,
-  "apkUrl": "https://pub-0440e8e4ec654c10b2471b3b64aa4265.r2.dev/goplay-2.2.1.apk",
+  "apkUrl": "https://pub-0440e8e4ec654c10b2471b3b64aa4265.r2.dev/goplay-2.3.0.apk",
   "releaseNotes": [
-    "Watch live sports in GoPlay.",
-    "Discover upcoming and live matches.",
-    "Faster loading and smoother streaming.",
-    "New category page added.",
-    "Improved stream stability and performance."
+    "New Upstream-style Settings hub with dedicated subpages & build stamp.",
+    "Integrated live video player server switcher sheet and touch lock mode.",
+    "Unified search pill headers across Categories, Channels, and Events.",
+    "Edge-to-edge status bar spacing and seamless collapsing header tabs.",
+    "Openstream dark & AMOLED theme palette sync with borderless card surfaces.",
+    "Improved stream stability, offline fallbacks, and performance optimizations."
   ],
-  "publishedAt": "2026-10-25 22:32:00+06:00"
+  "publishedAt": "2026-10-30 20:30:00+06:00"
 }
