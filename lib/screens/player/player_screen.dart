@@ -126,17 +126,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   static const _pipChannel = MethodChannel('com.goplay/pip');
   bool _isTvDevice = false; // Set once in first build, used to skip orientation locks
 
-  void _toggleScreenLock() {
-    setState(() {
-      _isScreenLocked = !_isScreenLocked;
-      if (_isScreenLocked) {
-        _controlsVisible = false;
-        _showUnlockButton = false;
-      }
-    });
-    HapticFeedback.mediumImpact();
-  }
-
   void _showUnlockPrompt() {
     _unlockButtonTimer?.cancel();
     setState(() {
@@ -755,8 +744,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           onChannelSelected: (id) => _selectChannel(id, allChannels),
                           eventChannels: widget.eventChannels,
                           dynamicChannels: widget.dynamicChannels,
-                          isLocked: _isScreenLocked,
-                          onToggleLock: _toggleScreenLock,
                           onFocusDown: () {
                             _playPauseFocusNode.requestFocus();
                           },
@@ -947,8 +934,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 if (widget.dynamicChannels != null) ...widget.dynamicChannels!,
                                 ..._resolvedDynamicChannels,
                               ],
-                              isLocked: _isScreenLocked,
-                              onToggleLock: _toggleScreenLock,
                               onFocusDown: () {
                                 _playPauseFocusNode.requestFocus();
                               },
@@ -1739,8 +1724,6 @@ class _FullscreenTopBar extends ConsumerWidget {
   final List<String>? eventChannels;
   final List<Channel>? dynamicChannels;
   final bool isFullscreen;
-  final bool isLocked;
-  final VoidCallback? onToggleLock;
   /// Called when D-Pad Down is pressed in the top bar, allowing the parent
   /// to move focus explicitly to the center player controls.
   final VoidCallback? onFocusDown;
@@ -1754,8 +1737,6 @@ class _FullscreenTopBar extends ConsumerWidget {
     this.eventChannels,
     this.dynamicChannels,
     this.isFullscreen = true,
-    this.isLocked = false,
-    this.onToggleLock,
     this.onFocusDown,
     this.onInteract,
   });
@@ -1843,31 +1824,6 @@ class _FullscreenTopBar extends ConsumerWidget {
                     error: (e, s) => const SizedBox.shrink(),
                   ),
                 ),
-
-                // 4. Lock Button (fullscreen only)
-                if (isFullscreen && onToggleLock != null) ...[
-                  const SizedBox(width: 6),
-                  TvFocusable(
-                    isCircle: true,
-                    onTap: onToggleLock,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.22),
-                          width: 1,
-                        ),
-                      ),
-                      child: const Icon(
-                        Icons.lock_outline_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),

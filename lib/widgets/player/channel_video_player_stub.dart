@@ -1778,158 +1778,213 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Dismiss',
-      barrierColor: Colors.black.withValues(alpha: 0.5),
-      transitionDuration: const Duration(milliseconds: 250),
+      barrierColor: Colors.black.withValues(alpha: 0.65),
+      transitionDuration: const Duration(milliseconds: 220),
       pageBuilder: (dialogContext, animation, secondaryAnimation) {
         final cs = Theme.of(dialogContext).colorScheme;
+        final mq = MediaQuery.of(dialogContext);
+        final bool isCompact = mq.size.width < 480;
+        final double cardWidth = isCompact ? mq.size.width * 0.92 : 430.0;
+        final double maxHeight = math.min(mq.size.height * 0.82, 380.0);
+
         return Align(
-          alignment: Alignment.centerRight,
+          alignment: Alignment.center,
           child: Material(
             color: Colors.transparent,
             child: Container(
-              width: 290,
-              height: double.infinity,
+              width: cardWidth,
+              constraints: BoxConstraints(maxHeight: maxHeight),
               decoration: BoxDecoration(
-                color: const Color(0xF2121216),
-                border: Border(
-                  left: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.12),
-                    width: 1,
-                  ),
+                color: const Color(0xF71E1E22), // YouTube dark charcoal
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  width: 1.0,
                 ),
-                boxShadow: const [
+                boxShadow: [
                   BoxShadow(
-                    color: Color(0x99000000),
-                    blurRadius: 24,
+                    color: Colors.black.withValues(alpha: 0.65),
+                    blurRadius: 36,
+                    offset: const Offset(0, 10),
                     spreadRadius: 4,
                   ),
                 ],
               ),
-              child: SafeArea(
-                left: false,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Header: "Servers" + Close (X)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 14, 12, 14),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.dns_rounded,
-                            color: cs.primary,
-                            size: 19,
-                          ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Servers',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                          const Spacer(),
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(16),
-                              onTap: () => Navigator.of(dialogContext).pop(),
-                              child: const Padding(
-                                padding: EdgeInsets.all(6),
-                                child: Icon(
-                                  Icons.close_rounded,
-                                  color: Colors.white70,
-                                  size: 20,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Top Drag Handle (YouTube style)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12, bottom: 6),
+                    child: Center(
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Header: "Servers" + Subtitle + Close (X)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 6, 12, 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.dns_rounded,
+                                    color: cs.primary,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'Servers',
+                                    style: TextStyle(
+                                      fontFamily: GoPlayType.family,
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.2,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                '${servers.length} stream sources available',
+                                style: TextStyle(
+                                  fontFamily: GoPlayType.family,
+                                  color: Colors.white.withValues(alpha: 0.6),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w400,
                                 ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () => Navigator.of(dialogContext).pop(),
+                            child: const Padding(
+                              padding: EdgeInsets.all(6),
+                              child: Icon(
+                                Icons.close_rounded,
+                                color: Colors.white70,
+                                size: 20,
                               ),
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                    Divider(
-                      height: 1,
-                      thickness: 1,
-                      color: Colors.white.withValues(alpha: 0.08),
-                    ),
-                    // Server list
-                    Expanded(
-                      child: ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        itemCount: servers.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          final s = servers[index];
-                          final isSelected = index == widget.activeServerIndex;
-                          final displayName = s.name.isNotEmpty ? s.name : 'Server ${index + 1}';
-                          return Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(10),
-                              onTap: () {
-                                Navigator.of(dialogContext).pop();
-                                if (index != widget.activeServerIndex) {
-                                  widget.onServerSelected?.call(index);
-                                }
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? cs.primary.withValues(alpha: 0.15)
-                                      : const Color(0xFF1E1E22),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? cs.primary
-                                        : Colors.white.withValues(alpha: 0.08),
-                                    width: isSelected ? 1.5 : 1,
+                  ),
+
+                  Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+
+                  // Server list
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      itemCount: servers.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 4),
+                      itemBuilder: (context, index) {
+                        final s = servers[index];
+                        final isSelected = index == widget.activeServerIndex;
+                        final displayName = s.name.isNotEmpty ? s.name : 'Server ${index + 1}';
+
+                        return Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              Navigator.of(dialogContext).pop();
+                              if (index != widget.activeServerIndex) {
+                                widget.onServerSelected?.call(index);
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? cs.primary.withValues(alpha: 0.12)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(16),
+                                border: isSelected
+                                    ? Border.all(
+                                        color: cs.primary.withValues(alpha: 0.45),
+                                        width: 1.0,
+                                      )
+                                    : null,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.dns_rounded,
+                                    color: isSelected ? cs.primary : Colors.white70,
+                                    size: 20,
                                   ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        displayName,
-                                        style: TextStyle(
-                                          color: isSelected ? cs.primary : Colors.white,
-                                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                          fontSize: 14,
-                                        ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Text(
+                                      displayName,
+                                      style: TextStyle(
+                                        fontFamily: GoPlayType.family,
+                                        color: isSelected ? cs.primary : Colors.white,
+                                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                        fontSize: 15,
                                       ),
                                     ),
-                                    if (isSelected)
-                                      Icon(
-                                        Icons.check_circle_rounded,
-                                        color: cs.primary,
-                                        size: 20,
-                                      ),
-                                  ],
-                                ),
+                                  ),
+                                  if (isSelected)
+                                    Icon(
+                                      Icons.check_rounded,
+                                      color: cs.primary,
+                                      size: 22,
+                                    ),
+                                ],
                               ),
                             ),
-                          );
-                        },
-                      ),
+                          ),
+                        );
+                      },
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
         );
       },
       transitionBuilder: (dialogContext, animation, secondaryAnimation, child) {
-        final slideIn = Tween<Offset>(
-          begin: const Offset(1, 0),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(
+        final curvedAnimation = CurvedAnimation(
           parent: animation,
           curve: Curves.easeOutCubic,
-        ));
-        return SlideTransition(position: slideIn, child: child);
+        );
+        return FadeTransition(
+          opacity: curvedAnimation,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.94, end: 1.0).animate(curvedAnimation),
+            child: child,
+          ),
+        );
       },
     );
   }
