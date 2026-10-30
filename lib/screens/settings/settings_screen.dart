@@ -170,6 +170,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _searchFocusNode.addListener(() {
+      if (mounted) setState(() {});
+    });
     _searchController.addListener(() {
       final q = _searchController.text.trim();
       if (q != _searchQuery) {
@@ -287,72 +290,93 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   const SizedBox(height: 16),
 
                   // ─── 2. Pill-Shaped Search Bar (Screenshot 1) ───
-                  Container(
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: theme.cardTheme.color ?? theme.cardColor,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: _searchFocusNode.hasFocus
-                            ? cs.primary.withValues(alpha: 0.6)
-                            : (theme.brightness == Brightness.dark
-                                ? Colors.white.withValues(alpha: 0.08)
-                                : Colors.black.withValues(alpha: 0.08)),
-                        width: 1,
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _searchFocusNode.requestFocus(),
+                    child: Container(
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: theme.cardTheme.color ?? theme.cardColor,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: _searchFocusNode.hasFocus
+                              ? cs.primary.withValues(alpha: 0.6)
+                              : (theme.brightness == Brightness.dark
+                                  ? Colors.white.withValues(alpha: 0.08)
+                                  : Colors.black.withValues(alpha: 0.08)),
+                          width: 1,
+                        ),
                       ),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.search_rounded,
-                          color: cs.onSurfaceVariant.withValues(alpha: 0.7),
-                          size: 22,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            focusNode: _searchFocusNode,
-                            cursorColor: cs.primary,
-                            style: TextStyle(
-                              fontFamily: GoPlayType.family,
-                              fontSize: 15,
-                              color: cs.onSurface,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Search...',
-                              hintStyle: TextStyle(
-                                fontFamily: GoPlayType.family,
-                                fontSize: 15,
-                                color: cs.onSurfaceVariant.withValues(alpha: 0.5),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.search_rounded,
+                            color: _searchFocusNode.hasFocus
+                                ? cs.primary
+                                : cs.onSurfaceVariant.withValues(alpha: 0.7),
+                            size: 22,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Theme(
+                              data: theme.copyWith(
+                                inputDecorationTheme: const InputDecorationTheme(
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  errorBorder: InputBorder.none,
+                                  disabledBorder: InputBorder.none,
+                                  focusedErrorBorder: InputBorder.none,
+                                  filled: false,
+                                  fillColor: Colors.transparent,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
                               ),
-                              filled: false,
-                              fillColor: Colors.transparent,
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              errorBorder: InputBorder.none,
-                              disabledBorder: InputBorder.none,
-                              focusedErrorBorder: InputBorder.none,
-                              isDense: true,
-                              contentPadding: EdgeInsets.zero,
+                              child: TextField(
+                                controller: _searchController,
+                                focusNode: _searchFocusNode,
+                                cursorColor: cs.primary,
+                                style: TextStyle(
+                                  fontFamily: GoPlayType.family,
+                                  fontSize: 15,
+                                  color: cs.onSurface,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: 'Search...',
+                                  hintStyle: TextStyle(
+                                    fontFamily: GoPlayType.family,
+                                    fontSize: 15,
+                                    color: cs.onSurfaceVariant.withValues(alpha: 0.5),
+                                  ),
+                                  filled: false,
+                                  fillColor: Colors.transparent,
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  errorBorder: InputBorder.none,
+                                  disabledBorder: InputBorder.none,
+                                  focusedErrorBorder: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                        if (_searchQuery.isNotEmpty)
-                          IconButton(
-                            icon: Icon(
-                              Icons.close_rounded,
-                              color: cs.onSurfaceVariant,
-                              size: 18,
+                          if (_searchQuery.isNotEmpty)
+                            IconButton(
+                              icon: Icon(
+                                Icons.close_rounded,
+                                color: cs.onSurfaceVariant,
+                                size: 18,
+                              ),
+                              onPressed: () {
+                                _searchController.clear();
+                                _searchFocusNode.unfocus();
+                              },
                             ),
-                            onPressed: () {
-                              _searchController.clear();
-                              _searchFocusNode.unfocus();
-                            },
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
 
