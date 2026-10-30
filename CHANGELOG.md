@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.4] - 2026-10-31
+
+### Added
+- Redesigned player with modern server switcher, fullscreen controls, and screen lock.
+- Added direct GitHub in-app update system.
+- Added pull-to-refresh and improved home feed synchronization.
+- Added channel sorting, filtering, and search enhancements.
+- Redesigned Settings UI and updated community links.
+
+### Fixed
+- Improved UI consistency, theming, and status bar integration.
+- Fixed text overflow and dialog styling issues.
+- Improved Android debug build signing configuration.
+
+---
+
 ## [2.3.3] - 2026-10-30
 
 ### Added
