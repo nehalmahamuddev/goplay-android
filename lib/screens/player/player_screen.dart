@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,46 +23,6 @@ const _kTopBarGradient = BoxDecoration(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
     colors: [Color(0xDC000000), Color(0x78000000), Colors.transparent],
-  ),
-);
-
-// Playing tag
-const _kPlayingTagDeco = BoxDecoration(
-  color: Color(0x26C8FF00),
-  borderRadius: BorderRadius.all(Radius.circular(12)),
-  border: Border.fromBorderSide(
-    BorderSide(color: Color(0x59C8FF00), width: 0.5),
-  ),
-);
-const _kPlayingTagStyle = TextStyle(
-  fontFamily: GoPlayType.family,
-  color: GoPlayTheme.primary,
-  fontSize: GoPlayType.xs,
-  fontWeight: FontWeight.w800,
-  height: GoPlayType.leadingFlat,
-  letterSpacing: GoPlayType.trackingMeta,
-);
-
-// Server chip decorations
-final _kChipDecoActive = BoxDecoration(
-  gradient: const LinearGradient(
-    colors: [
-      Color(0xFFE2FF4D), // Volt highlight gloss top
-      Color(0xFFC8FF00), // Primary volt base
-    ],
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
-  ),
-  borderRadius: const BorderRadius.all(Radius.circular(20)),
-  border: Border.fromBorderSide(
-    BorderSide(color: Colors.white.withValues(alpha: 0.35), width: 1.0),
-  ),
-);
-final _kChipDecoInactive = BoxDecoration(
-  color: Colors.white.withValues(alpha: 0.18), // Increased opacity for better visibility
-  borderRadius: const BorderRadius.all(Radius.circular(20)),
-  border: Border.fromBorderSide(
-    BorderSide(color: Colors.white.withValues(alpha: 0.28), width: 0.8),
   ),
 );
 
@@ -112,22 +73,6 @@ const _kTileMetaNormalStyle = TextStyle(
   fontSize: GoPlayType.xs,
   height: GoPlayType.leadingSnug,
 );
-const _kChipActiveStyle = TextStyle(
-  fontFamily: GoPlayType.family,
-  height: GoPlayType.leadingSnug,
-  color: GoPlayTheme.darkOnPrimary,
-  fontSize: GoPlayType.sm,
-  fontWeight: FontWeight.w700,
-  letterSpacing: 0.1,
-);
-const _kChipInactiveStyle = TextStyle(
-  fontFamily: GoPlayType.family,
-  height: GoPlayType.leadingSnug,
-  color: GoPlayTheme.darkOnSurface,
-  fontSize: GoPlayType.sm,
-  fontWeight: FontWeight.w600,
-  letterSpacing: 0.1,
-);
 
 // Cached identity matrix — never reallocated
 final _kIdentityMatrix = Matrix4.identity();
@@ -173,10 +118,47 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   int _activeServerIndex = 0;
   bool _controlsVisible = true;
   bool _isFullViewMode = false;
+  bool _isScreenLocked = false;
+  bool _showUnlockButton = false;
   Timer? _controlsTimer;
+  Timer? _unlockButtonTimer;
   String? _lastHistoryChannelId;
   static const _pipChannel = MethodChannel('com.goplay/pip');
   bool _isTvDevice = false; // Set once in first build, used to skip orientation locks
+
+  void _toggleScreenLock() {
+    setState(() {
+      _isScreenLocked = !_isScreenLocked;
+      if (_isScreenLocked) {
+        _controlsVisible = false;
+        _showUnlockButton = false;
+      }
+    });
+    HapticFeedback.mediumImpact();
+  }
+
+  void _showUnlockPrompt() {
+    _unlockButtonTimer?.cancel();
+    setState(() {
+      _showUnlockButton = true;
+    });
+    _unlockButtonTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() => _showUnlockButton = false);
+      }
+    });
+  }
+
+  void _unlockScreen() {
+    _unlockButtonTimer?.cancel();
+    setState(() {
+      _isScreenLocked = false;
+      _showUnlockButton = false;
+      _controlsVisible = true;
+    });
+    _startControlsTimer();
+    HapticFeedback.mediumImpact();
+  }
 
   // ── TV Panel Focus Routing ──────────────────────────────────────
   // Dedicated focus scope for the channel-list side panel.
@@ -201,12 +183,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     setState(() => _activeServerIndex = index);
 
     if (mounted && previousServer != null && previousServer.id != nextServer.id) {
+      final cs = Theme.of(context).colorScheme;
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
             children: [
-              const Icon(Icons.swap_calls_rounded, color: Color(0xFFC8FF00), size: 18),
+              Icon(Icons.swap_calls_rounded, color: cs.primary, size: 18),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -225,7 +208,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           backgroundColor: const Color(0xFF14141E),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
-            side: const BorderSide(color: Color(0x33C8FF00), width: 0.8),
+            side: BorderSide(color: cs.primary.withValues(alpha: 0.3), width: 0.8),
           ),
         ),
       );
@@ -399,6 +382,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   void _onPlayerTap() {
+    if (_isScreenLocked) {
+      _showUnlockPrompt();
+      return;
+    }
     final next = !_controlsVisible;
     setState(() => _controlsVisible = next);
     if (next) {
@@ -418,6 +405,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     setState(() {
       _isFullViewMode = !_isFullViewMode;
       _controlsVisible = true;
+      if (!_isFullViewMode) {
+        _isScreenLocked = false;
+        _showUnlockButton = false;
+        _unlockButtonTimer?.cancel();
+      }
     });
 
     // Toggle PiP mode on minimize — only active in Full View mode
@@ -462,6 +454,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void dispose() {
     _controlsTimer?.cancel();
+    _unlockButtonTimer?.cancel();
     _channelPanelFocusScope.dispose();
     _playPauseFocusNode.dispose();
     _pipChannel.invokeMethod('setPlayerActive', false);
@@ -582,10 +575,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final responsivePlayerHeight = (mq.size.width * 9 / 16).clamp(maxPlayerH < 180.0 ? maxPlayerH : 180.0, maxPlayerH);
 
     return PopScope(
-      // Always allow pop — we handle full-view exit manually below
-      canPop: !_isFullViewMode,
+      // Allow pop only when not in full-view and not screen-locked
+      canPop: !_isFullViewMode && !_isScreenLocked,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
+        if (_isScreenLocked) {
+          _showUnlockPrompt();
+          return;
+        }
         // canPop==false means we're in full-view mode — collapse it
         _toggleFullscreen();
       },
@@ -644,8 +641,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         const SizedBox(height: 16),
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: GoPlayTheme.primary,
-                            foregroundColor: Colors.black,
+                            backgroundColor: cs.primary,
+                            foregroundColor: cs.onPrimary,
                           ),
                           onPressed: () {
                             setState(() {
@@ -746,6 +743,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         onTap: _onPlayerTap,
                         onFullscreenToggle: _toggleFullscreen,
                         showBackButton: true,
+                        isLocked: _isScreenLocked,
+                        showUnlockButton: _showUnlockButton,
+                        onUnlock: _unlockScreen,
+                        onLockChanged: (locked) => setState(() => _isScreenLocked = locked),
                         topBar: _FullscreenTopBar(
                           category: channel.category ?? '',
                           currentChannelId: channel.id,
@@ -754,6 +755,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           onChannelSelected: (id) => _selectChannel(id, allChannels),
                           eventChannels: widget.eventChannels,
                           dynamicChannels: widget.dynamicChannels,
+                          servers: _currentChannelServers.length > 1 ? _currentChannelServers : null,
+                          activeServerIndex: _activeServerIndex,
+                          onServerSelected: _handleServerSelected,
+                          isLocked: _isScreenLocked,
+                          onToggleLock: _toggleScreenLock,
                           onFocusDown: () {
                             _playPauseFocusNode.requestFocus();
                           },
@@ -924,6 +930,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       onPreviousChannel: onPrev,
                       onNextChannel: onNext,
                       onInteract: _onPlayerInteract,
+                      isLocked: _isScreenLocked,
+                      showUnlockButton: _showUnlockButton,
+                      onUnlock: _unlockScreen,
+                      onLockChanged: (locked) => setState(() => _isScreenLocked = locked),
                       height: responsivePlayerHeight,
                       topBar: isFullscreen
                           ? _FullscreenTopBar(
@@ -940,6 +950,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 if (widget.dynamicChannels != null) ...widget.dynamicChannels!,
                                 ..._resolvedDynamicChannels,
                               ],
+                              servers: _currentChannelServers.length > 1 ? _currentChannelServers : null,
+                              activeServerIndex: _activeServerIndex,
+                              onServerSelected: _handleServerSelected,
+                              isLocked: _isScreenLocked,
+                              onToggleLock: _toggleScreenLock,
                               onFocusDown: () {
                                 _playPauseFocusNode.requestFocus();
                               },
@@ -952,9 +967,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ],
               );
             },
-            loading: () => const Center(
+            loading: () => Center(
               child: CircularProgressIndicator(
-                color: GoPlayTheme.primary,
+                color: cs.primary,
                 strokeWidth: 2,
               ),
             ),
@@ -993,6 +1008,10 @@ class _PlayerContainer extends StatelessWidget {
   final VoidCallback? onFocusChannelPanel;
   final bool isTvDevice;
   final FocusNode? playPauseFocusNode;
+  final bool isLocked;
+  final bool showUnlockButton;
+  final VoidCallback? onUnlock;
+  final ValueChanged<bool>? onLockChanged;
 
   const _PlayerContainer({
     required this.channel,
@@ -1012,6 +1031,10 @@ class _PlayerContainer extends StatelessWidget {
     this.onFocusChannelPanel,
     this.isTvDevice = false,
     this.playPauseFocusNode,
+    this.isLocked = false,
+    this.showUnlockButton = false,
+    this.onUnlock,
+    this.onLockChanged,
   });
 
   @override
@@ -1033,7 +1056,7 @@ class _PlayerContainer extends StatelessWidget {
                 channel: channel,
                 isFullscreen: isFullscreen,
                 onFullscreenToggle: onFullscreenToggle,
-                showControls: controlsVisible,
+                showControls: isLocked ? false : controlsVisible,
                 onTap: onTap,
                 onPreviousChannel: onPreviousChannel,
                 onNextChannel: onNextChannel,
@@ -1044,11 +1067,98 @@ class _PlayerContainer extends StatelessWidget {
                 servers: servers,
                 activeServerIndex: activeServerIndex,
                 onServerSelected: onServerSelected,
+                isLocked: isLocked,
+                onLockChanged: onLockChanged,
               ),
             ),
 
+            // If locked: tap anywhere triggers onTap -> _showUnlockPrompt
+            if (isLocked)
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onTap,
+                  child: const ColoredBox(color: Colors.transparent),
+                ),
+              ),
+
+            // Floating Unlock Pill (Single-tap to unlock)
+            if (showUnlockButton && onUnlock != null)
+              Positioned(
+                bottom: isFullscreen ? 50 : 24,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.0, end: 1.0),
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, value, child) {
+                      return Opacity(
+                        opacity: value,
+                        child: Transform.scale(
+                          scale: 0.92 + (0.08 * value),
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: onUnlock,
+                        borderRadius: BorderRadius.circular(30),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xEE141418),
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.primary,
+                              width: 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.35),
+                                blurRadius: 16,
+                                spreadRadius: 1,
+                              ),
+                              const BoxShadow(
+                                color: Colors.black87,
+                                blurRadius: 10,
+                                offset: Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.lock_open_rounded,
+                                color: Theme.of(context).colorScheme.primary,
+                                size: 19,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Tap to unlock',
+                                style: TextStyle(
+                                  fontFamily: GoPlayType.family,
+                                  color: Colors.white,
+                                  fontSize: GoPlayType.sm,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
             // Back button
-            if (showBackButton && topBar == null)
+            if (showBackButton && topBar == null && !isLocked)
               Positioned(
                 top: 16,
                 left: 16,
@@ -1063,7 +1173,7 @@ class _PlayerContainer extends StatelessWidget {
               ),
 
             // Fullscreen top bar
-            if (topBar != null)
+            if (topBar != null && !isLocked)
               Positioned(
                 top: 0,
                 left: 0,
@@ -1116,22 +1226,6 @@ class _BackButton extends StatelessWidget {
 
 // ─── Stream Server Filter Chips (Matches Homepage Today's Matches category chips) ──
 
-const _kServerChipSelected = TextStyle(
-  fontFamily: GoPlayType.family,
-  color: Color(0xFF0F0F0F),
-  fontSize: GoPlayType.sm,
-  fontWeight: FontWeight.w700,
-  height: GoPlayType.leadingSnug,
-);
-
-const _kServerChipUnselected = TextStyle(
-  fontFamily: GoPlayType.family,
-  color: Colors.white,
-  fontSize: GoPlayType.sm,
-  fontWeight: FontWeight.w500,
-  height: GoPlayType.leadingSnug,
-);
-
 class _ServerBadgesRow extends StatelessWidget {
   final List<Channel> servers;
   final int activeServerIndex;
@@ -1145,6 +1239,7 @@ class _ServerBadgesRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(top: 12, bottom: 8),
       child: SizedBox(
@@ -1176,14 +1271,35 @@ class _ServerBadgesRow extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? GoPlayTheme.primary
-                        : Theme.of(context).cardColor,
+                        ? cs.primary
+                        : cs.surfaceContainerHighest.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isSelected
+                          ? cs.primary
+                          : cs.outline.withValues(alpha: 0.15),
+                      width: 1,
+                    ),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: cs.primary.withValues(alpha: 0.35),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
                   ),
                   child: Center(
                     child: Text(
                       name,
-                      style: isSelected ? _kServerChipSelected : _kServerChipUnselected,
+                      style: TextStyle(
+                        fontFamily: GoPlayType.family,
+                        color: isSelected ? cs.onPrimary : cs.onSurfaceVariant,
+                        fontSize: GoPlayType.sm,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        height: GoPlayType.leadingSnug,
+                      ),
                     ),
                   ),
                 ),
@@ -1391,11 +1507,11 @@ class _RelatedChannelsListState extends ConsumerState<_RelatedChannelsList> {
           ],
         );
       },
-      loading: () => const Padding(
-        padding: EdgeInsets.all(20),
+      loading: () => Padding(
+        padding: const EdgeInsets.all(20),
         child: Center(
           child: CircularProgressIndicator(
-            color: GoPlayTheme.primary,
+            color: Theme.of(context).colorScheme.primary,
             strokeWidth: 2,
           ),
         ),
@@ -1534,7 +1650,7 @@ class _ChannelTileState extends State<_ChannelTile> {
                               child: Text(
                                 channel.displayName,
                                 style: isCurrent
-                                    ? _kTileNameActiveStyle
+                                    ? _kTileNameActiveStyle.copyWith(color: cs.primary)
                                     : _kTileNameNormalStyle,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -1550,7 +1666,7 @@ class _ChannelTileState extends State<_ChannelTile> {
                             channel.country,
                           ].where((s) => s != null && s.isNotEmpty).join(' · '),
                           style: isCurrent
-                              ? _kTileMetaActiveStyle
+                              ? _kTileMetaActiveStyle.copyWith(color: cs.primary)
                               : _kTileMetaNormalStyle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -1560,7 +1676,7 @@ class _ChannelTileState extends State<_ChannelTile> {
                   ),
                   const SizedBox(width: 8),
                   if (isCurrent)
-                    _buildPlayingTag()
+                    _buildPlayingTag(cs)
                   else if (channel.isLive)
                     const _LiveDot(),
                 ],
@@ -1573,12 +1689,26 @@ class _ChannelTileState extends State<_ChannelTile> {
     );
   }
 
-  Widget _buildPlayingTag() {
-    return const DecoratedBox(
-      decoration: _kPlayingTagDeco,
+  Widget _buildPlayingTag(ColorScheme cs) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: cs.primary.withValues(alpha: 0.15),
+        borderRadius: const BorderRadius.all(Radius.circular(12)),
+        border: Border.all(color: cs.primary.withValues(alpha: 0.35), width: 0.8),
+      ),
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-        child: Text('PLAYING', style: _kPlayingTagStyle),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        child: Text(
+          'PLAYING',
+          style: TextStyle(
+            fontFamily: GoPlayType.family,
+            color: cs.primary,
+            fontSize: GoPlayType.xs,
+            fontWeight: FontWeight.w800,
+            height: GoPlayType.leadingFlat,
+            letterSpacing: GoPlayType.trackingMeta,
+          ),
+        ),
       ),
     );
   }
@@ -1615,6 +1745,11 @@ class _FullscreenTopBar extends ConsumerWidget {
   final List<String>? eventChannels;
   final List<Channel>? dynamicChannels;
   final bool isFullscreen;
+  final List<Channel>? servers;
+  final int activeServerIndex;
+  final ValueChanged<int>? onServerSelected;
+  final bool isLocked;
+  final VoidCallback? onToggleLock;
   /// Called when D-Pad Down is pressed in the top bar, allowing the parent
   /// to move focus explicitly to the center player controls.
   final VoidCallback? onFocusDown;
@@ -1628,6 +1763,11 @@ class _FullscreenTopBar extends ConsumerWidget {
     this.eventChannels,
     this.dynamicChannels,
     this.isFullscreen = true,
+    this.servers,
+    this.activeServerIndex = 0,
+    this.onServerSelected,
+    this.isLocked = false,
+    this.onToggleLock,
     this.onFocusDown,
     this.onInteract,
   });
@@ -1635,6 +1775,9 @@ class _FullscreenTopBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final channelsAsync = ref.watch(channelsProvider);
+    final mq = MediaQuery.of(context);
+    final double leftInset = isFullscreen ? math.max(12.0, mq.padding.left) : 8.0;
+    final double rightInset = isFullscreen ? math.max(12.0, mq.padding.right) : 8.0;
 
     final bar = DecoratedBox(
       decoration: _kTopBarGradient,
@@ -1642,14 +1785,16 @@ class _FullscreenTopBar extends ConsumerWidget {
         top: isFullscreen,
         bottom: false,
         left: false,
-        right: true,
+        right: false,
         child: Padding(
           padding: EdgeInsets.only(
-            top: isFullscreen ? 10.0 : 4.0,
+            top: isFullscreen ? 8.0 : 4.0,
             bottom: isFullscreen ? 6.0 : 4.0,
+            left: leftInset,
+            right: rightInset,
           ),
           child: SizedBox(
-            height: isFullscreen ? 52 : 46,
+            height: isFullscreen ? 48 : 42,
             child: Row(
               children: [
                 // 1. Back button
@@ -1666,7 +1811,25 @@ class _FullscreenTopBar extends ConsumerWidget {
                   ),
                 ),
 
-                // 2. Horizontal Channels list
+                // 2. Stream Servers (if multiple servers available for active channel)
+                if (servers != null && servers!.length > 1) ...[
+                  const SizedBox(width: 4),
+                  _FullscreenServersList(
+                    servers: servers!,
+                    activeServerIndex: activeServerIndex,
+                    onServerSelected: onServerSelected,
+                    onFocusDown: onFocusDown,
+                    onInteract: onInteract,
+                  ),
+                  Container(
+                    height: 20,
+                    width: 1,
+                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                    color: Colors.white.withValues(alpha: 0.18),
+                  ),
+                ],
+
+                // 3. Horizontal Channels list
                 Expanded(
                   child: channelsAsync.when(
                     data: (channels) {
@@ -1691,7 +1854,7 @@ class _FullscreenTopBar extends ConsumerWidget {
                       if (related.isEmpty) return const SizedBox.shrink();
                       return ListView.builder(
                         scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.only(left: 4, right: 16),
+                        padding: const EdgeInsets.only(left: 4, right: 8),
                         physics: const BouncingScrollPhysics(),
                         itemCount: related.length,
                         itemBuilder: (context, index) {
@@ -1710,6 +1873,31 @@ class _FullscreenTopBar extends ConsumerWidget {
                     error: (e, s) => const SizedBox.shrink(),
                   ),
                 ),
+
+                // 4. Lock Button (fullscreen only)
+                if (isFullscreen && onToggleLock != null) ...[
+                  const SizedBox(width: 6),
+                  TvFocusable(
+                    isCircle: true,
+                    onTap: onToggleLock,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.22),
+                          width: 1,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.lock_outline_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1743,6 +1931,138 @@ class _FullscreenTopBar extends ConsumerWidget {
   }
 }
 
+// ─── Inline Fullscreen Server Selector ──────────────────────────
+
+class _FullscreenServersList extends StatelessWidget {
+  final List<Channel> servers;
+  final int activeServerIndex;
+  final ValueChanged<int>? onServerSelected;
+  final VoidCallback? onFocusDown;
+  final VoidCallback? onInteract;
+
+  const _FullscreenServersList({
+    required this.servers,
+    required this.activeServerIndex,
+    this.onServerSelected,
+    this.onFocusDown,
+    this.onInteract,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.dns_rounded,
+                  size: 15,
+                  color: cs.primary,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'SERVER',
+                  style: TextStyle(
+                    fontFamily: GoPlayType.family,
+                    color: Colors.white.withValues(alpha: 0.65),
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          for (int i = 0; i < servers.length; i++) ...[
+            if (i > 0) const SizedBox(width: 5),
+            _ServerPill(
+              label: servers[i].name.isNotEmpty ? servers[i].name : 'Server ${i + 1}',
+              isSelected: i == activeServerIndex,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                onInteract?.call();
+                onServerSelected?.call(i);
+              },
+              onFocusDown: onFocusDown,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ServerPill extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final VoidCallback? onFocusDown;
+
+  const _ServerPill({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+    this.onFocusDown,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return TvFocusable(
+      borderRadius: BorderRadius.circular(16),
+      onTap: isSelected ? null : onTap,
+      child: GestureDetector(
+        onTap: isSelected ? null : onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? cs.primary
+                : Colors.white.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected
+                  ? cs.primary
+                  : Colors.white.withValues(alpha: 0.22),
+              width: 1.0,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: cs.primary.withValues(alpha: 0.4),
+                      blurRadius: 8,
+                      offset: const Offset(0, 1),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: GoPlayType.family,
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected ? cs.onPrimary : Colors.white,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ServerChip extends StatefulWidget {
   final String label;
   final bool isCurrent;
@@ -1766,6 +2086,42 @@ class _ServerChipState extends State<_ServerChip> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final activeDeco = BoxDecoration(
+      color: cs.primary,
+      borderRadius: const BorderRadius.all(Radius.circular(20)),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 1.0),
+      boxShadow: [
+        BoxShadow(
+          color: cs.primary.withValues(alpha: 0.35),
+          blurRadius: 8,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    );
+    final inactiveDeco = BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.18),
+      borderRadius: const BorderRadius.all(Radius.circular(20)),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.28), width: 0.8),
+    );
+
+    final activeStyle = TextStyle(
+      fontFamily: GoPlayType.family,
+      height: GoPlayType.leadingSnug,
+      color: cs.onPrimary,
+      fontSize: GoPlayType.sm,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.1,
+    );
+    final inactiveStyle = const TextStyle(
+      fontFamily: GoPlayType.family,
+      height: GoPlayType.leadingSnug,
+      color: Colors.white,
+      fontSize: GoPlayType.sm,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0.1,
+    );
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 5),
@@ -1778,25 +2134,25 @@ class _ServerChipState extends State<_ServerChip> {
             onTapCancel: () => setState(() => _isPressed = false),
             onTap: widget.isCurrent ? null : widget.onTap,
             child: AnimatedScale(
-            scale: _isPressed ? 0.95 : 1.0,
-            duration: const Duration(milliseconds: 100),
-            curve: Curves.easeOut,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
-              decoration: widget.isCurrent ? _kChipDecoActive : _kChipDecoInactive,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-                child: Text(
-                  widget.label,
-                  style: widget.isCurrent ? _kChipActiveStyle : _kChipInactiveStyle,
+              scale: _isPressed ? 0.95 : 1.0,
+              duration: const Duration(milliseconds: 100),
+              curve: Curves.easeOut,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+                decoration: widget.isCurrent ? activeDeco : inactiveDeco,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                  child: Text(
+                    widget.label,
+                    style: widget.isCurrent ? activeStyle : inactiveStyle,
+                  ),
                 ),
               ),
             ),
           ),
         ),
       ),
-    ),
     );
   }
 }

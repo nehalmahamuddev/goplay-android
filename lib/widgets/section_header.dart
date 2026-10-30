@@ -64,7 +64,7 @@ class SectionHeader extends StatelessWidget {
     );
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
       child: hasAction
           ? Align(
               alignment: Alignment.centerLeft,

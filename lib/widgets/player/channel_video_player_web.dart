@@ -20,6 +20,8 @@ Widget getChannelVideoPlayer({
   List<Channel>? servers,
   int activeServerIndex = 0,
   ValueChanged<int>? onServerSelected,
+  bool isLocked = false,
+  ValueChanged<bool>? onLockChanged,
 }) {
   return ChannelVideoPlayerWeb(
     channel: channel,
@@ -33,6 +35,8 @@ Widget getChannelVideoPlayer({
     servers: servers,
     activeServerIndex: activeServerIndex,
     onServerSelected: onServerSelected,
+    isLocked: isLocked,
+    onLockChanged: onLockChanged,
   );
 }
 
@@ -71,6 +75,10 @@ class ChannelVideoPlayerWeb extends StatefulWidget implements ChannelVideoPlayer
   final int activeServerIndex;
   @override
   final ValueChanged<int>? onServerSelected;
+  @override
+  final bool isLocked;
+  @override
+  final ValueChanged<bool>? onLockChanged;
 
   const ChannelVideoPlayerWeb({
     super.key,
@@ -88,6 +96,8 @@ class ChannelVideoPlayerWeb extends StatefulWidget implements ChannelVideoPlayer
     this.servers,
     this.activeServerIndex = 0,
     this.onServerSelected,
+    this.isLocked = false,
+    this.onLockChanged,
   });
 
   @override

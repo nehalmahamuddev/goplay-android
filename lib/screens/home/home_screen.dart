@@ -24,7 +24,7 @@ class HomeScreen extends ConsumerWidget {
   static const double _firstSectionTopSpacing = 8.0;
 
   /// Standard inter-section spacing between subsequent content sections
-  static const double _sectionSpacing = 20.0;
+  static const double _sectionSpacing = 16.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -220,7 +220,7 @@ class HomeScreen extends ConsumerWidget {
           ),
           const SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.only(bottom: 12),
+              padding: EdgeInsets.only(bottom: 10),
               child: RepaintBoundary(child: HomeSportCategoryFilterChips()),
             ),
           ),

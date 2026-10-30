@@ -10,9 +10,12 @@ import '../../providers/app_providers.dart';
 import '../../providers/theme_provider.dart';
 import '../../models/event.dart';
 import '../../services/event_stream_launcher.dart';
+import 'package:go_router/go_router.dart';
 import '../../widgets/cards/playz_event_card.dart';
-import '../../widgets/app_overflow_menu.dart';
 import '../../widgets/tv_focus_wrapper.dart';
+import '../../widgets/search_pill_card.dart';
+
+enum EventSortOption { defaultTime, teamNameAsc, leagueSport }
 
 /// Live Events Hub for GoPlay
 ///
@@ -32,6 +35,13 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final TabController _tabController;
   Timer? _realtimeRefreshTimer;
+
+  final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode(debugLabel: 'EventsSearch');
+  final _searchQueryNotifier = ValueNotifier<String>('');
+  final _eventSortNotifier =
+      ValueNotifier<EventSortOption>(EventSortOption.defaultTime);
+  Timer? _debounceTimer;
 
   static const _tabs = [
     'Live',
@@ -71,8 +81,303 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _realtimeRefreshTimer?.cancel();
+    _debounceTimer?.cancel();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    _searchQueryNotifier.dispose();
+    _eventSortNotifier.dispose();
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(
+      const Duration(milliseconds: 150),
+      () => _searchQueryNotifier.value = value,
+    );
+  }
+
+  void _onSearchClearPressed() {
+    _debounceTimer?.cancel();
+    _searchController.clear();
+    _searchQueryNotifier.value = '';
+  }
+
+  void _showEventsFilterSheet(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF161616) : cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (bottomSheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final hasActiveFilters =
+                _eventSortNotifier.value != EventSortOption.defaultTime;
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Drag Handle
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: cs.onSurface.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Header Row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Filters & Sorting',
+                          style: (Theme.of(context).textTheme.titleMedium ??
+                                  GoPlayType.title)
+                              .copyWith(
+                            color: cs.onSurface,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (hasActiveFilters)
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              foregroundColor: GoPlayTheme.primary,
+                              visualDensity: VisualDensity.compact,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 10),
+                            ),
+                            onPressed: () {
+                              HapticFeedback.selectionClick();
+                              _eventSortNotifier.value =
+                                  EventSortOption.defaultTime;
+                              setSheetState(() {});
+                            },
+                            child: const Text('Reset'),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Sort Options
+                    Text(
+                      'SORT BY',
+                      style: GoPlayType.labelSmall.copyWith(
+                        color: cs.onSurfaceVariant,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF202020)
+                            : cs.surfaceContainerHighest.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        children: [
+                          _buildSortTile(
+                            context: context,
+                            title: 'Match Time (Default)',
+                            icon: Icons.schedule_rounded,
+                            isSelected: _eventSortNotifier.value ==
+                                EventSortOption.defaultTime,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              _eventSortNotifier.value =
+                                  EventSortOption.defaultTime;
+                              setSheetState(() {});
+                            },
+                          ),
+                          Divider(
+                            height: 1,
+                            color: cs.onSurface.withValues(alpha: 0.06),
+                            indent: 48,
+                          ),
+                          _buildSortTile(
+                            context: context,
+                            title: 'Team Names (A to Z)',
+                            icon: Icons.sort_by_alpha_rounded,
+                            isSelected: _eventSortNotifier.value ==
+                                EventSortOption.teamNameAsc,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              _eventSortNotifier.value =
+                                  EventSortOption.teamNameAsc;
+                              setSheetState(() {});
+                            },
+                          ),
+                          Divider(
+                            height: 1,
+                            color: cs.onSurface.withValues(alpha: 0.06),
+                            indent: 48,
+                          ),
+                          _buildSortTile(
+                            context: context,
+                            title: 'League / Sport Name',
+                            icon: Icons.emoji_events_outlined,
+                            isSelected: _eventSortNotifier.value ==
+                                EventSortOption.leagueSport,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              _eventSortNotifier.value =
+                                  EventSortOption.leagueSport;
+                              setSheetState(() {});
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Quick Actions
+                    Text(
+                      'QUICK ACTIONS',
+                      style: GoPlayType.labelSmall.copyWith(
+                        color: cs.onSurfaceVariant,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildActionCard(
+                            context: context,
+                            icon: Icons.refresh_rounded,
+                            label: 'Refresh',
+                            onTap: () {
+                              Navigator.pop(bottomSheetContext);
+                              HapticFeedback.mediumImpact();
+                              _handleRefresh();
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildActionCard(
+                            context: context,
+                            icon: Icons.settings_outlined,
+                            label: 'Settings',
+                            onTap: () {
+                              Navigator.pop(bottomSheetContext);
+                              context.push('/settings');
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSortTile({
+    required BuildContext context,
+    required String title,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: isSelected ? GoPlayTheme.primary : cs.onSurfaceVariant,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontFamily: GoPlayType.family,
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  color: isSelected ? GoPlayTheme.primary : cs.onSurface,
+                ),
+              ),
+            ),
+            if (isSelected)
+              const Icon(
+                Icons.check_rounded,
+                size: 20,
+                color: GoPlayTheme.primary,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionCard({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Material(
+      color: isDark
+          ? const Color(0xFF202020)
+          : cs.surfaceContainerHighest.withValues(alpha: 0.5),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: cs.onSurface),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: GoPlayType.family,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: cs.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _handleRefresh() async {
@@ -94,6 +399,8 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final statusBarHeight = MediaQuery.paddingOf(context).top;
     final themeMode = ref.watch(activeThemeModeProvider);
     final headerBg = theme.bottomNavigationBarTheme.backgroundColor ?? themeMode.bottomNavColor;
     final sportsAsync = ref.watch(sortedSportCategoriesProvider);
@@ -116,139 +423,162 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
         : cs.onSurface;
     final chipRadius = uiConfig.resolveCategoryChipRadius(isHome: false);
 
-    return Material(
-      color: cs.surface,
-      child: NestedScrollView(
-        physics: const BouncingScrollPhysics(),
-        headerSliverBuilder: (context, innerBoxIsScrolled) {
-          return [
-            // Pinned Main App Bar
-            SliverAppBar(
-              floating: false,
-              pinned: true,
-              backgroundColor: headerBg,
-              surfaceTintColor: Colors.transparent,
-              elevation: 0,
-              scrolledUnderElevation: 0,
-              automaticallyImplyLeading: false,
-              titleSpacing: 16,
-              toolbarHeight: kToolbarHeight,
-              systemOverlayStyle: const SystemUiOverlayStyle(
-                statusBarColor: Colors.transparent,
-                statusBarIconBrightness: Brightness.light,
-                statusBarBrightness: Brightness.dark,
-              ),
-              title: const Text(
-                'Live Events',
-                style: TextStyle(
-                  fontFamily: GoPlayType.family,
-                  color: GoPlayTheme.onSurface,
-                  fontSize: GoPlayType.xl,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.4,
-                ),
-              ),
-              actions: const [
-                AppOverflowMenu(iconColor: Colors.white),
-                SizedBox(width: 8),
-              ],
-            ),
+    final overlayStyle = SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+    );
 
-            // Horizontal Sport Category Filter Chips
-            SliverToBoxAdapter(
-              child: Container(
-                color: headerBg,
-                child: sportsAsync.when(
-                data: (sports) => SizedBox(
-                  height: 44,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: sports.length,
-                    separatorBuilder: (context, index) => const SizedBox(width: 8),
-                    itemBuilder: (context, index) {
-                      final sport = sports[index];
-                      final isSelected = sport.toLowerCase() == selectedSport.toLowerCase();
-                      return TvFocusable(
-                        borderRadius: BorderRadius.circular(chipRadius),
-                        onTap: () {
-                          ref.read(selectedSportFilterProvider.notifier).select(sport);
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      child: ListenableBuilder(
+      listenable: Listenable.merge([_searchController, _eventSortNotifier]),
+      builder: (context, _) {
+        final canPop = _searchController.text.isEmpty &&
+            _eventSortNotifier.value == EventSortOption.defaultTime;
+
+        return PopScope(
+          canPop: canPop,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop) {
+              if (_searchController.text.isNotEmpty) {
+                _onSearchClearPressed();
+              } else if (_eventSortNotifier.value !=
+                  EventSortOption.defaultTime) {
+                _eventSortNotifier.value = EventSortOption.defaultTime;
+              }
+            }
+          },
+          child: Material(
+            color: cs.surface,
+            child: NestedScrollView(
+              physics: const BouncingScrollPhysics(),
+              headerSliverBuilder: (context, innerBoxIsScrolled) {
+                return [
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _UpcomingHeaderDelegate(
+                      statusBarHeight: statusBarHeight,
+                      searchPill: ValueListenableBuilder<EventSortOption>(
+                        valueListenable: _eventSortNotifier,
+                        builder: (context, currentSort, _) {
+                          return SearchPillCard(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            hintText: 'Search events, teams, leagues...',
+                            isFilterActive: currentSort !=
+                                EventSortOption.defaultTime,
+                            onChanged: _onSearchChanged,
+                            onClear: _onSearchClearPressed,
+                            onFilterTap: () =>
+                                _showEventsFilterSheet(context),
+                          );
                         },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: isSelected ? activeBg : inactiveBg,
-                            borderRadius: BorderRadius.circular(chipRadius),
-                          ),
-                          child: Text(
-                            sport,
-                            style: TextStyle(
-                              fontFamily: GoPlayType.family,
-                              fontSize: 12,
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                              color: isSelected ? activeTextColor : inactiveTextColor,
-                            ),
+                      ),
+                      sportChips: sportsAsync.when(
+                        data: (sports) => SizedBox(
+                          height: 44,
+                          child: ListView.separated(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            scrollDirection: Axis.horizontal,
+                            itemCount: sports.length,
+                            separatorBuilder: (context, index) =>
+                                const SizedBox(width: 8),
+                            itemBuilder: (context, index) {
+                              final sport = sports[index];
+                              final isSelected = sport.toLowerCase() ==
+                                  selectedSport.toLowerCase();
+                              return TvFocusable(
+                                borderRadius: BorderRadius.circular(chipRadius),
+                                onTap: () {
+                                  ref
+                                      .read(selectedSportFilterProvider.notifier)
+                                      .select(sport);
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: isSelected ? activeBg : inactiveBg,
+                                    borderRadius:
+                                        BorderRadius.circular(chipRadius),
+                                  ),
+                                  child: Text(
+                                    sport,
+                                    style: TextStyle(
+                                      fontFamily: GoPlayType.family,
+                                      fontSize: 12,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                      color: isSelected
+                                          ? activeTextColor
+                                          : inactiveTextColor,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ),
-                      );
-                    },
-                  ),
-                ),
-                loading: () => const SizedBox(height: 44),
-                error: (err, stack) => const SizedBox.shrink(),
-              ),
-              ),
-            ),
-
-            // Pinned 5 Status Tabs
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _SliverTabBarDelegate(
-                TabBar(
-                  controller: _tabController,
-                  isScrollable: true,
-                  physics: const BouncingScrollPhysics(),
-                  tabAlignment: TabAlignment.start,
-                  padding: const EdgeInsets.only(left: 4),
-                  labelPadding: const EdgeInsets.symmetric(horizontal: 12),
-                  indicator: const UnderlineTabIndicator(
-                    borderSide: BorderSide(color: GoPlayTheme.primary, width: 3.0),
-                    borderRadius: BorderRadius.all(Radius.circular(1.5)),
-                  ),
-                  indicatorSize: TabBarIndicatorSize.label,
-                  indicatorPadding: const EdgeInsets.only(bottom: 2),
-                  dividerColor: Colors.transparent,
-                  dividerHeight: 0,
-                  labelColor: GoPlayTheme.primary,
-                  unselectedLabelColor: GoPlayTheme.onSurfaceVariant,
-                  labelStyle: GoPlayType.label.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                  unselectedLabelStyle: GoPlayType.label.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                  tabs: [
-                    Tab(
-                      text: 'Live${liveEventsCount > 0 ? ' ($liveEventsCount)' : ''}',
+                        loading: () => const SizedBox(height: 44),
+                        error: (err, stack) => const SizedBox.shrink(),
+                      ),
+                      tabBar: TabBar(
+                        controller: _tabController,
+                        isScrollable: true,
+                        physics: const BouncingScrollPhysics(),
+                        tabAlignment: TabAlignment.start,
+                        padding: const EdgeInsets.only(left: 4),
+                        labelPadding:
+                            const EdgeInsets.symmetric(horizontal: 12),
+                        indicator: const UnderlineTabIndicator(
+                          borderSide: BorderSide(
+                              color: GoPlayTheme.primary, width: 3.0),
+                          borderRadius:
+                              BorderRadius.all(Radius.circular(1.5)),
+                        ),
+                        indicatorSize: TabBarIndicatorSize.label,
+                        indicatorPadding: const EdgeInsets.only(bottom: 2),
+                        dividerColor: Colors.transparent,
+                        dividerHeight: 0,
+                        labelColor: GoPlayTheme.primary,
+                        unselectedLabelColor: GoPlayTheme.onSurfaceVariant,
+                        labelStyle: GoPlayType.label.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                        unselectedLabelStyle: GoPlayType.label.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                        tabs: [
+                          Tab(
+                            text:
+                                'Live${liveEventsCount > 0 ? ' ($liveEventsCount)' : ''}',
+                          ),
+                          const Tab(text: 'Today'),
+                          const Tab(text: 'Tomorrow'),
+                          const Tab(text: 'Upcoming'),
+                          const Tab(text: 'Ended'),
+                        ],
+                      ),
+                      backgroundColor: headerBg,
                     ),
-                    const Tab(text: 'Today'),
-                    const Tab(text: 'Tomorrow'),
-                    const Tab(text: 'Upcoming'),
-                    const Tab(text: 'Ended'),
-                  ],
-                ),
-                backgroundColor: headerBg,
-              ),
-            ),
-          ];
-        },
+                  ),
+                ];
+              },
         body: TabBarView(
           controller: _tabController,
           children: [
             // Tab 0: Live Events
             _EventsListView(
               eventsAsync: ref.watch(filteredLiveEventsProvider(selectedSport)),
+              searchQueryNotifier: _searchQueryNotifier,
+              sortNotifier: _eventSortNotifier,
+              onClearSearch: _onSearchClearPressed,
               onRefresh: _handleRefresh,
               onEventTap: _handleEventTap,
               emptyMessage: 'No live matches right now.',
@@ -257,6 +587,9 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
             // Tab 1: Today Events
             _EventsListView(
               eventsAsync: ref.watch(filteredTodayEventsProvider(selectedSport)),
+              searchQueryNotifier: _searchQueryNotifier,
+              sortNotifier: _eventSortNotifier,
+              onClearSearch: _onSearchClearPressed,
               onRefresh: _handleRefresh,
               onEventTap: _handleEventTap,
               emptyMessage: 'No matches scheduled for today.',
@@ -265,6 +598,9 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
             // Tab 2: Tomorrow Events
             _EventsListView(
               eventsAsync: ref.watch(filteredTomorrowEventsProvider),
+              searchQueryNotifier: _searchQueryNotifier,
+              sortNotifier: _eventSortNotifier,
+              onClearSearch: _onSearchClearPressed,
               onRefresh: _handleRefresh,
               onEventTap: _handleEventTap,
               emptyMessage: 'No matches scheduled for tomorrow.',
@@ -273,6 +609,9 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
             // Tab 3: Upcoming Events (Grouped by date)
             _GroupedUpcomingListView(
               eventsAsync: ref.watch(filteredUpcomingEventsProvider),
+              searchQueryNotifier: _searchQueryNotifier,
+              sortNotifier: _eventSortNotifier,
+              onClearSearch: _onSearchClearPressed,
               onRefresh: _handleRefresh,
               onEventTap: _handleEventTap,
             ),
@@ -280,6 +619,9 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
             // Tab 4: Ended Events
             _EventsListView(
               eventsAsync: ref.watch(filteredEndedEventsProvider),
+              searchQueryNotifier: _searchQueryNotifier,
+              sortNotifier: _eventSortNotifier,
+              onClearSearch: _onSearchClearPressed,
               onRefresh: _handleRefresh,
               onEventTap: _handleEventTap,
               emptyMessage: 'No completed matches recorded.',
@@ -287,19 +629,62 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
           ],
         ),
       ),
+    ),
+  );
+        },
+      ),
     );
   }
+}
+
+List<SportEvent> _filterAndSortEvents(
+  List<SportEvent> events,
+  String query,
+  EventSortOption sort,
+) {
+  var list = events;
+  final q = query.trim().toLowerCase();
+  if (q.isNotEmpty) {
+    list = list.where((e) {
+      return e.homeTeam.name.toLowerCase().contains(q) ||
+          e.awayTeam.name.toLowerCase().contains(q) ||
+          e.league.toLowerCase().contains(q) ||
+          e.sport.toLowerCase().contains(q);
+    }).toList();
+  } else {
+    list = List.of(events);
+  }
+
+  if (sort == EventSortOption.teamNameAsc) {
+    list.sort((a, b) => a.homeTeam.name
+        .toLowerCase()
+        .compareTo(b.homeTeam.name.toLowerCase()));
+  } else if (sort == EventSortOption.leagueSport) {
+    list.sort((a, b) {
+      final leagueCompare =
+          a.league.toLowerCase().compareTo(b.league.toLowerCase());
+      if (leagueCompare != 0) return leagueCompare;
+      return a.sport.toLowerCase().compareTo(b.sport.toLowerCase());
+    });
+  }
+  return list;
 }
 
 // ─── Single List Tab View ───────────────────────────────────────────────────
 class _EventsListView extends StatelessWidget {
   final AsyncValue<List<SportEvent>> eventsAsync;
+  final ValueNotifier<String> searchQueryNotifier;
+  final ValueNotifier<EventSortOption> sortNotifier;
+  final VoidCallback onClearSearch;
   final Future<void> Function() onRefresh;
   final void Function(SportEvent) onEventTap;
   final String emptyMessage;
 
   const _EventsListView({
     required this.eventsAsync,
+    required this.searchQueryNotifier,
+    required this.sortNotifier,
+    required this.onClearSearch,
     required this.onRefresh,
     required this.onEventTap,
     required this.emptyMessage,
@@ -313,56 +698,72 @@ class _EventsListView extends StatelessWidget {
       onRefresh: onRefresh,
       color: GoPlayTheme.primary,
       backgroundColor: Theme.of(context).cardColor,
-      child: eventsAsync.when(
-        data: (events) {
-          if (events.isEmpty) {
-            return _EmptyTabState(message: emptyMessage);
-          }
+      child: ListenableBuilder(
+        listenable: Listenable.merge([searchQueryNotifier, sortNotifier]),
+        builder: (context, _) {
+          return eventsAsync.when(
+            data: (rawEvents) {
+              final query = searchQueryNotifier.value.trim();
+              final sort = sortNotifier.value;
+              final events = _filterAndSortEvents(rawEvents, query, sort);
 
-          if (isDesktopOrTv) {
-            return GridView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                mainAxisExtent: PlayZEventCard.tileExtent(context),
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 0,
-              ),
-              itemCount: events.length,
-              itemBuilder: (context, index) {
-                final event = events[index];
-                return PlayZEventCard(
-                  key: ValueKey(event.id),
-                  event: event,
-                  onTap: () => onEventTap(event),
+              if (events.isEmpty) {
+                if (query.isNotEmpty) {
+                  return _EmptyTabState(
+                    message: 'No matches found for "$query"',
+                    isSearch: true,
+                    onClearSearch: onClearSearch,
+                  );
+                }
+                return _EmptyTabState(message: emptyMessage);
+              }
+
+              if (isDesktopOrTv) {
+                return GridView.builder(
+                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 100),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    mainAxisExtent: PlayZEventCard.tileExtent(context),
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 0,
+                  ),
+                  itemCount: events.length,
+                  itemBuilder: (context, index) {
+                    final event = events[index];
+                    return PlayZEventCard(
+                      key: ValueKey(event.id),
+                      event: event,
+                      onTap: () => onEventTap(event),
+                    );
+                  },
                 );
-              },
-            );
-          }
+              }
 
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-            itemExtent: PlayZEventCard.tileExtent(context),
-            itemCount: events.length,
-            itemBuilder: (context, index) {
-              final event = events[index];
-              return PlayZEventCard(
-                key: ValueKey(event.id),
-                event: event,
-                onTap: () => onEventTap(event),
+              return ListView.builder(
+                padding: const EdgeInsets.fromLTRB(10, 10, 10, 100),
+                itemExtent: PlayZEventCard.tileExtent(context),
+                itemCount: events.length,
+                itemBuilder: (context, index) {
+                  final event = events[index];
+                  return PlayZEventCard(
+                    key: ValueKey(event.id),
+                    event: event,
+                    onTap: () => onEventTap(event),
+                  );
+                },
               );
             },
+            loading: () => const Center(
+              child: CircularProgressIndicator(color: GoPlayTheme.primary),
+            ),
+            error: (err, _) => Center(
+              child: Text(
+                'Error: $err',
+                style: const TextStyle(color: GoPlayTheme.error),
+              ),
+            ),
           );
         },
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: GoPlayTheme.primary),
-        ),
-        error: (err, _) => Center(
-          child: Text(
-            'Error: $err',
-            style: const TextStyle(color: GoPlayTheme.error),
-          ),
-        ),
       ),
     );
   }
@@ -371,11 +772,17 @@ class _EventsListView extends StatelessWidget {
 // ─── Grouped Upcoming Tab View ──────────────────────────────────────────────
 class _GroupedUpcomingListView extends StatelessWidget {
   final AsyncValue<List<SportEvent>> eventsAsync;
+  final ValueNotifier<String> searchQueryNotifier;
+  final ValueNotifier<EventSortOption> sortNotifier;
+  final VoidCallback onClearSearch;
   final Future<void> Function() onRefresh;
   final void Function(SportEvent) onEventTap;
 
   const _GroupedUpcomingListView({
     required this.eventsAsync,
+    required this.searchQueryNotifier,
+    required this.sortNotifier,
+    required this.onClearSearch,
     required this.onRefresh,
     required this.onEventTap,
   });
@@ -420,24 +827,39 @@ class _GroupedUpcomingListView extends StatelessWidget {
       onRefresh: onRefresh,
       color: GoPlayTheme.primary,
       backgroundColor: Theme.of(context).cardColor,
-      child: eventsAsync.when(
-        data: (events) {
-          final grouped = _groupByDate(events);
-          if (grouped.isEmpty) {
-            return const _EmptyTabState(message: 'No upcoming fixtures scheduled.');
-          }
+      child: ListenableBuilder(
+        listenable: Listenable.merge([searchQueryNotifier, sortNotifier]),
+        builder: (context, _) {
+          return eventsAsync.when(
+            data: (rawEvents) {
+              final query = searchQueryNotifier.value.trim();
+              final sort = sortNotifier.value;
+              final events = _filterAndSortEvents(rawEvents, query, sort);
+              final grouped = _groupByDate(events);
 
-          final keys = grouped.keys.toList(growable: false);
+              if (grouped.isEmpty) {
+                if (query.isNotEmpty) {
+                  return _EmptyTabState(
+                    message: 'No matches found for "$query"',
+                    isSearch: true,
+                    onClearSearch: onClearSearch,
+                  );
+                }
+                return const _EmptyTabState(
+                    message: 'No upcoming fixtures scheduled.');
+              }
 
-          return ListView.builder(
-            padding: const EdgeInsets.only(bottom: 100),
-            itemCount: keys.length,
-            itemBuilder: (context, index) {
-              final key = keys[index];
-              final dayEvents = grouped[key]!;
+              final keys = grouped.keys.toList(growable: false);
 
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              return ListView.builder(
+                padding: const EdgeInsets.only(bottom: 100),
+                itemCount: keys.length,
+                itemBuilder: (context, index) {
+                  final key = keys[index];
+                  final dayEvents = grouped[key]!;
+
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 12, 10, 0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -499,6 +921,8 @@ class _GroupedUpcomingListView extends StatelessWidget {
         error: (err, _) => Center(
           child: Text('Error: $err', style: const TextStyle(color: GoPlayTheme.error)),
         ),
+      );
+        },
       ),
     );
   }
@@ -507,8 +931,14 @@ class _GroupedUpcomingListView extends StatelessWidget {
 // ─── Empty State ─────────────────────────────────────────────────────────────
 class _EmptyTabState extends StatelessWidget {
   final String message;
+  final bool isSearch;
+  final VoidCallback? onClearSearch;
 
-  const _EmptyTabState({required this.message});
+  const _EmptyTabState({
+    required this.message,
+    this.isSearch = false,
+    this.onClearSearch,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -519,7 +949,7 @@ class _EmptyTabState extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.sports_rounded,
+              isSearch ? Icons.search_off_rounded : Icons.sports_rounded,
               size: 48,
               color: GoPlayTheme.onSurfaceMuted.withValues(alpha: 0.5),
             ),
@@ -531,6 +961,18 @@ class _EmptyTabState extends StatelessWidget {
                 color: GoPlayTheme.onSurfaceVariant,
               ),
             ),
+            if (isSearch && onClearSearch != null) ...[
+              const SizedBox(height: 14),
+              TextButton.icon(
+                onPressed: onClearSearch,
+                icon: const Icon(Icons.close_rounded, size: 16),
+                label: const Text('Clear search'),
+                style: TextButton.styleFrom(
+                  foregroundColor: GoPlayTheme.primary,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -538,17 +980,33 @@ class _EmptyTabState extends StatelessWidget {
   }
 }
 
-// ─── Pinned TabBar Delegate ─────────────────────────────────────────────────
-class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
+// ─── Pinned Upcoming Header Delegate ─────────────────────────────────────────
+class _UpcomingHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final double statusBarHeight;
+  final Widget searchPill;
+  final Widget sportChips;
   final TabBar tabBar;
   final Color backgroundColor;
 
-  _SliverTabBarDelegate(this.tabBar, {required this.backgroundColor});
+  static const double _searchHeight = 54.0;
+  static const double _chipsHeight = 44.0;
+  static const double _collapsibleHeight = _searchHeight + _chipsHeight; // 98.0
+
+  _UpcomingHeaderDelegate({
+    required this.statusBarHeight,
+    required this.searchPill,
+    required this.sportChips,
+    required this.tabBar,
+    required this.backgroundColor,
+  });
+
+  double get _tabHeight => tabBar.preferredSize.height;
 
   @override
-  double get minExtent => tabBar.preferredSize.height;
+  double get minExtent => statusBarHeight + _tabHeight;
+
   @override
-  double get maxExtent => tabBar.preferredSize.height;
+  double get maxExtent => statusBarHeight + _collapsibleHeight + _tabHeight;
 
   @override
   Widget build(
@@ -556,15 +1014,68 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    return ColoredBox(
+    final scrollOffset = shrinkOffset.clamp(0.0, _collapsibleHeight);
+    final collapseRatio = (scrollOffset / _collapsibleHeight).clamp(0.0, 1.0);
+
+    return Container(
       color: backgroundColor,
-      child: tabBar,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Collapsible portion: Search Pill + Sport Chips
+          // Bounded strictly between statusBarHeight and the bottom TabBar
+          Positioned(
+            top: statusBarHeight,
+            left: 0,
+            right: 0,
+            bottom: _tabHeight,
+            child: ClipRect(
+              child: Stack(
+                children: [
+                  Positioned(
+                    top: -scrollOffset,
+                    left: 0,
+                    right: 0,
+                    height: _collapsibleHeight,
+                    child: IgnorePointer(
+                      ignoring: collapseRatio > 0.5,
+                      child: Opacity(
+                        opacity: (1.0 - (collapseRatio / 0.85)).clamp(0.0, 1.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(height: _searchHeight, child: searchPill),
+                            SizedBox(height: _chipsHeight, child: sportChips),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Pinned TabBar: Always stays at the bottom of the header,
+          // which when fully collapsed aligns exactly below statusBarHeight.
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: _tabHeight,
+            child: tabBar,
+          ),
+        ],
+      ),
     );
   }
 
   @override
-  bool shouldRebuild(_SliverTabBarDelegate oldDelegate) {
-    return oldDelegate.backgroundColor != backgroundColor ||
-        oldDelegate.tabBar != tabBar;
+  bool shouldRebuild(_UpcomingHeaderDelegate oldDelegate) {
+    return oldDelegate.statusBarHeight != statusBarHeight ||
+        oldDelegate.backgroundColor != backgroundColor ||
+        oldDelegate.tabBar != tabBar ||
+        oldDelegate.searchPill != searchPill ||
+        oldDelegate.sportChips != sportChips;
   }
 }

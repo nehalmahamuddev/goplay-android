@@ -23,6 +23,9 @@ abstract class ChannelVideoPlayer extends StatefulWidget {
   final int activeServerIndex;
   final ValueChanged<int>? onServerSelected;
 
+  final bool isLocked;
+  final ValueChanged<bool>? onLockChanged;
+
   const ChannelVideoPlayer({
     super.key,
     required this.channel,
@@ -39,6 +42,8 @@ abstract class ChannelVideoPlayer extends StatefulWidget {
     this.servers,
     this.activeServerIndex = 0,
     this.onServerSelected,
+    this.isLocked = false,
+    this.onLockChanged,
   });
 
   static Widget create({
@@ -56,6 +61,8 @@ abstract class ChannelVideoPlayer extends StatefulWidget {
     List<Channel>? servers,
     int activeServerIndex = 0,
     ValueChanged<int>? onServerSelected,
+    bool isLocked = false,
+    ValueChanged<bool>? onLockChanged,
   }) {
     return getChannelVideoPlayer(
       channel: channel,
@@ -72,6 +79,8 @@ abstract class ChannelVideoPlayer extends StatefulWidget {
       servers: servers,
       activeServerIndex: activeServerIndex,
       onServerSelected: onServerSelected,
+      isLocked: isLocked,
+      onLockChanged: onLockChanged,
     );
   }
 }

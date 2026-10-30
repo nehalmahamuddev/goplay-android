@@ -63,7 +63,7 @@ class _AnnouncementTile extends StatelessWidget {
         : GoPlayTheme.primary.withValues(alpha: 0.12);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       child: TvFocusable(
         borderRadius: BorderRadius.circular(12),
         onTap: () {},

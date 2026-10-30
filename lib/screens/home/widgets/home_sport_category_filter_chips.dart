@@ -38,7 +38,7 @@ class HomeSportCategoryFilterChips extends ConsumerWidget {
         return SizedBox(
           height: 32,
           child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             scrollDirection: Axis.horizontal,
             addRepaintBoundaries: false,
             addAutomaticKeepAlives: false,

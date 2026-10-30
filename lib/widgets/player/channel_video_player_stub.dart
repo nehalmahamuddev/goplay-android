@@ -1,7 +1,7 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../core/theme.dart';
 import '../../core/typography.dart';
 import '../../models/channel.dart';
 import '../../services/local_proxy.dart';
@@ -27,6 +27,8 @@ Widget getChannelVideoPlayer({
   List<Channel>? servers,
   int activeServerIndex = 0,
   ValueChanged<int>? onServerSelected,
+  bool isLocked = false,
+  ValueChanged<bool>? onLockChanged,
 }) {
   return ChannelVideoPlayerNative(
     channel: channel,
@@ -43,6 +45,8 @@ Widget getChannelVideoPlayer({
     servers: servers,
     activeServerIndex: activeServerIndex,
     onServerSelected: onServerSelected,
+    isLocked: isLocked,
+    onLockChanged: onLockChanged,
   );
 }
 
@@ -75,6 +79,10 @@ class ChannelVideoPlayerNative extends StatefulWidget implements ChannelVideoPla
   final int activeServerIndex;
   @override
   final ValueChanged<int>? onServerSelected;
+  @override
+  final bool isLocked;
+  @override
+  final ValueChanged<bool>? onLockChanged;
 
   const ChannelVideoPlayerNative({
     super.key,
@@ -92,6 +100,8 @@ class ChannelVideoPlayerNative extends StatefulWidget implements ChannelVideoPla
     this.servers,
     this.activeServerIndex = 0,
     this.onServerSelected,
+    this.isLocked = false,
+    this.onLockChanged,
   });
 
   @override
@@ -835,6 +845,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
   @override
   void initState() {
     super.initState();
+    _isLocked = widget.isLocked;
 
     _focusNode = FocusNode(debugLabel: 'PlayerFocusNode');
     // NOTE: The play/pause TvFocusable button has autoFocus:true so it
@@ -894,6 +905,9 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
   @override
   void didUpdateWidget(ChannelVideoPlayerNative oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.isLocked != widget.isLocked) {
+      _isLocked = widget.isLocked;
+    }
     if (oldWidget.channel.id != widget.channel.id ||
         oldWidget.channel.streamUrl != widget.channel.streamUrl) {
       // Stop old Toffee auth timer if needed
@@ -1268,35 +1282,66 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
   // ─── Locked controls ─────────────────────────────────────────────
 
   Widget _buildLockedControls() {
-    return Stack(
-      children: [
-        Positioned(
-          left: widget.isFullscreen ? 24 : 12,
-          bottom: widget.isFullscreen ? 24 : 12,
-          child: GestureDetector(
-            onTap: () {
-              setState(() {
-                _isLocked = false;
-              });
-            },
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: const BoxDecoration(
-                color: Colors.black54,
-                shape: BoxShape.circle,
-                border: Border.fromBorderSide(
-                  BorderSide(color: Colors.white30, width: 1.0),
+    final cs = Theme.of(context).colorScheme;
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(30),
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            setState(() {
+              _isLocked = false;
+            });
+            widget.onLockChanged?.call(false);
+            widget.onInteract?.call();
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xEE141418),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: cs.primary,
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: cs.primary.withValues(alpha: 0.35),
+                  blurRadius: 16,
+                  spreadRadius: 1,
                 ),
-              ),
-              child: const Icon(
-                Icons.lock_outline,
-                color: Colors.white,
-                size: 20,
-              ),
+                const BoxShadow(
+                  color: Colors.black87,
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.lock_open_rounded,
+                  color: cs.primary,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Tap to unlock',
+                  style: TextStyle(
+                    fontFamily: GoPlayType.family,
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -1383,9 +1428,13 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
               ),
               child: LayoutBuilder(
                 builder: (context, constraints) {
+                  final mq = MediaQuery.of(context);
                   final availableWidth = constraints.maxWidth;
                   final isCompact = availableWidth < 580;
                   final hPadding = isCompact ? 14.0 : 24.0;
+                  final leftPadding = widget.isFullscreen ? math.max(hPadding, mq.padding.left) : hPadding;
+                  final rightPadding = widget.isFullscreen ? math.max(hPadding, mq.padding.right) : hPadding;
+                  final cs = Theme.of(context).colorScheme;
 
                   return Column(
                     mainAxisSize: MainAxisSize.min,
@@ -1393,7 +1442,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
                     children: [
                       // Seek Bar / Timeline — inset horizontally to align with bottom buttons & time row
                       Padding(
-                        padding: EdgeInsets.symmetric(horizontal: hPadding),
+                        padding: EdgeInsets.only(left: leftPadding, right: rightPadding),
                         child: RepaintBoundary(
                           child: _FocusableSeekBar(
                             position: _position,
@@ -1425,8 +1474,8 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
                       // Bottom Buttons row — tightened immediately under seek bar
                       Padding(
                         padding: EdgeInsets.only(
-                          left: hPadding,
-                          right: hPadding,
+                          left: leftPadding,
+                          right: rightPadding,
                           bottom: widget.isFullscreen ? 4.0 : 0.0,
                           top: 0.0,
                         ),
@@ -1444,11 +1493,11 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
                                     width: 8,
                                     height: 8,
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFC8FF00),
+                                      color: cs.primary,
                                       shape: BoxShape.circle,
                                       boxShadow: [
                                         BoxShadow(
-                                          color: const Color(0xFFC8FF00).withValues(alpha: 0.8),
+                                          color: cs.primary.withValues(alpha: 0.8),
                                           blurRadius: 8,
                                           spreadRadius: 1.5,
                                         ),
@@ -1533,6 +1582,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
   }
 
   Widget _buildFullscreenRightControls({required double availableWidth}) {
+    final cs = Theme.of(context).colorScheme;
     final bool isCompact = availableWidth < 580;
     final double iconSize = isCompact ? 22.0 : 28.0;
     final double btnPadding = isCompact ? 5.0 : 7.0;
@@ -1567,7 +1617,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
             TvFocusable(
               focusNode: _bottomControlsFocusNode,
               isCircle: true,
-              focusColor: GoPlayTheme.primary,
+              focusColor: cs.primary,
               onTap: _enterPiP,
               child: Padding(
                 padding: EdgeInsets.all(btnPadding),
@@ -1581,7 +1631,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
           TvFocusable(
             focusNode: showPip ? null : _bottomControlsFocusNode,
             isCircle: true,
-            focusColor: GoPlayTheme.primary,
+            focusColor: cs.primary,
             onTap: _toggleAspectRatio,
             child: Padding(
               padding: EdgeInsets.all(btnPadding),
@@ -1593,7 +1643,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
           // 3. Volume Button
           TvFocusable(
             isCircle: true,
-            focusColor: GoPlayTheme.primary,
+            focusColor: cs.primary,
             onTap: _toggleMute,
             child: Padding(
               padding: EdgeInsets.all(btnPadding),
@@ -1611,11 +1661,13 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
           // 4. Lock Button
           TvFocusable(
             isCircle: true,
-            focusColor: GoPlayTheme.primary,
+            focusColor: cs.primary,
             onTap: () {
+              HapticFeedback.mediumImpact();
               setState(() {
                 _isLocked = true;
               });
+              widget.onLockChanged?.call(true);
             },
             child: Padding(
               padding: EdgeInsets.all(btnPadding),
@@ -1628,7 +1680,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
           if (widget.servers != null && widget.servers!.length > 1) ...[
             TvFocusable(
               isCircle: true,
-              focusColor: GoPlayTheme.primary,
+              focusColor: cs.primary,
               onTap: _showServerSelectionModal,
               child: Padding(
                 padding: EdgeInsets.all(btnPadding),
@@ -1642,7 +1694,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
           if (widget.onFullscreenToggle != null)
             TvFocusable(
               isCircle: true,
-              focusColor: GoPlayTheme.primary,
+              focusColor: cs.primary,
               onTap: widget.onFullscreenToggle,
               child: Padding(
                 padding: EdgeInsets.all(btnPadding),
@@ -1659,6 +1711,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
   }
 
   Widget _buildPortraitRightControls() {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -1666,7 +1719,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         // 1. Picture-in-Picture Button
         TvFocusable(
           isCircle: true,
-          focusColor: GoPlayTheme.primary,
+          focusColor: cs.primary,
           onTap: _enterPiP,
           child: const Padding(
             padding: EdgeInsets.all(6),
@@ -1682,7 +1735,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         // 2. Volume Button
         TvFocusable(
           isCircle: true,
-          focusColor: GoPlayTheme.primary,
+          focusColor: cs.primary,
           onTap: _toggleMute,
           child: Padding(
             padding: const EdgeInsets.all(6),
@@ -1701,7 +1754,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         if (widget.onFullscreenToggle != null)
           TvFocusable(
             isCircle: true,
-            focusColor: GoPlayTheme.primary,
+            focusColor: cs.primary,
             onTap: widget.onFullscreenToggle,
             child: Padding(
               padding: const EdgeInsets.all(6),
@@ -1728,6 +1781,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
       barrierColor: Colors.black.withValues(alpha: 0.5),
       transitionDuration: const Duration(milliseconds: 250),
       pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        final cs = Theme.of(dialogContext).colorScheme;
         return Align(
           alignment: Alignment.centerRight,
           child: Material(
@@ -1818,12 +1872,12 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                 decoration: BoxDecoration(
                                   color: isSelected
-                                      ? GoPlayTheme.primary.withValues(alpha: 0.15)
+                                      ? cs.primary.withValues(alpha: 0.15)
                                       : const Color(0xFF1E1E22),
                                   borderRadius: BorderRadius.circular(10),
                                   border: Border.all(
                                     color: isSelected
-                                        ? GoPlayTheme.primary
+                                        ? cs.primary
                                         : Colors.white.withValues(alpha: 0.08),
                                     width: isSelected ? 1.5 : 1,
                                   ),
@@ -1834,16 +1888,16 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
                                       child: Text(
                                         displayName,
                                         style: TextStyle(
-                                          color: isSelected ? GoPlayTheme.primary : Colors.white,
+                                          color: isSelected ? cs.primary : Colors.white,
                                           fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                                           fontSize: 14,
                                         ),
                                       ),
                                     ),
                                     if (isSelected)
-                                      const Icon(
+                                      Icon(
                                         Icons.check_circle_rounded,
-                                        color: GoPlayTheme.primary,
+                                        color: cs.primary,
                                         size: 20,
                                       ),
                                   ],
@@ -2620,6 +2674,7 @@ class _PlayerProgressBarState extends State<PlayerProgressBar> {
       return const SizedBox(height: 12);
     }
 
+    final cs = Theme.of(context).colorScheme;
     return LayoutBuilder(
       builder: (context, constraints) {
         final totalWidth = constraints.maxWidth;
@@ -2650,6 +2705,7 @@ class _PlayerProgressBarState extends State<PlayerProgressBar> {
                           ? (widget.bufferedPosition.inMilliseconds / widget.duration.inMilliseconds).clamp(0.0, 1.0)
                           : 0.0,
                       isDragging: _isDragging,
+                      activeColor: cs.primary,
                     ),
                   ),
                 ),
@@ -2668,7 +2724,7 @@ class _PlayerProgressBarState extends State<PlayerProgressBar> {
                       color: const Color(0xE6141418),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: GoPlayTheme.primary.withValues(alpha: 0.6),
+                        color: cs.primary.withValues(alpha: 0.6),
                         width: 1.0,
                       ),
                       boxShadow: const [
@@ -2680,9 +2736,9 @@ class _PlayerProgressBarState extends State<PlayerProgressBar> {
                     ),
                     child: Text(
                       _formatDuration(_currentScrubDuration),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: GoPlayType.family,
-                        color: GoPlayTheme.primary,
+                        color: cs.primary,
                         fontSize: GoPlayType.xs,
                         fontWeight: FontWeight.w700,
                       ),
@@ -2701,20 +2757,26 @@ class _ProgressBarPainter extends CustomPainter {
   final double progress;
   final double bufferedProgress;
   final bool isDragging;
+  final Color activeColor;
 
-  static final _paintBg = Paint()..color = Colors.white.withValues(alpha: 0.18);
-  static final _paintBuf = Paint()..color = Colors.white.withValues(alpha: 0.38);
-  static final _paintAct = Paint()..color = GoPlayTheme.primary;
-  static final _paintThumb = Paint()..color = GoPlayTheme.primary;
-  static final _paintThumbGlow = Paint()
-    ..color = GoPlayTheme.primary.withValues(alpha: 0.35)
-    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+  final Paint _paintBg;
+  final Paint _paintBuf;
+  final Paint _paintAct;
+  final Paint _paintThumb;
+  final Paint _paintThumbGlow;
 
   _ProgressBarPainter({
     required this.progress,
     required this.bufferedProgress,
     required this.isDragging,
-  });
+    required this.activeColor,
+  })  : _paintBg = Paint()..color = Colors.white.withValues(alpha: 0.18),
+        _paintBuf = Paint()..color = Colors.white.withValues(alpha: 0.38),
+        _paintAct = Paint()..color = activeColor,
+        _paintThumb = Paint()..color = activeColor,
+        _paintThumbGlow = Paint()
+          ..color = activeColor.withValues(alpha: 0.35)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -2781,6 +2843,7 @@ class _TvPlayerOsd extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (message == null) return const SizedBox.shrink();
+    final cs = Theme.of(context).colorScheme;
 
     return Center(
       child: Container(
@@ -2788,10 +2851,10 @@ class _TvPlayerOsd extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.black87,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: GoPlayTheme.primary.withValues(alpha: 0.6), width: 1.2),
+          border: Border.all(color: cs.primary.withValues(alpha: 0.6), width: 1.2),
           boxShadow: [
             BoxShadow(
-              color: GoPlayTheme.primary.withValues(alpha: 0.3),
+              color: cs.primary.withValues(alpha: 0.3),
               blurRadius: 16,
             ),
           ],
@@ -2799,7 +2862,7 @@ class _TvPlayerOsd extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (icon != null) Icon(icon, color: GoPlayTheme.primary, size: 24),
+            if (icon != null) Icon(icon, color: cs.primary, size: 24),
             if (icon != null) const SizedBox(width: 10),
             Flexible(
               child: Text(
@@ -2839,6 +2902,7 @@ class _DoubleTapSeekOverlay extends StatelessWidget {
 
     final isLeft = showLeft;
     final width = MediaQuery.of(context).size.width;
+    final cs = Theme.of(context).colorScheme;
 
     return Align(
       alignment: isLeft ? Alignment.centerLeft : Alignment.centerRight,
@@ -2858,7 +2922,7 @@ class _DoubleTapSeekOverlay extends StatelessWidget {
             children: [
               Icon(
                 isLeft ? Icons.fast_rewind_rounded : Icons.fast_forward_rounded,
-                color: GoPlayTheme.primary,
+                color: cs.primary,
                 size: 38,
                 shadows: const [
                   Shadow(
@@ -2904,6 +2968,7 @@ class _SwipeScrubOsd extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return ValueListenableBuilder<Duration?>(
       valueListenable: scrubPositionNotifier,
       builder: (context, scrubPos, _) {
@@ -2925,7 +2990,7 @@ class _SwipeScrubOsd extends StatelessWidget {
                   color: const Color(0xE6141418),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: GoPlayTheme.primary.withValues(alpha: 0.5),
+                    color: cs.primary.withValues(alpha: 0.5),
                     width: 1.2,
                   ),
                   boxShadow: const [
@@ -2944,15 +3009,15 @@ class _SwipeScrubOsd extends StatelessWidget {
                       children: [
                         Icon(
                           isNeg ? Icons.fast_rewind_rounded : Icons.fast_forward_rounded,
-                          color: GoPlayTheme.primary,
+                          color: cs.primary,
                           size: 26,
                         ),
                         const SizedBox(width: 8),
                         Text(
                           '${isNeg ? '-' : '+'}${_formatDuration(deltaDuration.abs())}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: GoPlayType.family,
-                            color: GoPlayTheme.primary,
+                            color: cs.primary,
                             fontSize: GoPlayType.lg,
                             fontWeight: FontWeight.w800,
                           ),
@@ -2980,7 +3045,7 @@ class _SwipeScrubOsd extends StatelessWidget {
                             Container(color: Colors.white24),
                             FractionallySizedBox(
                               widthFactor: progress,
-                              child: Container(color: GoPlayTheme.primary),
+                              child: Container(color: cs.primary),
                             ),
                           ],
                         ),
@@ -3004,6 +3069,7 @@ class _BrightnessOsd extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return ValueListenableBuilder<double?>(
       valueListenable: notifier,
       builder: (context, value, _) {
@@ -3018,7 +3084,7 @@ class _BrightnessOsd extends StatelessWidget {
                 value > 0.6
                     ? Icons.wb_sunny_rounded
                     : (value > 0.3 ? Icons.wb_sunny_outlined : Icons.brightness_3_rounded),
-                color: GoPlayTheme.primary,
+                color: cs.primary,
                 size: 24,
                 shadows: const [Shadow(color: Colors.black87, blurRadius: 4)],
               ),
@@ -3039,7 +3105,7 @@ class _BrightnessOsd extends StatelessWidget {
                       heightFactor: value,
                       child: Container(
                         decoration: BoxDecoration(
-                          color: GoPlayTheme.primary,
+                          color: cs.primary,
                           borderRadius: BorderRadius.circular(3),
                           boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 3)],
                         ),
@@ -3074,6 +3140,7 @@ class _VolumeOsd extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return ValueListenableBuilder<double?>(
       valueListenable: notifier,
       builder: (context, value, _) {
@@ -3088,7 +3155,7 @@ class _VolumeOsd extends StatelessWidget {
                 value == 0
                     ? Icons.volume_off_rounded
                     : (value < 0.5 ? Icons.volume_down_rounded : Icons.volume_up_rounded),
-                color: GoPlayTheme.primary,
+                color: cs.primary,
                 size: 24,
                 shadows: const [Shadow(color: Colors.black87, blurRadius: 4)],
               ),
@@ -3109,7 +3176,7 @@ class _VolumeOsd extends StatelessWidget {
                       heightFactor: value,
                       child: Container(
                         decoration: BoxDecoration(
-                          color: GoPlayTheme.primary,
+                          color: cs.primary,
                           borderRadius: BorderRadius.circular(3),
                           boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 3)],
                         ),

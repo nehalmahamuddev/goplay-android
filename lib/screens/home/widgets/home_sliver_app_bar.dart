@@ -8,14 +8,16 @@ import '../../../core/typography.dart';
 import '../../../providers/app_providers.dart';
 import '../../../widgets/tv_focus_wrapper.dart';
 import '../../../widgets/app_overflow_menu.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import '../../../widgets/search_pill_card.dart';
 
 /// Collapsing Dark-Themed & Edge-to-Edge Adaptive App Bar for HomeScreen
 class HomeSliverAppBar extends ConsumerWidget {
   const HomeSliverAppBar({super.key});
 
   /// Balanced header content height (excluding system status bar):
-  /// 38dp wordmark row + 12dp breathing room + 48dp search pill = 98.0dp (flush with search pill bottom)
-  static const double contentExpandedHeight = 98.0;
+  /// 38dp wordmark row + 12dp breathing room + 40dp search pill = 90.0dp (flush with search pill bottom)
+  static const double contentExpandedHeight = 90.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -56,7 +58,7 @@ class HomeSliverAppBar extends ConsumerWidget {
                 children: [
                   // Brand Wordmark (comfortable 12dp spacing from search pill when expanded, centered when pinned)
                   Positioned(
-                    left: 16,
+                    left: 10,
                     top: 0,
                     height: 38 + (18 * collapseRatio),
                     child: Align(
@@ -75,14 +77,19 @@ class HomeSliverAppBar extends ConsumerWidget {
                   // Collapsed Search Icon (appears smoothly when toolbar collapses past 50%)
                   if (collapseRatio >= 0.5)
                     Positioned(
-                      right: 48,
+                      right: 44,
                       top: 0,
                       height: kToolbarHeight,
                       child: Center(
                         child: IconButton(
-                          icon: Icon(
-                            Icons.search_rounded,
-                            color: cs.onSurface,
+                          icon: SvgPicture.string(
+                            kUpstreamSearchSvg,
+                            width: 24,
+                            height: 24,
+                            colorFilter: ColorFilter.mode(
+                              cs.onSurface,
+                              BlendMode.srcIn,
+                            ),
                           ),
                           onPressed: () => context.push('/search'),
                         ),
@@ -91,7 +98,7 @@ class HomeSliverAppBar extends ConsumerWidget {
 
                   // Overflow Menu (always accessible)
                   Positioned(
-                    right: 8,
+                    right: 6,
                     top: 0,
                     height: kToolbarHeight,
                     child: Center(
@@ -102,39 +109,39 @@ class HomeSliverAppBar extends ConsumerWidget {
                   // Expanded Search Bar Pill (starts at y=50 for balanced 12dp top gap and 10dp bottom gap)
                   if (collapseRatio < 0.7)
                     Positioned(
-                      left: 16,
-                      right: 16,
+                      left: 10,
+                      right: 10,
                       top: 50 - (collapseRatio * 50),
-                      height: 48,
+                      height: 40,
                       child: Opacity(
                         opacity: (1.0 - (collapseRatio / 0.6)).clamp(0.0, 1.0),
                         child: TvFocusable(
-                          borderRadius: BorderRadius.circular(24),
+                          borderRadius: BorderRadius.circular(20),
                           onTap: () => context.push('/search'),
                           child: Container(
-                            height: 48,
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            height: 40,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
                             decoration: BoxDecoration(
                               color: isDark ? const Color(0xFF161616) : cs.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(
-                                color: Colors.transparent,
-                                width: 1,
-                              ),
+                              borderRadius: BorderRadius.circular(20),
                             ),
                             child: Row(
                               children: [
-                                Icon(
-                                  Icons.search_rounded,
-                                  color: cs.onSurfaceVariant.withValues(alpha: 0.7),
-                                  size: 22,
+                                SvgPicture.string(
+                                  kUpstreamSearchSvg,
+                                  width: 24,
+                                  height: 24,
+                                  colorFilter: ColorFilter.mode(
+                                    cs.onSurfaceVariant.withValues(alpha: 0.7),
+                                    BlendMode.srcIn,
+                                  ),
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(width: 8),
                                 Text(
                                   'Search channels, events...',
                                   style: TextStyle(
                                     fontFamily: GoPlayType.family,
-                                    fontSize: 15,
+                                    fontSize: 13.5,
                                     fontWeight: FontWeight.w400,
                                     color: cs.onSurfaceVariant.withValues(alpha: 0.5),
                                   ),

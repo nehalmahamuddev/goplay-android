@@ -36,7 +36,7 @@ class HomeTrendingChannels extends ConsumerWidget {
           height: 88,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             itemCount: channels.length,
             addAutomaticKeepAlives: false,
             addRepaintBoundaries: false,
@@ -79,7 +79,7 @@ class HomeChannelItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(right: 12),
+      padding: const EdgeInsets.only(right: 10),
       child: TvFocusable(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,

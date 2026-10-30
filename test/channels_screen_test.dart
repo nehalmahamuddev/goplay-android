@@ -143,9 +143,6 @@ void main() {
       await tester.tap(find.text('Sports'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byIcon(Icons.search_rounded));
-      await tester.pumpAndSettle();
-
       await tester.enterText(find.byType(TextField), 'bravo');
       // Query is debounced by 150ms.
       await tester.pump(const Duration(milliseconds: 200));
@@ -161,8 +158,6 @@ void main() {
       await tester.tap(find.text('Sports'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byIcon(Icons.search_rounded));
-      await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'zzzz-no-match');
       await tester.pump(const Duration(milliseconds: 200));
       await tester.pumpAndSettle();
@@ -175,17 +170,16 @@ void main() {
         (tester) async {
       await pumpScreen(tester);
 
-      await tester.tap(find.byIcon(Icons.search_rounded));
+      await tester.enterText(find.byType(TextField), 'bravo');
       await tester.pumpAndSettle();
-      expect(find.byType(TextField), findsOneWidget);
+      expect(find.text('bravo'), findsOneWidget);
 
       // Simulates the Android system back gesture.
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
-      expect(find.byType(TextField), findsNothing);
-      expect(find.text('Channels'), findsOneWidget);
+      expect(find.text('bravo'), findsNothing);
     });
 
     testWidgets('a category dropping to zero channels retires its tab',

@@ -47,7 +47,7 @@ class _HomeTodayScheduleState extends ConsumerState<HomeTodaySchedule> {
               : 'No $selectedSport matches scheduled for today';
           return SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
               child: Text(
                 emptyText,
                 style: const TextStyle(color: GoPlayTheme.onSurfaceVariant),
@@ -64,7 +64,7 @@ class _HomeTodayScheduleState extends ConsumerState<HomeTodaySchedule> {
         if (isDesktopOrTv) {
           final crossAxisCount = size.width >= 1200 ? 4 : (size.width >= 800 ? 3 : 2);
           return SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             sliver: SliverGrid.builder(
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: crossAxisCount,
@@ -91,7 +91,7 @@ class _HomeTodayScheduleState extends ConsumerState<HomeTodaySchedule> {
           itemBuilder: (context, index) {
             final event = events[index];
             return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
               child: PlayZEventCard(
                 key: ValueKey(event.id),
                 event: event,

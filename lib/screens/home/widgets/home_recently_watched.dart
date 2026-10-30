@@ -35,7 +35,7 @@ class HomeRecentlyWatched extends ConsumerWidget {
           height: 88,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             itemCount: history.length,
             addAutomaticKeepAlives: false,
             addRepaintBoundaries: false,

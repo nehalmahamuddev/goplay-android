@@ -234,7 +234,7 @@ class _HeroBannerCard extends ConsumerWidget {
       onFocusChange: onFocusChange,
       onTap: () => _handleTap(context),
       child: Padding(
-        padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 4),
+        padding: const EdgeInsets.only(left: 10, right: 10, top: 4, bottom: 4),
         child: DecoratedBox(
           decoration: _cardDecoration,
           child: ClipRRect(

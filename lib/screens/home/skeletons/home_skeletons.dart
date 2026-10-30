@@ -14,7 +14,7 @@ class HeroBannerSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       child: SizedBox(
         height: 200,
         child: DecoratedBox(
@@ -48,12 +48,12 @@ class TrendingChannelsSkeleton extends StatelessWidget {
       height: 88,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
         physics: const NeverScrollableScrollPhysics(),
         itemCount: 5,
         itemBuilder: (context, index) {
           return const Padding(
-            padding: EdgeInsets.only(right: 12),
+            padding: EdgeInsets.only(right: 10),
             child: Padding(
               padding: EdgeInsets.all(4),
               child: SizedBox(
@@ -128,7 +128,7 @@ class ScheduleSkeleton extends StatelessWidget {
       itemCount: 3,
       itemBuilder: (context, index) {
         return const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
+          padding: EdgeInsets.symmetric(horizontal: 10),
           child: Padding(
             padding: EdgeInsets.only(bottom: 4),
             child: DecoratedBox(decoration: _cardDecoration),
