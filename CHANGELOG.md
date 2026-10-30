@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.5] - 2026-10-31
+
+### Fixed
+- Automated GitHub release pipeline with dynamic changelog extraction.
+- Streamlined release APK build and deployment triggers.
+
+---
+
 ## [2.3.4] - 2026-10-31
 
 ### Added
