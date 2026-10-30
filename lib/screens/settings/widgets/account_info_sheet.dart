@@ -109,7 +109,7 @@ class AccountInfoSheet extends ConsumerWidget {
                 children: [
                   _InfoRow(label: 'App Version', value: 'v${AppConstants.appVersion}'),
                   const Divider(color: Color(0x14FFFFFF), height: 16),
-                  _InfoRow(label: 'Sync Status', value: 'Channels v$channelsVer • Events v$eventsVer • UI v$uiVer'),
+                  _InfoRow(label: 'Sync Status', value: 'Ch v$channelsVer • Ev v$eventsVer • UI v$uiVer'),
                   const Divider(color: Color(0x14FFFFFF), height: 16),
                   _InfoRow(label: 'Database', value: 'Connected (Supabase Cloud)'),
                 ],
@@ -176,7 +176,6 @@ class _InfoRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           label,
@@ -186,13 +185,19 @@ class _InfoRow extends StatelessWidget {
             color: cs.onSurfaceVariant,
           ),
         ),
-        Text(
-          value,
-          style: TextStyle(
-            fontFamily: GoPlayType.family,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: cs.onSurface,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: GoPlayType.family,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+            ),
           ),
         ),
       ],
