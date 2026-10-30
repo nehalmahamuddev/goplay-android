@@ -290,12 +290,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   Container(
                     height: 48,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF161616),
+                      color: theme.cardTheme.color ?? theme.cardColor,
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(
                         color: _searchFocusNode.hasFocus
-                            ? cs.primary.withValues(alpha: 0.5)
-                            : Colors.transparent,
+                            ? cs.primary.withValues(alpha: 0.6)
+                            : (theme.brightness == Brightness.dark
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : Colors.black.withValues(alpha: 0.08)),
                         width: 1,
                       ),
                     ),
@@ -312,6 +314,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           child: TextField(
                             controller: _searchController,
                             focusNode: _searchFocusNode,
+                            cursorColor: cs.primary,
                             style: TextStyle(
                               fontFamily: GoPlayType.family,
                               fontSize: 15,
@@ -324,7 +327,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 fontSize: 15,
                                 color: cs.onSurfaceVariant.withValues(alpha: 0.5),
                               ),
+                              filled: false,
+                              fillColor: Colors.transparent,
                               border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              errorBorder: InputBorder.none,
+                              disabledBorder: InputBorder.none,
+                              focusedErrorBorder: InputBorder.none,
                               isDense: true,
                               contentPadding: EdgeInsets.zero,
                             ),
