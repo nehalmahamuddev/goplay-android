@@ -2,16 +2,20 @@ name: Build & Release GoPlay App
 
 on:
   push:
+    branches:
+      - main
+    paths:
+      - 'pubspec.yaml'
     tags:
       - 'v*'
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Tag / Release version (e.g. v2.2.2)'
+        description: 'Tag / Release version (e.g. v2.3.4)'
         required: false
-        default: 'v2.2.2'
+        default: ''
       changelog:
-        description: 'Changelog / Release notes (optional)'
+        description: 'Changelog / Release notes (optional, overrides CHANGELOG.md)'
         required: false
         default: ''
 
@@ -29,44 +33,90 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Determine Version & Extract Changelog
+        id: version_step
+        run: |
+          RAW_INPUT_TAG="${{ github.event.inputs.tag_name }}"
+          REF_NAME="${{ github.ref_name }}"
+          
+          # 1. Determine target version name and build code
+          if [ -n "$RAW_INPUT_TAG" ]; then
+            TAG_CLEAN=$(echo "$RAW_INPUT_TAG" | sed -E 's/^v//' | sed -E 's/-.*//')
+            VERSION_NAME="$TAG_CLEAN"
+            MAJOR=$(echo "$VERSION_NAME" | cut -d. -f1)
+            MINOR=$(echo "$VERSION_NAME" | cut -d. -f2)
+            PATCH=$(echo "$VERSION_NAME" | cut -d. -f3)
+            BUILD_CODE=$(( ${MAJOR:-0} * 10000 + ${MINOR:-0} * 100 + ${PATCH:-0} ))
+          elif [[ "$REF_NAME" =~ ^v[0-9] ]]; then
+            TAG_CLEAN=$(echo "$REF_NAME" | sed -E 's/^v//' | sed -E 's/-.*//')
+            VERSION_NAME="$TAG_CLEAN"
+            MAJOR=$(echo "$VERSION_NAME" | cut -d. -f1)
+            MINOR=$(echo "$VERSION_NAME" | cut -d. -f2)
+            PATCH=$(echo "$VERSION_NAME" | cut -d. -f3)
+            BUILD_CODE=$(( ${MAJOR:-0} * 10000 + ${MINOR:-0} * 100 + ${PATCH:-0} ))
+          else
+            # Push commit to main with updated pubspec.yaml
+            VERSION_NAME=$(grep '^version:' pubspec.yaml | sed 's/version: //;s/+.*//' | tr -d ' \r\n')
+            BUILD_CODE=$(grep '^version:' pubspec.yaml | sed 's/.*+//' | tr -d ' \r\n')
+          fi
+
+          TAG_NAME="v$VERSION_NAME"
+          echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
+          echo "version_code=$BUILD_CODE" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "Resolved version: $VERSION_NAME ($BUILD_CODE) with tag $TAG_NAME"
+
+          # 2. Check if a GitHub release or git tag for this version already exists
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref_type }}" != "tag" ]; then
+              echo "skip_release=true" >> $GITHUB_OUTPUT
+              echo "Tag $TAG_NAME already exists in repository. Skipping release creation."
+            else
+              echo "skip_release=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "skip_release=false" >> $GITHUB_OUTPUT
+          fi
+
+          # 3. Extract changelog for this version from CHANGELOG.md (or use manual input)
+          MANUAL_NOTES="${{ github.event.inputs.changelog }}"
+          if [ -n "$MANUAL_NOTES" ]; then
+            printf "%s\n" "$MANUAL_NOTES" > release_notes.md
+          elif [ -f CHANGELOG.md ]; then
+            python3 -c "
+import re
+try:
+    with open('CHANGELOG.md', 'r', encoding='utf-8') as f:
+        content = f.read()
+    pattern = rf'## \[{re.escape(\"$VERSION_NAME\")}\][^\n]*\n([\s\S]*?)(?=\n## \[|\Z)'
+    m = re.search(pattern, content)
+    notes = m.group(1).strip().rstrip('---').strip() if m else ''
+    with open('release_notes.md', 'w', encoding='utf-8') as out:
+        out.write(notes if notes else '✨ Release $TAG_NAME')
+except Exception as e:
+    with open('release_notes.md', 'w', encoding='utf-8') as out:
+        out.write('✨ Release $TAG_NAME')
+"
+          else
+            echo "✨ Release $TAG_NAME" > release_notes.md
+          fi
+
       - name: Set up JDK 17
+        if: steps.version_step.outputs.skip_release != 'true'
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Set up Flutter
+        if: steps.version_step.outputs.skip_release != 'true'
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
 
-      - name: Determine Version
-        id: version_step
-        run: |
-          RAW_TAG="${{ github.event.inputs.tag_name || github.ref_name }}"
-          TAG_CLEAN=$(echo "$RAW_TAG" | sed -E 's/^v//' | sed -E 's/-.*//')
-          
-          # If not valid tag format, extract from pubspec.yaml
-          if [ -z "$TAG_CLEAN" ] || ! [[ "$TAG_CLEAN" =~ [0-9] ]]; then
-            PUBSPEC_VER=$(grep '^version:' pubspec.yaml | sed 's/version: //;s/+.*//' | tr -d ' \r\n')
-            PUBSPEC_CODE=$(grep '^version:' pubspec.yaml | sed 's/.*+//' | tr -d ' \r\n')
-            TAG_CLEAN="$PUBSPEC_VER"
-            BUILD_CODE="$PUBSPEC_CODE"
-          else
-            # Extract numeric parts to create a standard versionCode e.g. 2.2.2 -> 20202
-            MAJOR=$(echo "$TAG_CLEAN" | cut -d. -f1)
-            MINOR=$(echo "$TAG_CLEAN" | cut -d. -f2)
-            PATCH=$(echo "$TAG_CLEAN" | cut -d. -f3)
-            BUILD_CODE=$(( ${MAJOR:-0} * 10000 + ${MINOR:-0} * 100 + ${PATCH:-0} ))
-          fi
-          
-          echo "version_name=$TAG_CLEAN" >> $GITHUB_OUTPUT
-          echo "version_code=$BUILD_CODE" >> $GITHUB_OUTPUT
-          echo "tag_name=v$TAG_CLEAN" >> $GITHUB_OUTPUT
-          echo "Resolved version: $TAG_CLEAN ($BUILD_CODE)"
-
       - name: Restore Release Keystore
+        if: steps.version_step.outputs.skip_release != 'true'
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -87,26 +137,31 @@ jobs:
           fi
 
       - name: Install Dependencies
+        if: steps.version_step.outputs.skip_release != 'true'
         run: flutter pub get
 
       - name: Build Release APK
+        if: steps.version_step.outputs.skip_release != 'true'
         run: |
           flutter build apk --release \
             --build-name="${{ steps.version_step.outputs.version_name }}" \
             --build-number="${{ steps.version_step.outputs.version_code }}"
 
       - name: Prepare APK for Release
+        if: steps.version_step.outputs.skip_release != 'true'
         run: |
           mkdir -p release_apks
           cp build/app/outputs/flutter-apk/app-release.apk release_apks/goplay.apk
 
       - name: Upload Artifact
+        if: steps.version_step.outputs.skip_release != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: GoPlay-Release-APK
           path: release_apks/goplay.apk
 
       - name: Create GitHub Release
+        if: steps.version_step.outputs.skip_release != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version_step.outputs.tag_name }}
@@ -114,12 +169,6 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: false
-          body: |
-            ${{ github.event.inputs.changelog || '✨ **What''s New in GoPlay:**
-            • Real-time match streaming and live channel updates
-            • Direct In-App update system powered by GitHub Releases
-            • Enhanced playback stability and error recovery
-            • TV remote navigation and performance optimizations' }}
+          body_path: release_notes.md
           files: |
             release_apks/goplay.apk
-
