@@ -20,8 +20,8 @@ import 'widgets/home_announcements_section.dart';
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
-  /// Tight, balanced spacing (10dp) directly below search input to achieve visual symmetry
-  static const double _firstSectionTopSpacing = 10.0;
+  /// Tight, balanced spacing (8dp) directly below search input to achieve visual symmetry
+  static const double _firstSectionTopSpacing = 8.0;
 
   /// Standard inter-section spacing between subsequent content sections
   static const double _sectionSpacing = 20.0;
@@ -167,8 +167,15 @@ class HomeScreen extends ConsumerWidget {
     final widgets = <Widget>[];
     bool isFirstSection = true;
 
+    // Check data presence for dynamic gap collapse (prevents empty sections from leaving blank gaps)
+    final heroBanners = ref.watch(heroBannersProvider).value ?? const [];
+    final trendingAsync = ref.watch(trendingChannelsProvider);
+    final hasTrending = trendingAsync.isLoading || (trendingAsync.value?.isNotEmpty ?? false);
+    final hasRecent = ref.watch(watchHistoryProvider).isNotEmpty;
+    final hasAnnouncements = (ref.watch(announcementsProvider).value ?? const []).isNotEmpty;
+
     for (final sectionKey in order) {
-      if (sectionKey == 'hero' && homeConfig.showHeroBanner) {
+      if (sectionKey == 'hero' && homeConfig.showHeroBanner && heroBanners.isNotEmpty) {
         final topGap = isFirstSection ? _firstSectionTopSpacing : _sectionSpacing;
         isFirstSection = false;
         widgets.addAll([
@@ -177,7 +184,7 @@ class HomeScreen extends ConsumerWidget {
             child: RepaintBoundary(child: HomeHeroBanner()),
           ),
         ]);
-      } else if (sectionKey == 'trending' && homeConfig.showTrendingSection) {
+      } else if (sectionKey == 'trending' && homeConfig.showTrendingSection && hasTrending) {
         final topGap = isFirstSection ? _firstSectionTopSpacing : _sectionSpacing;
         isFirstSection = false;
         widgets.addAll([
@@ -219,7 +226,7 @@ class HomeScreen extends ConsumerWidget {
           ),
           const HomeTodaySchedule(),
         ]);
-      } else if (sectionKey == 'recent' && homeConfig.showRecentlyWatched) {
+      } else if (sectionKey == 'recent' && homeConfig.showRecentlyWatched && hasRecent) {
         final topGap = isFirstSection ? _firstSectionTopSpacing : _sectionSpacing;
         isFirstSection = false;
         widgets.addAll([
@@ -228,7 +235,7 @@ class HomeScreen extends ConsumerWidget {
             child: RepaintBoundary(child: HomeRecentlyWatched()),
           ),
         ]);
-      } else if (sectionKey == 'announcements' && homeConfig.showAnnouncements) {
+      } else if (sectionKey == 'announcements' && homeConfig.showAnnouncements && hasAnnouncements) {
         final topGap = isFirstSection ? _firstSectionTopSpacing : _sectionSpacing;
         isFirstSection = false;
         widgets.addAll([

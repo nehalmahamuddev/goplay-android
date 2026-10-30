@@ -9,9 +9,12 @@ import '../../models/category.dart';
 import '../../providers/app_providers.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/playz_providers.dart';
-import '../../widgets/app_overflow_menu.dart';
 import '../../widgets/cards/channel_card.dart';
 import '../../widgets/tv_focus_wrapper.dart';
+import 'package:go_router/go_router.dart';
+
+enum CategorySortOption { defaultOrder, nameAsc, countDesc }
+enum ChannelSortOption { defaultOrder, nameAsc, nameDesc }
 
 /// Categories Screen matching the reference UI with GoPlay's dark theme & volt styling.
 ///
@@ -41,15 +44,15 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
   }
 
   // Search states
-  bool _isCategorySearchOpen = false;
   final TextEditingController _categorySearchController = TextEditingController();
   String _categorySearchQuery = '';
 
-  bool _isChannelSearchOpen = false;
   final TextEditingController _channelSearchController = TextEditingController();
   String _channelSearchQuery = '';
 
-  // Favorite filter states
+  // Filter & Sort states
+  CategorySortOption _categorySort = CategorySortOption.defaultOrder;
+  ChannelSortOption _channelSort = ChannelSortOption.defaultOrder;
   bool _filterFavoriteCategories = false;
   bool _filterFavoriteChannels = false;
 
@@ -92,10 +95,10 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     _lastSelectedCategoryId = category.id;
     setState(() {
       _selectedCategory = category;
-      _isChannelSearchOpen = false;
       _channelSearchController.clear();
       _channelSearchQuery = '';
       _filterFavoriteChannels = false;
+      _channelSort = ChannelSortOption.defaultOrder;
     });
     ref.read(playzSelectedCategoryProvider.notifier).select(category);
   }
@@ -103,11 +106,10 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
   void _goBackToCategories() {
     HapticFeedback.lightImpact();
     setState(() {
-      if (_isChannelSearchOpen) {
-        _isChannelSearchOpen = false;
-        _channelSearchController.clear();
-        _channelSearchQuery = '';
-      }
+      _channelSearchController.clear();
+      _channelSearchQuery = '';
+      _filterFavoriteChannels = false;
+      _channelSort = ChannelSortOption.defaultOrder;
       _selectedCategory = null;
     });
     ref.read(playzSelectedCategoryProvider.notifier).select(null);
@@ -115,42 +117,6 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
       if (mounted && _lastSelectedCategoryId != null) {
         _categoryFocusNodes[_lastSelectedCategoryId]?.requestFocus();
       }
-    });
-  }
-
-  void _toggleCategorySearch() {
-    HapticFeedback.lightImpact();
-    setState(() {
-      _isCategorySearchOpen = !_isCategorySearchOpen;
-      if (!_isCategorySearchOpen) {
-        _categorySearchController.clear();
-        _categorySearchQuery = '';
-      }
-    });
-  }
-
-  void _toggleChannelSearch() {
-    HapticFeedback.lightImpact();
-    setState(() {
-      _isChannelSearchOpen = !_isChannelSearchOpen;
-      if (!_isChannelSearchOpen) {
-        _channelSearchController.clear();
-        _channelSearchQuery = '';
-      }
-    });
-  }
-
-  void _toggleCategoryFavoritesFilter() {
-    HapticFeedback.lightImpact();
-    setState(() {
-      _filterFavoriteCategories = !_filterFavoriteCategories;
-    });
-  }
-
-  void _toggleChannelFavoritesFilter() {
-    HapticFeedback.lightImpact();
-    setState(() {
-      _filterFavoriteChannels = !_filterFavoriteChannels;
     });
   }
 
@@ -218,24 +184,31 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: overlayStyle,
       child: PopScope(
-      canPop: _selectedCategory == null &&
-          !_isCategorySearchOpen &&
-          !_filterFavoriteCategories,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) {
-          if (_isChannelSearchOpen) {
-            _toggleChannelSearch();
-          } else if (_filterFavoriteChannels) {
-            _toggleChannelFavoritesFilter();
-          } else if (_selectedCategory != null) {
-            _goBackToCategories();
-          } else if (_isCategorySearchOpen) {
-            _toggleCategorySearch();
-          } else if (_filterFavoriteCategories) {
-            _toggleCategoryFavoritesFilter();
+        canPop: _selectedCategory == null &&
+            _categorySearchQuery.isEmpty &&
+            !_filterFavoriteCategories &&
+            _categorySort == CategorySortOption.defaultOrder,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) {
+            if (_channelSearchQuery.isNotEmpty) {
+              _channelSearchController.clear();
+            } else if (_filterFavoriteChannels || _channelSort != ChannelSortOption.defaultOrder) {
+              setState(() {
+                _filterFavoriteChannels = false;
+                _channelSort = ChannelSortOption.defaultOrder;
+              });
+            } else if (_selectedCategory != null) {
+              _goBackToCategories();
+            } else if (_categorySearchQuery.isNotEmpty) {
+              _categorySearchController.clear();
+            } else if (_filterFavoriteCategories || _categorySort != CategorySortOption.defaultOrder) {
+              setState(() {
+                _filterFavoriteCategories = false;
+                _categorySort = CategorySortOption.defaultOrder;
+              });
+            }
           }
-        }
-      },
+        },
       child: Scaffold(
         backgroundColor: cs.surface,
         body: AnimatedSwitcher(
@@ -276,6 +249,8 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     final channelsByCategoryAsync = ref.watch(channelsByCategoryMapProvider);
     final channelsMap = channelsByCategoryAsync.value;
 
+    final isFilterActive = _filterFavoriteCategories || _categorySort != CategorySortOption.defaultOrder;
+
     return Column(
       key: const ValueKey('categories_list_view'),
       children: [
@@ -283,13 +258,19 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
           color: headerBg,
           child: SafeArea(
             bottom: false,
-            child: _buildCategoriesAppBar(context, overlayStyle),
+            child: _buildCategorySearchHeader(
+              context: context,
+              controller: _categorySearchController,
+              hintText: 'Search categories...',
+              isFilterActive: isFilterActive,
+              onFilterTap: () => _showCategoryFilterSheet(context),
+            ),
           ),
         ),
         Expanded(
           child: categoriesAsync.when(
             data: (categories) {
-              var displayList = categories;
+              var displayList = categories.toList();
 
               // Text search filter
               if (_categorySearchQuery.isNotEmpty) {
@@ -307,6 +288,28 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                   return channels != null &&
                       channels.any((ch) => favoriteIds.contains(ch.id));
                 }).toList();
+              }
+
+              // Sorting
+              switch (_categorySort) {
+                case CategorySortOption.nameAsc:
+                  displayList.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+                  break;
+                case CategorySortOption.countDesc:
+                  displayList.sort((a, b) {
+                    final countA = channelsMap?[a.id]?.length ??
+                        channelsMap?[a.name]?.length ??
+                        channelsMap?[a.id.toLowerCase()]?.length ??
+                        0;
+                    final countB = channelsMap?[b.id]?.length ??
+                        channelsMap?[b.name]?.length ??
+                        channelsMap?[b.id.toLowerCase()]?.length ??
+                        0;
+                    return countB.compareTo(countA);
+                  });
+                  break;
+                case CategorySortOption.defaultOrder:
+                  break;
               }
 
               if (displayList.isEmpty) {
@@ -439,71 +442,128 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     );
   }
 
-  Widget _buildCategoriesAppBar(BuildContext context, SystemUiOverlayStyle overlayStyle) {
+  Widget _buildCategorySearchHeader({
+    required BuildContext context,
+    required TextEditingController controller,
+    required String hintText,
+    required bool isFilterActive,
+    required VoidCallback onFilterTap,
+    Widget? leading,
+  }) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    return AppBar(
-      primary: false,
-      systemOverlayStyle: overlayStyle,
-      automaticallyImplyLeading: false,
-      backgroundColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      toolbarHeight: kToolbarHeight,
-      titleSpacing: (_filterFavoriteCategories || _isCategorySearchOpen) ? 0 : 16,
-      leading: _isCategorySearchOpen
-          ? IconButton(
-              tooltip: 'Close search',
-              icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
-              onPressed: _toggleCategorySearch,
-            )
-          : _filterFavoriteCategories
-              ? IconButton(
-                  tooltip: 'Show all categories',
-                  icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
-                  onPressed: _toggleCategoryFavoritesFilter,
-                )
-              : null,
-      title: _isCategorySearchOpen
-          ? _SearchField(
-              controller: _categorySearchController,
-              hintText: 'Search categories...',
-              onClear: () {
-                if (_categorySearchController.text.isEmpty) {
-                  _toggleCategorySearch();
-                } else {
-                  _categorySearchController.clear();
-                }
-              },
-            )
-          : Text(
-              _filterFavoriteCategories ? 'Favorites' : 'Categories',
-              style: theme.appBarTheme.titleTextStyle,
-            ),
-      actions: _isCategorySearchOpen
-          ? null
-          : [
-              if (ref.watch(uiConfigProvider).categoriesScreen.showCategorySearch)
-                IconButton(
-                  tooltip: 'Search categories',
-                  icon: Icon(Icons.search_rounded, color: cs.onSurface, size: 22),
-                  onPressed: _toggleCategorySearch,
-                ),
-              if (ref.watch(uiConfigProvider).categoriesScreen.showCategoryFavorites)
-                IconButton(
-                  tooltip: _filterFavoriteCategories ? 'Show all categories' : 'Filter favorites',
-                  icon: Icon(
-                    _filterFavoriteCategories ? Icons.star_rounded : Icons.star_outline_rounded,
-                    color: _filterFavoriteCategories ? cs.primary : cs.onSurface,
-                    size: 24,
+    return Padding(
+      padding: EdgeInsets.fromLTRB(leading != null ? 8 : 16, 6, 16, 8),
+      child: Row(
+        children: [
+          if (leading != null) ...[
+            leading,
+            const SizedBox(width: 4),
+          ],
+          Expanded(
+            child: Container(
+              height: 48,
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(width: 14),
+                  Icon(
+                    Icons.search_rounded,
+                    color: cs.onSurfaceVariant.withValues(alpha: 0.7),
+                    size: 20,
                   ),
-                  onPressed: _toggleCategoryFavoritesFilter,
-                ),
-              const AppOverflowMenu(iconColor: Colors.white),
-              const SizedBox(width: 8),
-            ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      textInputAction: TextInputAction.search,
+                      cursorColor: const Color(0xFFA855F7),
+                      cursorWidth: 2,
+                      style: TextStyle(
+                        fontFamily: GoPlayType.family,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w400,
+                        color: cs.onSurface,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: hintText,
+                        hintStyle: TextStyle(
+                          fontFamily: GoPlayType.family,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: cs.onSurfaceVariant.withValues(alpha: 0.5),
+                        ),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        focusedErrorBorder: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ),
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: controller,
+                    builder: (context, value, child) {
+                      if (value.text.isEmpty) return const SizedBox.shrink();
+                      return IconButton(
+                        tooltip: 'Clear search',
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: cs.onSurfaceVariant.withValues(alpha: 0.8),
+                          size: 18,
+                        ),
+                        splashRadius: 18,
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          controller.clear();
+                        },
+                      );
+                    },
+                  ),
+                  IconButton(
+                    tooltip: 'Filter and sort',
+                    splashRadius: 20,
+                    icon: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Icon(
+                          Icons.filter_list_rounded,
+                          size: 22,
+                          color: isFilterActive
+                              ? GoPlayTheme.primary
+                              : cs.onSurfaceVariant.withValues(alpha: 0.8),
+                        ),
+                        if (isFilterActive)
+                          Positioned(
+                            top: -1,
+                            right: -1,
+                            child: Container(
+                              width: 7,
+                              height: 7,
+                              decoration: const BoxDecoration(
+                                color: GoPlayTheme.primary,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    onPressed: onFilterTap,
+                  ),
+                  const SizedBox(width: 4),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -518,6 +578,8 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     SystemUiOverlayStyle overlayStyle,
   ) {
     final channelsAsync = ref.watch(playzCategoryChannelsProvider(category));
+    final cs = Theme.of(context).colorScheme;
+    final isFilterActive = _filterFavoriteChannels || _channelSort != ChannelSortOption.defaultOrder;
 
     return Column(
       key: ValueKey('category_channels_${category.id}'),
@@ -526,13 +588,27 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
           color: headerBg,
           child: SafeArea(
             bottom: false,
-            child: _buildChannelsAppBar(context, category, overlayStyle),
+            child: _buildCategorySearchHeader(
+              context: context,
+              controller: _channelSearchController,
+              hintText: 'Search in ${category.name}...',
+              isFilterActive: isFilterActive,
+              onFilterTap: () => _showChannelFilterSheet(context, category),
+              leading: IconButton(
+                icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
+                tooltip: 'Back to Categories',
+                splashRadius: 20,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                onPressed: _goBackToCategories,
+              ),
+            ),
           ),
         ),
         Expanded(
           child: channelsAsync.when(
             data: (channels) {
-              var displayList = channels;
+              var displayList = channels.toList();
 
               // Search query filter
               if (_channelSearchQuery.isNotEmpty) {
@@ -546,6 +622,18 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                 displayList = displayList
                     .where((c) => favoriteIds.contains(c.id))
                     .toList();
+              }
+
+              // Sorting
+              switch (_channelSort) {
+                case ChannelSortOption.nameAsc:
+                  displayList.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+                  break;
+                case ChannelSortOption.nameDesc:
+                  displayList.sort((a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()));
+                  break;
+                case ChannelSortOption.defaultOrder:
+                  break;
               }
 
               if (displayList.isEmpty) {
@@ -628,75 +716,533 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     );
   }
 
-  Widget _buildChannelsAppBar(BuildContext context, Category category, SystemUiOverlayStyle overlayStyle) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
+  void _showCategoryFilterSheet(BuildContext context) {
+    HapticFeedback.lightImpact();
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return AppBar(
-      primary: false,
-      systemOverlayStyle: overlayStyle,
-      automaticallyImplyLeading: false,
-      backgroundColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      toolbarHeight: kToolbarHeight,
-      titleSpacing: 0,
-      leading: IconButton(
-        icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
-        tooltip: _isChannelSearchOpen
-            ? 'Close search'
-            : _filterFavoriteChannels
-                ? 'Show all channels'
-                : 'Back to Categories',
-        onPressed: () {
-          if (_isChannelSearchOpen) {
-            _toggleChannelSearch();
-          } else if (_filterFavoriteChannels) {
-            _toggleChannelFavoritesFilter();
-          } else {
-            _goBackToCategories();
-          }
-        },
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF161616) : cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      title: _isChannelSearchOpen
-          ? _SearchField(
-              controller: _channelSearchController,
-              hintText: 'Search in ${category.name}...',
-              onClear: () {
-                if (_channelSearchController.text.isEmpty) {
-                  _toggleChannelSearch();
-                } else {
-                  _channelSearchController.clear();
-                }
-              },
-            )
-          : Text(
-              _filterFavoriteChannels ? 'Favorites • ${category.name}' : category.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.appBarTheme.titleTextStyle,
-            ),
-      actions: _isChannelSearchOpen
-          ? null
-          : [
-              IconButton(
-                tooltip: 'Search channels',
-                icon: Icon(Icons.search_rounded, color: cs.onSurface, size: 22),
-                onPressed: _toggleChannelSearch,
-              ),
-              IconButton(
-                tooltip: _filterFavoriteChannels ? 'Show all channels' : 'Filter favorites',
-                icon: Icon(
-                  _filterFavoriteChannels ? Icons.star_rounded : Icons.star_outline_rounded,
-                  color: _filterFavoriteChannels ? GoPlayTheme.primary : cs.onSurface,
-                  size: 24,
+      builder: (bottomSheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final hasActiveFilters = _filterFavoriteCategories ||
+                _categorySort != CategorySortOption.defaultOrder;
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Drag Handle
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: cs.onSurface.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Header Row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Filters & Sorting',
+                          style: (Theme.of(context).textTheme.titleMedium ?? GoPlayType.title).copyWith(
+                            color: cs.onSurface,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (hasActiveFilters)
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              foregroundColor: GoPlayTheme.primary,
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                            ),
+                            onPressed: () {
+                              HapticFeedback.selectionClick();
+                              setState(() {
+                                _filterFavoriteCategories = false;
+                                _categorySort = CategorySortOption.defaultOrder;
+                              });
+                              setSheetState(() {});
+                            },
+                            child: const Text('Reset'),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Filter Options
+                    Text(
+                      'FILTER',
+                      style: GoPlayType.labelSmall.copyWith(
+                        color: cs.onSurfaceVariant,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF202020) : cs.surfaceContainerHighest.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: SwitchListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                        secondary: Icon(
+                          _filterFavoriteCategories ? Icons.star_rounded : Icons.star_outline_rounded,
+                          color: _filterFavoriteCategories ? GoPlayTheme.primary : cs.onSurfaceVariant,
+                        ),
+                        title: Text(
+                          'Favorites Only',
+                          style: TextStyle(
+                            fontFamily: GoPlayType.family,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Show only categories with favorite channels',
+                          style: TextStyle(
+                            fontFamily: GoPlayType.family,
+                            fontSize: 12,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                        activeThumbColor: GoPlayTheme.primary,
+                        value: _filterFavoriteCategories,
+                        onChanged: (val) {
+                          HapticFeedback.selectionClick();
+                          setState(() => _filterFavoriteCategories = val);
+                          setSheetState(() {});
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Sort Options
+                    Text(
+                      'SORT BY',
+                      style: GoPlayType.labelSmall.copyWith(
+                        color: cs.onSurfaceVariant,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF202020) : cs.surfaceContainerHighest.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        children: [
+                          _buildSortTile(
+                            context: context,
+                            title: 'Default (Original order)',
+                            icon: Icons.sort_rounded,
+                            isSelected: _categorySort == CategorySortOption.defaultOrder,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() => _categorySort = CategorySortOption.defaultOrder);
+                              setSheetState(() {});
+                            },
+                          ),
+                          Divider(height: 1, color: cs.onSurface.withValues(alpha: 0.06), indent: 48),
+                          _buildSortTile(
+                            context: context,
+                            title: 'Alphabetical (A to Z)',
+                            icon: Icons.sort_by_alpha_rounded,
+                            isSelected: _categorySort == CategorySortOption.nameAsc,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() => _categorySort = CategorySortOption.nameAsc);
+                              setSheetState(() {});
+                            },
+                          ),
+                          Divider(height: 1, color: cs.onSurface.withValues(alpha: 0.06), indent: 48),
+                          _buildSortTile(
+                            context: context,
+                            title: 'Most Channels',
+                            icon: Icons.format_list_numbered_rounded,
+                            isSelected: _categorySort == CategorySortOption.countDesc,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() => _categorySort = CategorySortOption.countDesc);
+                              setSheetState(() {});
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Quick Actions
+                    Text(
+                      'QUICK ACTIONS',
+                      style: GoPlayType.labelSmall.copyWith(
+                        color: cs.onSurfaceVariant,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildActionCard(
+                            context: context,
+                            icon: Icons.refresh_rounded,
+                            label: 'Refresh',
+                            onTap: () {
+                              Navigator.pop(bottomSheetContext);
+                              HapticFeedback.mediumImpact();
+                              ref.invalidate(playzCategoriesProvider);
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildActionCard(
+                            context: context,
+                            icon: Icons.settings_outlined,
+                            label: 'Settings',
+                            onTap: () {
+                              Navigator.pop(bottomSheetContext);
+                              context.push('/settings');
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                onPressed: _toggleChannelFavoritesFilter,
               ),
-              const AppOverflowMenu(iconColor: Colors.white),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showChannelFilterSheet(BuildContext context, Category category) {
+    HapticFeedback.lightImpact();
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF161616) : cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (bottomSheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final hasActiveFilters = _filterFavoriteChannels ||
+                _channelSort != ChannelSortOption.defaultOrder;
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Drag Handle
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: cs.onSurface.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Header Row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Filters & Sorting',
+                          style: (Theme.of(context).textTheme.titleMedium ?? GoPlayType.title).copyWith(
+                            color: cs.onSurface,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (hasActiveFilters)
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              foregroundColor: GoPlayTheme.primary,
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                            ),
+                            onPressed: () {
+                              HapticFeedback.selectionClick();
+                              setState(() {
+                                _filterFavoriteChannels = false;
+                                _channelSort = ChannelSortOption.defaultOrder;
+                              });
+                              setSheetState(() {});
+                            },
+                            child: const Text('Reset'),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Filter Options
+                    Text(
+                      'FILTER',
+                      style: GoPlayType.labelSmall.copyWith(
+                        color: cs.onSurfaceVariant,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF202020) : cs.surfaceContainerHighest.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: SwitchListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                        secondary: Icon(
+                          _filterFavoriteChannels ? Icons.star_rounded : Icons.star_outline_rounded,
+                          color: _filterFavoriteChannels ? GoPlayTheme.primary : cs.onSurfaceVariant,
+                        ),
+                        title: Text(
+                          'Favorites Only',
+                          style: TextStyle(
+                            fontFamily: GoPlayType.family,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Show only favorite channels in ${category.name}',
+                          style: TextStyle(
+                            fontFamily: GoPlayType.family,
+                            fontSize: 12,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                        activeThumbColor: GoPlayTheme.primary,
+                        value: _filterFavoriteChannels,
+                        onChanged: (val) {
+                          HapticFeedback.selectionClick();
+                          setState(() => _filterFavoriteChannels = val);
+                          setSheetState(() {});
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Sort Options
+                    Text(
+                      'SORT BY',
+                      style: GoPlayType.labelSmall.copyWith(
+                        color: cs.onSurfaceVariant,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF202020) : cs.surfaceContainerHighest.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        children: [
+                          _buildSortTile(
+                            context: context,
+                            title: 'Default',
+                            icon: Icons.sort_rounded,
+                            isSelected: _channelSort == ChannelSortOption.defaultOrder,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() => _channelSort = ChannelSortOption.defaultOrder);
+                              setSheetState(() {});
+                            },
+                          ),
+                          Divider(height: 1, color: cs.onSurface.withValues(alpha: 0.06), indent: 48),
+                          _buildSortTile(
+                            context: context,
+                            title: 'Alphabetical (A to Z)',
+                            icon: Icons.sort_by_alpha_rounded,
+                            isSelected: _channelSort == ChannelSortOption.nameAsc,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() => _channelSort = ChannelSortOption.nameAsc);
+                              setSheetState(() {});
+                            },
+                          ),
+                          Divider(height: 1, color: cs.onSurface.withValues(alpha: 0.06), indent: 48),
+                          _buildSortTile(
+                            context: context,
+                            title: 'Alphabetical (Z to A)',
+                            icon: Icons.sort_by_alpha_rounded,
+                            isSelected: _channelSort == ChannelSortOption.nameDesc,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() => _channelSort = ChannelSortOption.nameDesc);
+                              setSheetState(() {});
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Quick Actions
+                    Text(
+                      'QUICK ACTIONS',
+                      style: GoPlayType.labelSmall.copyWith(
+                        color: cs.onSurfaceVariant,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildActionCard(
+                            context: context,
+                            icon: Icons.refresh_rounded,
+                            label: 'Refresh',
+                            onTap: () {
+                              Navigator.pop(bottomSheetContext);
+                              HapticFeedback.mediumImpact();
+                              ref.invalidate(playzCategoryChannelsProvider(category));
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildActionCard(
+                            context: context,
+                            icon: Icons.settings_outlined,
+                            label: 'Settings',
+                            onTap: () {
+                              Navigator.pop(bottomSheetContext);
+                              context.push('/settings');
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSortTile({
+    required BuildContext context,
+    required String title,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: isSelected ? GoPlayTheme.primary : cs.onSurfaceVariant,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontFamily: GoPlayType.family,
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  color: isSelected ? GoPlayTheme.primary : cs.onSurface,
+                ),
+              ),
+            ),
+            if (isSelected)
+              const Icon(
+                Icons.check_rounded,
+                size: 20,
+                color: GoPlayTheme.primary,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionCard({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Material(
+      color: isDark ? const Color(0xFF202020) : cs.surfaceContainerHighest.withValues(alpha: 0.5),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: cs.onSurface),
               const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: GoPlayType.family,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: cs.onSurface,
+                ),
+              ),
             ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -792,64 +1338,6 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-// ==========================================
-//           SEARCH FIELD COMPONENT
-// ==========================================
-class _SearchField extends StatelessWidget {
-  final TextEditingController controller;
-  final String hintText;
-  final VoidCallback onClear;
-
-  const _SearchField({
-    required this.controller,
-    required this.hintText,
-    required this.onClear,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    const radius = BorderRadius.all(Radius.circular(100));
-
-    return SizedBox(
-      height: 40,
-      child: TextField(
-        controller: controller,
-        autofocus: true,
-        textInputAction: TextInputAction.search,
-        cursorColor: cs.primary,
-        style: GoPlayType.body.copyWith(color: cs.onSurface),
-        decoration: InputDecoration(
-          filled: true,
-          fillColor: Theme.of(context).cardColor,
-          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-          hintText: hintText,
-          hintStyle: GoPlayType.body.copyWith(color: cs.onSurfaceVariant),
-          isDense: true,
-          border: const OutlineInputBorder(
-            borderRadius: radius,
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: const OutlineInputBorder(
-            borderRadius: radius,
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: const OutlineInputBorder(
-            borderRadius: radius,
-            borderSide: BorderSide.none,
-          ),
-          prefixIcon: Icon(Icons.search_rounded, color: cs.onSurfaceVariant, size: 20),
-          suffixIcon: IconButton(
-            tooltip: 'Clear search',
-            icon: Icon(Icons.close_rounded, color: cs.onSurfaceVariant, size: 18),
-            onPressed: onClear,
-          ),
         ),
       ),
     );

@@ -225,7 +225,7 @@ class _TelegramDropdownCard extends StatelessWidget {
                     },
                   ),
                   _MenuItemTile(
-                    icon: Icons.settings_outlined,
+                    icon: Icons.settings_rounded,
                     title: 'App Settings',
                     onTap: () {
                       Navigator.of(context).pop();

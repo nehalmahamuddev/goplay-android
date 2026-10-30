@@ -90,7 +90,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     children: [
                       _RailNavItem(
                         focusNode: _navFocusNodes[0],
-                        icon: Icons.home_outlined,
+                        icon: Icons.home_rounded,
                         selectedIcon: Icons.home_rounded,
                         label: 'Home',
                         isSelected: index == 0,
@@ -100,8 +100,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         const SizedBox(height: 8),
                         _RailNavItem(
                           focusNode: _navFocusNodes[1],
-                          icon: Icons.dashboard_customize_outlined,
-                          selectedIcon: Icons.dashboard_customize_rounded,
+                          icon: Icons.grid_view_rounded,
+                          selectedIcon: Icons.grid_view_rounded,
                           label: 'Categories',
                           isSelected: index == 1,
                           onTap: () => _goBranch(1),
@@ -111,8 +111,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         const SizedBox(height: 8),
                         _RailNavItem(
                           focusNode: _navFocusNodes[2],
-                          icon: Icons.smart_display_outlined,
-                          selectedIcon: Icons.smart_display_rounded,
+                          icon: Icons.live_tv_rounded,
+                          selectedIcon: Icons.live_tv_rounded,
                           label: 'Channels',
                           isSelected: index == 2,
                           onTap: () => _goBranch(2),
@@ -123,7 +123,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         const SizedBox(height: 8),
                         _RailNavItem(
                           focusNode: _navFocusNodes[3],
-                          icon: Icons.sports_soccer_outlined,
+                          icon: Icons.sports_soccer_rounded,
                           selectedIcon: Icons.sports_soccer_rounded,
                           label: 'Events',
                           isSelected: index == 3,
@@ -157,7 +157,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               children: [
                 _NavItem(
                   focusNode: _navFocusNodes[0],
-                  icon: Icons.home_outlined,
+                  icon: Icons.home_rounded,
                   selectedIcon: Icons.home_rounded,
                   label: 'Home',
                   isSelected: index == 0,
@@ -166,8 +166,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 if (ref.watch(uiConfigProvider).navigationBranding.enabledTabs.contains('categories'))
                   _NavItem(
                     focusNode: _navFocusNodes[1],
-                    icon: Icons.dashboard_customize_outlined,
-                    selectedIcon: Icons.dashboard_customize_rounded,
+                    icon: Icons.grid_view_rounded,
+                    selectedIcon: Icons.grid_view_rounded,
                     label: 'Categories',
                     isSelected: index == 1,
                     onTap: () => _goBranch(1),
@@ -175,8 +175,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 if (ref.watch(uiConfigProvider).navigationBranding.enabledTabs.contains('channels'))
                   _NavItem(
                     focusNode: _navFocusNodes[2],
-                    icon: Icons.smart_display_outlined,
-                    selectedIcon: Icons.smart_display_rounded,
+                    icon: Icons.live_tv_rounded,
+                    selectedIcon: Icons.live_tv_rounded,
                     label: 'Channels',
                     isSelected: index == 2,
                     onTap: () => _goBranch(2),
@@ -185,7 +185,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     ref.watch(uiConfigProvider).navigationBranding.enabledTabs.contains('events'))
                   _NavItem(
                     focusNode: _navFocusNodes[3],
-                    icon: Icons.sports_soccer_outlined,
+                    icon: Icons.sports_soccer_rounded,
                     selectedIcon: Icons.sports_soccer_rounded,
                     label: 'Events',
                     isSelected: index == 3,
