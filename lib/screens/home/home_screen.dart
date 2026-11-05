@@ -115,18 +115,19 @@ class HomeScreen extends ConsumerWidget {
         FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
     final isDesktop = isLandscape || isTv;
     final bottomPadding = MediaQuery.paddingOf(context).bottom;
+    final topPadding = MediaQuery.paddingOf(context).top;
     final bottomSpacing = isDesktop ? 24.0 : (80.0 + bottomPadding);
 
     return Material(
       color: cs.surface,
       child: SafeArea(
-        top: true,
+        top: false,
         bottom: false,
         child: RefreshIndicator(
           color: cs.primary,
           backgroundColor: cs.surfaceContainerHighest,
           // Emerge smoothly from directly below the search input pill
-          edgeOffset: HomeSliverAppBar.contentExpandedHeight,
+          edgeOffset: HomeSliverAppBar.contentExpandedHeight + topPadding,
           displacement: 36.0,
           onRefresh: () async {
             HapticFeedback.mediumImpact();

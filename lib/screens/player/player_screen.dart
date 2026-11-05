@@ -1091,22 +1091,6 @@ class _PlayerContainer extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: const Color(0xEE141418),
                             borderRadius: BorderRadius.circular(30),
-                            border: Border.all(
-                              color: Theme.of(context).colorScheme.primary,
-                              width: 1.5,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.35),
-                                blurRadius: 16,
-                                spreadRadius: 1,
-                              ),
-                              const BoxShadow(
-                                color: Colors.black87,
-                                blurRadius: 10,
-                                offset: Offset(0, 4),
-                              ),
-                            ],
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -1745,8 +1729,10 @@ class _FullscreenTopBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final channelsAsync = ref.watch(channelsProvider);
     final mq = MediaQuery.of(context);
-    final double leftInset = isFullscreen ? math.max(12.0, mq.padding.left) : 8.0;
-    final double rightInset = isFullscreen ? math.max(12.0, mq.padding.right) : 8.0;
+    final bool isCompact = mq.size.width < 580;
+    final double iconSize = isFullscreen ? (isCompact ? 22.0 : 28.0) : 24.0;
+    final double leftInset = isFullscreen ? math.max(16.0, mq.padding.left) : 8.0;
+    final double rightInset = isFullscreen ? math.max(16.0, mq.padding.right) : 8.0;
 
     final bar = DecoratedBox(
       decoration: _kTopBarGradient,
@@ -1763,22 +1749,27 @@ class _FullscreenTopBar extends ConsumerWidget {
             right: rightInset,
           ),
           child: SizedBox(
-            height: isFullscreen ? 48 : 42,
+            height: isFullscreen ? 56 : 42,
             child: Row(
               children: [
-                // 1. Back button
+                // 1. Back button (meets 48dp minimum touch target with standardized icon size)
                 TvFocusable(
                   isCircle: true,
                   onTap: onBackPressed,
-                  child: const Padding(
-                    padding: EdgeInsets.all(8),
-                    child: Icon(
-                      Icons.arrow_back_rounded,
-                      color: Colors.white,
-                      size: 24,
+                  child: SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Center(
+                      child: Icon(
+                        Icons.arrow_back_rounded,
+                        color: Colors.white,
+                        size: iconSize,
+                      ),
                     ),
                   ),
                 ),
+
+                const SizedBox(width: 12),
 
                 // 2. Horizontal Channels list
                 Expanded(
@@ -1805,7 +1796,7 @@ class _FullscreenTopBar extends ConsumerWidget {
                       if (related.isEmpty) return const SizedBox.shrink();
                       return ListView.builder(
                         scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.only(left: 4, right: 8),
+                        padding: const EdgeInsets.only(right: 8),
                         physics: const BouncingScrollPhysics(),
                         itemCount: related.length,
                         itemBuilder: (context, index) {
@@ -1884,19 +1875,10 @@ class _ServerChipState extends State<_ServerChip> {
     final activeDeco = BoxDecoration(
       color: cs.primary,
       borderRadius: const BorderRadius.all(Radius.circular(20)),
-      border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 1.0),
-      boxShadow: [
-        BoxShadow(
-          color: cs.primary.withValues(alpha: 0.35),
-          blurRadius: 8,
-          offset: const Offset(0, 2),
-        ),
-      ],
     );
     final inactiveDeco = BoxDecoration(
       color: Colors.white.withValues(alpha: 0.18),
       borderRadius: const BorderRadius.all(Radius.circular(20)),
-      border: Border.all(color: Colors.white.withValues(alpha: 0.28), width: 0.8),
     );
 
     final activeStyle = TextStyle(

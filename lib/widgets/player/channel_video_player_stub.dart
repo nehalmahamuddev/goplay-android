@@ -1301,22 +1301,6 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
             decoration: BoxDecoration(
               color: const Color(0xEE141418),
               borderRadius: BorderRadius.circular(30),
-              border: Border.all(
-                color: cs.primary,
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: cs.primary.withValues(alpha: 0.35),
-                  blurRadius: 16,
-                  spreadRadius: 1,
-                ),
-                const BoxShadow(
-                  color: Colors.black87,
-                  blurRadius: 10,
-                  offset: Offset(0, 4),
-                ),
-              ],
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,

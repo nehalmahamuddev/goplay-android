@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.7] - 2026-11-06
+
+### Added
+- Dynamic collapsing header in Home screen smoothly transitions to nav bar surface color on scroll.
+- Seamless edge-to-edge status bar integration with borderless header styling.
+
+### Fixed
+- Polished player controls, server chip styling, and fullscreen top bar touch targets.
+- Resolved header and status bar visual cutoff on scroll.
+
+---
+
 ## [2.3.6] - 2026-10-31
 
 [MANDATORY]

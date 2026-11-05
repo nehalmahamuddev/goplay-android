@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme.dart';
 import '../../../core/typography.dart';
 import '../../../providers/app_providers.dart';
+import '../../../providers/theme_provider.dart';
 import '../../../widgets/tv_focus_wrapper.dart';
 import '../../../widgets/app_overflow_menu.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -25,12 +26,18 @@ class HomeSliverAppBar extends ConsumerWidget {
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final brandWordmark = ref.watch(uiConfigProvider).navigationBranding.brandWordmark;
+    final themeSettings = ref.watch(themeSettingsProvider);
+    final topPadding = MediaQuery.paddingOf(context).top;
 
-    const double minHeight = kToolbarHeight;
-    const double maxHeight = contentExpandedHeight;
+    // Resolve header background color to match bottom nav bar surface color
+    final headerBg = theme.bottomNavigationBarTheme.backgroundColor ??
+        themeSettings.bottomNavColor;
+
+    final double minHeight = kToolbarHeight + topPadding;
+    final double maxHeight = contentExpandedHeight + topPadding;
 
     return SliverAppBar(
-      primary: false,
+      primary: true,
       expandedHeight: contentExpandedHeight,
       floating: false,
       pinned: true,
@@ -49,14 +56,17 @@ class HomeSliverAppBar extends ConsumerWidget {
           // Normalized collapse ratio: 0.0 (fully expanded) to 1.0 (fully collapsed)
           final double collapseRatio = ((maxHeight - appBarHeight) / (maxHeight - minHeight)).clamp(0.0, 1.0);
 
+          // Smoothly interpolate background color from canvas surface to nav menu surface
+          final effectiveBgColor = Color.lerp(cs.surface, headerBg, collapseRatio)!;
+
           return Container(
-            color: cs.surface,
+            color: effectiveBgColor,
             child: Stack(
               children: [
                 // Brand Wordmark (comfortable 12dp spacing from search pill when expanded, centered when pinned)
                 Positioned(
                   left: 10,
-                  top: 0,
+                  top: topPadding,
                   height: 38 + (18 * collapseRatio),
                   child: Align(
                     alignment: Alignment.centerLeft,
@@ -71,86 +81,86 @@ class HomeSliverAppBar extends ConsumerWidget {
                   ),
                 ),
 
-                  // Collapsed Search Icon (appears smoothly when toolbar collapses past 50%)
-                  if (collapseRatio >= 0.5)
-                    Positioned(
-                      right: 44,
-                      top: 0,
-                      height: kToolbarHeight,
-                      child: Center(
-                        child: IconButton(
-                          icon: SvgPicture.string(
-                            kUpstreamSearchSvg,
-                            width: 24,
-                            height: 24,
-                            colorFilter: ColorFilter.mode(
-                              cs.onSurface,
-                              BlendMode.srcIn,
-                            ),
-                          ),
-                          onPressed: () => context.push('/search'),
-                        ),
-                      ),
-                    ),
-
-                  // Overflow Menu (always accessible)
+                // Collapsed Search Icon (appears smoothly when toolbar collapses past 50%)
+                if (collapseRatio >= 0.5)
                   Positioned(
-                    right: 6,
-                    top: 0,
+                    right: 44,
+                    top: topPadding,
                     height: kToolbarHeight,
                     child: Center(
-                      child: AppOverflowMenu(iconColor: cs.onSurface),
+                      child: IconButton(
+                        icon: SvgPicture.string(
+                          kUpstreamSearchSvg,
+                          width: 24,
+                          height: 24,
+                          colorFilter: ColorFilter.mode(
+                            cs.onSurface,
+                            BlendMode.srcIn,
+                          ),
+                        ),
+                        onPressed: () => context.push('/search'),
+                      ),
                     ),
                   ),
 
-                  // Expanded Search Bar Pill (starts at y=50 for balanced 12dp top gap and 10dp bottom gap)
-                  if (collapseRatio < 0.7)
-                    Positioned(
-                      left: 10,
-                      right: 10,
-                      top: 50 - (collapseRatio * 50),
-                      height: 40,
-                      child: Opacity(
-                        opacity: (1.0 - (collapseRatio / 0.6)).clamp(0.0, 1.0),
-                        child: TvFocusable(
-                          borderRadius: BorderRadius.circular(20),
-                          onTap: () => context.push('/search'),
-                          child: Container(
-                            height: 40,
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF161616) : cs.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              children: [
-                                SvgPicture.string(
-                                  kUpstreamSearchSvg,
-                                  width: 24,
-                                  height: 24,
-                                  colorFilter: ColorFilter.mode(
-                                    cs.onSurfaceVariant.withValues(alpha: 0.7),
-                                    BlendMode.srcIn,
-                                  ),
+                // Overflow Menu (always accessible)
+                Positioned(
+                  right: 6,
+                  top: topPadding,
+                  height: kToolbarHeight,
+                  child: Center(
+                    child: AppOverflowMenu(iconColor: cs.onSurface),
+                  ),
+                ),
+
+                // Expanded Search Bar Pill (starts at y=50 below topPadding for balanced 12dp top gap and 10dp bottom gap)
+                if (collapseRatio < 0.7)
+                  Positioned(
+                    left: 10,
+                    right: 10,
+                    top: topPadding + 50 - (collapseRatio * 50),
+                    height: 40,
+                    child: Opacity(
+                      opacity: (1.0 - (collapseRatio / 0.6)).clamp(0.0, 1.0),
+                      child: TvFocusable(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () => context.push('/search'),
+                        child: Container(
+                          height: 40,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF161616) : cs.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            children: [
+                              SvgPicture.string(
+                                kUpstreamSearchSvg,
+                                width: 24,
+                                height: 24,
+                                colorFilter: ColorFilter.mode(
+                                  cs.onSurfaceVariant.withValues(alpha: 0.7),
+                                  BlendMode.srcIn,
                                 ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Search channels, events...',
-                                  style: TextStyle(
-                                    fontFamily: GoPlayType.family,
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w400,
-                                    color: cs.onSurfaceVariant.withValues(alpha: 0.5),
-                                  ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Search channels, events...',
+                                style: TextStyle(
+                                  fontFamily: GoPlayType.family,
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w400,
+                                  color: cs.onSurfaceVariant.withValues(alpha: 0.5),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     ),
-                ],
-              ),
+                  ),
+              ],
+            ),
           );
         },
       ),
