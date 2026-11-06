@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/theme.dart';
 import '../../../core/typography.dart';
 import '../../../providers/app_providers.dart';
 import '../../../providers/theme_provider.dart';
@@ -63,20 +62,18 @@ class HomeSliverAppBar extends ConsumerWidget {
             color: effectiveBgColor,
             child: Stack(
               children: [
-                // Brand Wordmark (comfortable 12dp spacing from search pill when expanded, centered when pinned)
+                // Brand Custom Title (custom vector wordmark with built-in play mark)
                 Positioned(
                   left: 10,
                   top: topPadding,
                   height: 38 + (18 * collapseRatio),
                   child: Align(
                     alignment: Alignment.centerLeft,
-                    child: Text(
-                      brandWordmark,
-                      style: GoPlayType.wordmark.copyWith(
-                        color: GoPlayTheme.onSurface,
-                        fontSize: GoPlayType.xl - ((GoPlayType.xl - GoPlayType.lg) * collapseRatio),
-                      ),
-                      maxLines: 1,
+                    child: SvgPicture.asset(
+                      'assets/images/title.svg',
+                      height: 20,
+                      fit: BoxFit.contain,
+                      semanticsLabel: brandWordmark,
                     ),
                   ),
                 ),

@@ -58,27 +58,27 @@ final appThemeProvider = Provider<ThemeData>((ref) {
 
 // ─── Raw Channels (unfiltered) ──────────────────────────────
 final rawChannelsProvider = FutureProvider<List<Channel>>((ref) async {
-  final supabase = ref.watch(supabaseServiceProvider);
   final cache = ref.watch(cacheServiceProvider);
+  final localChannels = cache.getLocalChannels();
 
-  // 1. Live-first from Supabase
-  List<Channel> channelsList = const [];
+  // 1. Instant 0ms startup: Return local cache immediately if available
+  if (localChannels.isNotEmpty) {
+    return localChannels;
+  }
+
+  // 2. Cold initial download if cache is completely empty (first install)
+  final supabase = ref.watch(supabaseServiceProvider);
   try {
     final remoteChannels = await supabase.getChannels();
     if (remoteChannels.isNotEmpty) {
       await cache.saveLocalChannels(remoteChannels);
-      channelsList = remoteChannels;
+      return remoteChannels;
     }
   } catch (e) {
     debugPrint('Supabase channels fetch non-fatal error: $e');
   }
 
-  // 2. Offline fallback from local cache if network failed
-  if (channelsList.isEmpty) {
-    channelsList = cache.getLocalChannels();
-  }
-
-  return channelsList;
+  return localChannels;
 });
 
 // ─── Channels (Filtered by active categories) ─────────────────
@@ -170,18 +170,23 @@ final eventCategoriesProvider = FutureProvider<Map<String, String>>((ref) async 
 
 final eventsProvider = FutureProvider<List<SportEvent>>((ref) async {
   final cache = ref.watch(cacheServiceProvider);
+  final localEvents = cache.getLocalEvents();
 
+  // 1. Instant 0ms startup: Return cached fixtures immediately
+  if (localEvents.isNotEmpty) {
+    return localEvents;
+  }
+
+  // 2. Cold initial fetch if cache is completely empty
   try {
     final directEvents = await StreamDecryptor.fetchLiveEvents();
     if (directEvents.isNotEmpty) {
-      // Cache fresh live events locally
       await cache.saveLocalEvents(directEvents);
       return directEvents;
     }
   } catch (_) {}
 
-  // Fallback to local cache if offline or direct fetch fails
-  return cache.getLocalEvents();
+  return localEvents;
 });
 
 // ─── Real-Time Clock Ticker (Drives 0ms Lifecycle Transitions) ──
@@ -378,10 +383,16 @@ final filteredEndedEventsProvider =
 
 // ─── Categories ───────────────────────────────────────────────
 final categoriesProvider = FutureProvider<List<Category>>((ref) async {
-  final supabase = ref.watch(supabaseServiceProvider);
   final cache = ref.watch(cacheServiceProvider);
+  final localCategories = cache.getLocalCategories();
 
-  // 1. Live-first from Supabase
+  // 1. Instant 0ms startup: Return cached categories immediately
+  if (localCategories.isNotEmpty) {
+    return localCategories;
+  }
+
+  // 2. Cold initial fetch if cache is completely empty
+  final supabase = ref.watch(supabaseServiceProvider);
   try {
     final remoteCategories = await supabase.getCategories();
     if (remoteCategories.isNotEmpty) {
@@ -392,8 +403,7 @@ final categoriesProvider = FutureProvider<List<Category>>((ref) async {
     debugPrint('Supabase categories fetch non-fatal error: $e');
   }
 
-  // 2. Offline fallback from local cache
-  return cache.getLocalCategories();
+  return localCategories;
 });
 
 final activeCategoriesWithCountsProvider = Provider<AsyncValue<List<(Category, int)>>>((ref) {

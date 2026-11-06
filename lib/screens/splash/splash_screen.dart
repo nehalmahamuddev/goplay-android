@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/typography.dart';
 import '../../main.dart' show appInitFuture;
@@ -52,16 +53,37 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _animController.forward();
 
-    // Navigate when appInitFuture completes and min duration elapses
-    Future.wait([
+    // Check if we have cached channels on disk
+    final cache = ref.read(cacheServiceProvider);
+    final hasInitialData = cache.getLocalChannels().isNotEmpty;
+
+    final List<Future<dynamic>> waitList = [
       appInitFuture.catchError((e) {
         debugPrint('appInitFuture error in Splash: $e');
       }),
       Future.delayed(const Duration(milliseconds: 750)),
-    ]).then((_) {
+    ];
+
+    // First install: download initial database while splash animates so Home is never empty
+    if (!hasInitialData) {
+      waitList.add(
+        ref.read(syncServiceProvider).sync().catchError((e) {
+          debugPrint('Initial sync in splash error: $e');
+        }),
+      );
+    }
+
+    Future.wait(waitList).then((_) {
       if (!mounted) return;
 
       ref.invalidate(uiConfigProvider);
+
+      // Returning user: trigger silent background sync without blocking Home
+      if (hasInitialData) {
+        unawaited(ref.read(syncServiceProvider).sync().catchError((e) {
+          debugPrint('Silent background sync error: $e');
+        }));
+      }
 
       unawaited(ref.read(analyticsServiceProvider).initialize().catchError((e) {
         debugPrint('Analytics init error: $e');
@@ -148,20 +170,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
               const SizedBox(height: 24),
 
-              // Clean Branding Text
+              // Clean Branding Title
               FadeTransition(
                 opacity: _fadeAnimation,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      'GoPlay',
-                      style: GoPlayType.wordmark.copyWith(
-                        color: cs.onSurface,
-                        letterSpacing: -0.5,
-                      ),
+                    SvgPicture.asset(
+                      'assets/images/title.svg',
+                      height: 28,
+                      fit: BoxFit.contain,
+                      semanticsLabel: 'GoPlay',
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 10),
                     Text(
                       'LIVE SPORTS STREAMING',
                       style: GoPlayType.tagline.copyWith(

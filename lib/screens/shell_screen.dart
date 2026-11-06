@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/app_providers.dart';
@@ -90,8 +91,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     children: [
                       _RailNavItem(
                         focusNode: _navFocusNodes[0],
-                        icon: Icons.home_rounded,
-                        selectedIcon: Icons.home_rounded,
+                        svgAsset: 'assets/images/home.svg',
+                        selectedSvgAsset: 'assets/images/home_filled.svg',
                         label: 'Home',
                         isSelected: index == 0,
                         onTap: () => _goBranch(0),
@@ -100,7 +101,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         const SizedBox(height: 8),
                         _RailNavItem(
                           focusNode: _navFocusNodes[1],
-                          icon: Icons.grid_view_rounded,
+                          icon: Icons.grid_view_outlined,
                           selectedIcon: Icons.grid_view_rounded,
                           label: 'Categories',
                           isSelected: index == 1,
@@ -111,8 +112,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         const SizedBox(height: 8),
                         _RailNavItem(
                           focusNode: _navFocusNodes[2],
-                          icon: Icons.live_tv_rounded,
-                          selectedIcon: Icons.live_tv_rounded,
+                          svgAsset: 'assets/images/channels.svg',
+                          selectedSvgAsset: 'assets/images/channels_filled.svg',
                           label: 'Channels',
                           isSelected: index == 2,
                           onTap: () => _goBranch(2),
@@ -123,7 +124,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         const SizedBox(height: 8),
                         _RailNavItem(
                           focusNode: _navFocusNodes[3],
-                          icon: Icons.sports_soccer_rounded,
+                          icon: Icons.sports_soccer_outlined,
                           selectedIcon: Icons.sports_soccer_rounded,
                           label: 'Events',
                           isSelected: index == 3,
@@ -157,8 +158,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               children: [
                 _NavItem(
                   focusNode: _navFocusNodes[0],
-                  icon: Icons.home_rounded,
-                  selectedIcon: Icons.home_rounded,
+                  svgAsset: 'assets/images/home.svg',
+                  selectedSvgAsset: 'assets/images/home_filled.svg',
                   label: 'Home',
                   isSelected: index == 0,
                   onTap: () => _goBranch(0),
@@ -166,7 +167,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 if (ref.watch(uiConfigProvider).navigationBranding.enabledTabs.contains('categories'))
                   _NavItem(
                     focusNode: _navFocusNodes[1],
-                    icon: Icons.grid_view_rounded,
+                    icon: Icons.grid_view_outlined,
                     selectedIcon: Icons.grid_view_rounded,
                     label: 'Categories',
                     isSelected: index == 1,
@@ -175,8 +176,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 if (ref.watch(uiConfigProvider).navigationBranding.enabledTabs.contains('channels'))
                   _NavItem(
                     focusNode: _navFocusNodes[2],
-                    icon: Icons.live_tv_rounded,
-                    selectedIcon: Icons.live_tv_rounded,
+                    svgAsset: 'assets/images/channels.svg',
+                    selectedSvgAsset: 'assets/images/channels_filled.svg',
                     label: 'Channels',
                     isSelected: index == 2,
                     onTap: () => _goBranch(2),
@@ -185,7 +186,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     ref.watch(uiConfigProvider).navigationBranding.enabledTabs.contains('events'))
                   _NavItem(
                     focusNode: _navFocusNodes[3],
-                    icon: Icons.sports_soccer_rounded,
+                    icon: Icons.sports_soccer_outlined,
                     selectedIcon: Icons.sports_soccer_rounded,
                     label: 'Events',
                     isSelected: index == 3,
@@ -307,21 +308,25 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 // No TvFocusable overhead (Focus/Stack/AnimatedScale) on mobile.
 
 class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final IconData selectedIcon;
+  final IconData? icon;
+  final IconData? selectedIcon;
+  final String? svgAsset;
+  final String? selectedSvgAsset;
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
   final FocusNode? focusNode;
 
   const _NavItem({
-    required this.icon,
-    required this.selectedIcon,
+    this.icon,
+    this.selectedIcon,
+    this.svgAsset,
+    this.selectedSvgAsset,
     required this.label,
     required this.isSelected,
     required this.onTap,
     this.focusNode,
-  });
+  }) : assert(icon != null || svgAsset != null, 'Either icon or svgAsset must be provided');
 
   static final _borderRadius = BorderRadius.circular(10);
 
@@ -329,7 +334,9 @@ class _NavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final activeColor = theme.colorScheme.primary;
-    final inactiveColor = theme.colorScheme.onSurfaceVariant;
+    final defaultColor = Colors.white;
+    final itemColor = isSelected ? activeColor : defaultColor;
+    final currentSvg = isSelected ? (selectedSvgAsset ?? svgAsset) : svgAsset;
 
     return Expanded(
       child: Padding(
@@ -350,11 +357,22 @@ class _NavItem extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  isSelected ? selectedIcon : icon,
-                  color: isSelected ? activeColor : inactiveColor,
-                  size: 22,
-                ),
+                if (currentSvg != null)
+                  SvgPicture.asset(
+                    currentSvg,
+                    width: 22,
+                    height: 22,
+                    colorFilter: ColorFilter.mode(
+                      itemColor,
+                      BlendMode.srcIn,
+                    ),
+                  )
+                else
+                  Icon(
+                    isSelected ? (selectedIcon ?? icon) : icon,
+                    color: itemColor,
+                    size: 22,
+                  ),
                 const SizedBox(height: 4),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -366,7 +384,7 @@ class _NavItem extends StatelessWidget {
                       softWrap: false,
                       overflow: TextOverflow.ellipsis,
                       style: GoPlayType.inter(
-                        color: isSelected ? activeColor : inactiveColor,
+                        color: itemColor,
                         fontSize: GoPlayType.xs,
                         fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                         height: GoPlayType.leadingFlat,
@@ -388,21 +406,25 @@ class _NavItem extends StatelessWidget {
 // Keeps TvFocusable for D-Pad focus ring on TV/desktop.
 
 class _RailNavItem extends StatelessWidget {
-  final IconData icon;
-  final IconData selectedIcon;
+  final IconData? icon;
+  final IconData? selectedIcon;
+  final String? svgAsset;
+  final String? selectedSvgAsset;
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
   final FocusNode? focusNode;
 
   const _RailNavItem({
-    required this.icon,
-    required this.selectedIcon,
+    this.icon,
+    this.selectedIcon,
+    this.svgAsset,
+    this.selectedSvgAsset,
     required this.label,
     required this.isSelected,
     required this.onTap,
     this.focusNode,
-  });
+  }) : assert(icon != null || svgAsset != null, 'Either icon or svgAsset must be provided');
 
   static final _borderRadius = BorderRadius.circular(12);
 
@@ -410,7 +432,9 @@ class _RailNavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final activeColor = theme.colorScheme.primary;
-    final inactiveColor = theme.colorScheme.onSurfaceVariant;
+    final defaultColor = Colors.white;
+    final itemColor = isSelected ? activeColor : defaultColor;
+    final currentSvg = isSelected ? (selectedSvgAsset ?? svgAsset) : svgAsset;
 
     return TvFocusable(
       focusNode: focusNode,
@@ -428,11 +452,22 @@ class _RailNavItem extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              isSelected ? selectedIcon : icon,
-              color: isSelected ? activeColor : inactiveColor,
-              size: 24,
-            ),
+            if (currentSvg != null)
+              SvgPicture.asset(
+                currentSvg,
+                width: 24,
+                height: 24,
+                colorFilter: ColorFilter.mode(
+                  itemColor,
+                  BlendMode.srcIn,
+                ),
+              )
+            else
+              Icon(
+                isSelected ? (selectedIcon ?? icon) : icon,
+                color: itemColor,
+                size: 24,
+              ),
             const SizedBox(height: 4),
             FittedBox(
               fit: BoxFit.scaleDown,
@@ -442,7 +477,7 @@ class _RailNavItem extends StatelessWidget {
                 softWrap: false,
                 overflow: TextOverflow.ellipsis,
                 style: GoPlayType.inter(
-                  color: isSelected ? activeColor : inactiveColor,
+                  color: itemColor,
                   fontSize: GoPlayType.xs,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   height: GoPlayType.leadingFlat,
