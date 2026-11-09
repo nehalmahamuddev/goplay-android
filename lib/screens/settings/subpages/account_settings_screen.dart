@@ -69,7 +69,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                       content: const Text('Default profile is active.'),
                       backgroundColor: const Color(0xFF1E1E1E),
                       behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                     ),
                   );
                 },
@@ -92,7 +92,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                       content: const Text('Device ID copied to clipboard!'),
                       backgroundColor: const Color(0xFF1E1E1E),
                       behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                     ),
                   );
                 },

@@ -112,7 +112,7 @@ class _UpdatesSettingsScreenState extends ConsumerState<UpdatesSettingsScreen> {
                         content: const Text('You are on the latest GoPlay release!'),
                         backgroundColor: const Color(0xFF1E1E1E),
                         behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                       ),
                     );
                   }
@@ -177,7 +177,7 @@ class _UpdatesSettingsScreenState extends ConsumerState<UpdatesSettingsScreen> {
                       content: const Text('Favorites and preferences backed up to local storage!'),
                       backgroundColor: const Color(0xFF1E1E1E),
                       behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                     ),
                   );
                 },
@@ -203,7 +203,7 @@ class _UpdatesSettingsScreenState extends ConsumerState<UpdatesSettingsScreen> {
                       content: const Text('Configuration restored from backup!'),
                       backgroundColor: const Color(0xFF1E1E1E),
                       behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                     ),
                   );
                 },
@@ -220,7 +220,7 @@ class _UpdatesSettingsScreenState extends ConsumerState<UpdatesSettingsScreen> {
                         content: const Text('Application cache cleared successfully!'),
                         backgroundColor: const Color(0xFF1E1E1E),
                         behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                       ),
                     );
                   }

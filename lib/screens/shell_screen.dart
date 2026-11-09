@@ -235,17 +235,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     ),
                   ],
                 ),
-                duration: const Duration(seconds: 2),
+                duration: const Duration(milliseconds: 1400),
                 behavior: SnackBarBehavior.floating,
-                width: 240,
-                backgroundColor: const Color(0xFF1E2024),
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(10)),
-                  side: BorderSide(
-                    color: Color(0x33C8FF00),
-                    width: 0.8,
-                  ),
+                width: 230,
+                backgroundColor: const Color(0xF21E1E22),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
                 ),
+                elevation: 4,
               ),
             );
           } else {

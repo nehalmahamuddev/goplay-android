@@ -469,7 +469,11 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         if (widget.servers != null && widget.servers!.length > 1 && widget.onServerSelected != null) {
           final nextServerIndex = (widget.activeServerIndex + 1) % widget.servers!.length;
           if (nextServerIndex != widget.activeServerIndex) {
-            debugPrint('[Failover] Stream failed on index ${widget.activeServerIndex}, switching to server index $nextServerIndex (${widget.servers![nextServerIndex].name})');
+            final nextName = widget.servers![nextServerIndex].name.isNotEmpty
+                ? widget.servers![nextServerIndex].name
+                : 'Server ${nextServerIndex + 1}';
+            debugPrint('[Failover] Stream failed on index ${widget.activeServerIndex}, switching to server index $nextServerIndex ($nextName)');
+            _showFeedbackPill('Stream unavailable, switched to $nextName', icon: Icons.swap_calls_rounded);
             widget.onServerSelected!(nextServerIndex);
           }
         }
@@ -634,17 +638,57 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
     _methodChannel?.invokeMethod('setQuality', height);
   }
 
+  void _showFeedbackPill(String message, {IconData? icon}) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final cs = Theme.of(context).colorScheme;
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, color: cs.primary, size: 16),
+              const SizedBox(width: 8),
+            ],
+            Flexible(
+              child: Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: GoPlayType.family,
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ),
+          ],
+        ),
+        duration: const Duration(milliseconds: 1200),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xF21E1E22), // YouTube dark charcoal
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        elevation: 4,
+        margin: const EdgeInsets.symmetric(horizontal: 48, vertical: 20),
+      ),
+    );
+  }
+
   void _toggleAspectRatio() {
     setState(() {
       _aspectRatioIndex = (_aspectRatioIndex + 1) % _resizeModes.length;
     });
     final mode = _resizeModes[_aspectRatioIndex];
     _methodChannel?.invokeMethod('setResizeMode', mode);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Aspect Ratio: ${_aspectLabels[_aspectRatioIndex]}'),
-        duration: const Duration(milliseconds: 800),
-      ),
+    _showFeedbackPill(
+      'Aspect Ratio: ${_aspectLabels[_aspectRatioIndex]}',
+      icon: Icons.aspect_ratio_rounded,
     );
   }
 
@@ -666,11 +710,9 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         setState(() {
           _subtitlesEnabled = enabled;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_subtitlesEnabled ? 'Subtitles Enabled' : 'Subtitles Disabled'),
-            duration: const Duration(milliseconds: 800),
-          ),
+        _showFeedbackPill(
+          _subtitlesEnabled ? 'Subtitles On' : 'Subtitles Off',
+          icon: Icons.subtitles_rounded,
         );
       }
     } catch (e) {
@@ -684,13 +726,11 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
     try {
       final lang = await _methodChannel!.invokeMethod<String>('cycleAudioTrack');
       if (lang != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(lang == "Default" || lang == "None"
-                ? 'Audio Track: Default'
-                : 'Audio Track Language: $lang'),
-            duration: const Duration(milliseconds: 800),
-          ),
+        _showFeedbackPill(
+          lang == "Default" || lang == "None"
+              ? 'Audio: Default'
+              : 'Audio: $lang',
+          icon: Icons.audiotrack_rounded,
         );
       }
     } catch (e) {
@@ -710,11 +750,9 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         setState(() {
           _playbackSpeed = nextSpeed;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Playback Speed: ${nextSpeed}x'),
-            duration: const Duration(milliseconds: 800),
-          ),
+        _showFeedbackPill(
+          'Speed: ${nextSpeed}x',
+          icon: Icons.speed_rounded,
         );
       }
     } catch (e) {
@@ -795,8 +833,6 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
       }),
     ];
 
-    final messenger = ScaffoldMessenger.of(context);
-
     final selected = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -805,10 +841,9 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         position.dx + 60,
         position.dy,
       ),
-      color: const Color(0xE61F1F23),
+      color: const Color(0xF21E1E22),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Colors.white12, width: 0.8),
+        borderRadius: BorderRadius.circular(16),
       ),
       items: menuItems,
       elevation: 8,
@@ -820,12 +855,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         height = int.tryParse(selected.replaceAll('p', '')) ?? -1;
       }
       _setQuality(selected, height);
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Quality set to: $selected'),
-          duration: const Duration(milliseconds: 800),
-        ),
-      );
+      _showFeedbackPill('Quality: $selected', icon: Icons.high_quality_rounded);
     }
   }
 
@@ -873,9 +903,14 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
       if (servers != null &&
           servers.length > 1 &&
           widget.activeServerIndex < servers.length - 1) {
+        final nextIdx = widget.activeServerIndex + 1;
+        final nextName = servers[nextIdx].name.isNotEmpty
+            ? servers[nextIdx].name
+            : 'Server ${nextIdx + 1}';
         debugPrint(
-            'PlayerWidget: error on server ${widget.activeServerIndex}, auto-falling back to server ${widget.activeServerIndex + 1}');
-        widget.onServerSelected?.call(widget.activeServerIndex + 1);
+            'PlayerWidget: error on server ${widget.activeServerIndex}, auto-falling back to server $nextIdx ($nextName)');
+        _showFeedbackPill('Stream unavailable, switched to $nextName', icon: Icons.swap_calls_rounded);
+        widget.onServerSelected?.call(nextIdx);
         return;
       }
       if (widget.onNextChannel != null) {
@@ -1762,196 +1797,175 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Dismiss',
-      barrierColor: Colors.black.withValues(alpha: 0.65),
-      transitionDuration: const Duration(milliseconds: 220),
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      transitionDuration: const Duration(milliseconds: 280),
       pageBuilder: (dialogContext, animation, secondaryAnimation) {
         final cs = Theme.of(dialogContext).colorScheme;
         final mq = MediaQuery.of(dialogContext);
-        final bool isCompact = mq.size.width < 480;
-        final double cardWidth = isCompact ? mq.size.width * 0.92 : 430.0;
-        final double maxHeight = math.min(mq.size.height * 0.82, 380.0);
+        final bool isWide = mq.size.width >= 600;
+        final double sheetWidth = isWide ? math.min(mq.size.width * 0.85, 480.0) : double.infinity;
+        final double maxHeight = mq.size.height * 0.75;
+
+        bool isDismissing = false;
+        void dismiss() {
+          if (!isDismissing && Navigator.of(dialogContext).canPop()) {
+            isDismissing = true;
+            Navigator.of(dialogContext).pop();
+          }
+        }
 
         return Align(
-          alignment: Alignment.center,
+          alignment: Alignment.bottomCenter,
           child: Material(
             color: Colors.transparent,
             child: Container(
-              width: cardWidth,
+              width: sheetWidth,
               constraints: BoxConstraints(maxHeight: maxHeight),
-              decoration: BoxDecoration(
-                color: const Color(0xF71E1E22), // YouTube dark charcoal
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.12),
-                  width: 1.0,
-                ),
+              decoration: const BoxDecoration(
+                color: Color(0xFF1E1E22), // YouTube dark charcoal
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.65),
-                    blurRadius: 36,
-                    offset: const Offset(0, 10),
-                    spreadRadius: 4,
+                    color: Color(0x66000000),
+                    blurRadius: 28,
+                    offset: Offset(0, -4),
                   ),
                 ],
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Top Drag Handle (YouTube style)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12, bottom: 6),
-                    child: Center(
-                      child: Container(
-                        width: 36,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(2),
+              child: SafeArea(
+                top: false,
+                left: !isWide,
+                right: !isWide,
+                bottom: true,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Top Drag Handle + Header gesture detector for swipe down
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onVerticalDragUpdate: (details) {
+                        if ((details.primaryDelta ?? 0) > 6) {
+                          dismiss();
+                        }
+                      },
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Top Drag Handle
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10, bottom: 12),
+                            child: Center(
+                              child: Container(
+                                width: 36,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.25),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // Minimal YouTube Title Header (no subtitle, no divider, no close button)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 2, 20, 14),
+                            child: Text(
+                              'Servers',
+                              style: const TextStyle(
+                                fontFamily: GoPlayType.family,
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Server list
+                    Flexible(
+                      child: NotificationListener<ScrollNotification>(
+                        onNotification: (notification) {
+                          if (notification is OverscrollNotification &&
+                              notification.overscroll < -8) {
+                            dismiss();
+                            return true;
+                          } else if (notification is ScrollUpdateNotification &&
+                              notification.metrics.pixels <= 0 &&
+                              (notification.scrollDelta ?? 0) < -8) {
+                            dismiss();
+                            return true;
+                          }
+                          return false;
+                        },
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          physics: const ClampingScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          itemCount: servers.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 2),
+                          itemBuilder: (context, index) {
+                            final s = servers[index];
+                            final isSelected = index == widget.activeServerIndex;
+                            final displayName =
+                                s.name.isNotEmpty ? s.name : 'Server ${index + 1}';
+
+                            return TvFocusable(
+                              borderRadius: BorderRadius.circular(12),
+                              focusColor: cs.primary.withValues(alpha: 0.2),
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                dismiss();
+                                if (index != widget.activeServerIndex) {
+                                  widget.onServerSelected?.call(index);
+                                }
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 13,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.dns_rounded,
+                                      color: isSelected ? cs.primary : Colors.white70,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Text(
+                                        displayName,
+                                        style: TextStyle(
+                                          fontFamily: GoPlayType.family,
+                                          color: isSelected ? cs.primary : Colors.white,
+                                          fontWeight: isSelected
+                                              ? FontWeight.w600
+                                              : FontWeight.w400,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                    ),
+                                    if (isSelected)
+                                      Icon(
+                                        Icons.check_rounded,
+                                        color: cs.primary,
+                                        size: 22,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),
-                  ),
-
-                  // Header: "Servers" + Subtitle + Close (X)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 6, 12, 12),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.dns_rounded,
-                                    color: cs.primary,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Text(
-                                    'Servers',
-                                    style: TextStyle(
-                                      fontFamily: GoPlayType.family,
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.2,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                '${servers.length} stream sources available',
-                                style: TextStyle(
-                                  fontFamily: GoPlayType.family,
-                                  color: Colors.white.withValues(alpha: 0.6),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w400,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: () => Navigator.of(dialogContext).pop(),
-                            child: const Padding(
-                              padding: EdgeInsets.all(6),
-                              child: Icon(
-                                Icons.close_rounded,
-                                color: Colors.white70,
-                                size: 20,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  Divider(
-                    height: 1,
-                    thickness: 1,
-                    color: Colors.white.withValues(alpha: 0.08),
-                  ),
-
-                  // Server list
-                  Flexible(
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      itemCount: servers.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 4),
-                      itemBuilder: (context, index) {
-                        final s = servers[index];
-                        final isSelected = index == widget.activeServerIndex;
-                        final displayName = s.name.isNotEmpty ? s.name : 'Server ${index + 1}';
-
-                        return Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: () {
-                              HapticFeedback.lightImpact();
-                              Navigator.of(dialogContext).pop();
-                              if (index != widget.activeServerIndex) {
-                                widget.onServerSelected?.call(index);
-                              }
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? cs.primary.withValues(alpha: 0.12)
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(16),
-                                border: isSelected
-                                    ? Border.all(
-                                        color: cs.primary.withValues(alpha: 0.45),
-                                        width: 1.0,
-                                      )
-                                    : null,
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.dns_rounded,
-                                    color: isSelected ? cs.primary : Colors.white70,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 14),
-                                  Expanded(
-                                    child: Text(
-                                      displayName,
-                                      style: TextStyle(
-                                        fontFamily: GoPlayType.family,
-                                        color: isSelected ? cs.primary : Colors.white,
-                                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                        fontSize: 15,
-                                      ),
-                                    ),
-                                  ),
-                                  if (isSelected)
-                                    Icon(
-                                      Icons.check_rounded,
-                                      color: cs.primary,
-                                      size: 22,
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -1961,13 +1975,14 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         final curvedAnimation = CurvedAnimation(
           parent: animation,
           curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
         );
-        return FadeTransition(
-          opacity: curvedAnimation,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.94, end: 1.0).animate(curvedAnimation),
-            child: child,
-          ),
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0.0, 1.0),
+            end: Offset.zero,
+          ).animate(curvedAnimation),
+          child: child,
         );
       },
     );

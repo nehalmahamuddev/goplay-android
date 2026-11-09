@@ -390,12 +390,12 @@ class GoPlayTheme {
       ),
 
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: darkSurfaceContainerHighest,
+        backgroundColor: const Color(0xF21E1E22),
         contentTextStyle: GoPlayType.inter(fontSize: GoPlayType.base, color: darkOnSurface),
         actionTextColor: primary,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        elevation: 4,
       ),
 
       tooltipTheme: TooltipThemeData(
@@ -705,8 +705,8 @@ class GoPlayTheme {
         contentTextStyle: GoPlayType.inter(fontSize: GoPlayType.base, color: lightSurface),
         actionTextColor: primaryLight,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        elevation: 4,
       ),
 
       tooltipTheme: TooltipThemeData(

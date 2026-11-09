@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.9] - 2026-11-09
+
+• Redesigned server switcher bottom sheet with smooth slide animation.
+• Refined floating snackbar styling and elevation across dark & AMOLED modes.
+• Updated channel navigation icons with filled active states.
+• General UI polish and player performance improvements.
+
+---
+
 ## [2.3.8] - 2026-11-06
 
 ### Added

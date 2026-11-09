@@ -34,7 +34,7 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
             content: const Text('Channels and live events synced successfully!'),
             backgroundColor: const Color(0xFF1E1E1E),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           ),
         );
       }
@@ -45,7 +45,7 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
             content: Text('Sync error: $e'),
             backgroundColor: const Color(0xFF1E1E1E),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           ),
         );
       }
@@ -170,7 +170,7 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
                         content: const Text('Local application cache cleared!'),
                         backgroundColor: const Color(0xFF1E1E1E),
                         behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                       ),
                     );
                   }
@@ -216,7 +216,7 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
                           content: const Text('UI reset to defaults!'),
                           backgroundColor: const Color(0xFF1E1E1E),
                           behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                         ),
                       );
                     }

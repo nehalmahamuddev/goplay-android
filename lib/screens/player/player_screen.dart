@@ -164,44 +164,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   void _handleServerSelected(int index) {
     if (_currentChannelServers.isEmpty || index < 0 || index >= _currentChannelServers.length) return;
-    final previousServer = _activeServerIndex < _currentChannelServers.length
-        ? _currentChannelServers[_activeServerIndex]
-        : null;
-    final nextServer = _currentChannelServers[index];
-
     setState(() => _activeServerIndex = index);
-
-    if (mounted && previousServer != null && previousServer.id != nextServer.id) {
-      final cs = Theme.of(context).colorScheme;
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.swap_calls_rounded, color: cs.primary, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '${previousServer.name} unavailable. Switched to ${nextServer.name}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          duration: const Duration(seconds: 4),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: const Color(0xFF14141E),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-            side: BorderSide(color: cs.primary.withValues(alpha: 0.3), width: 0.8),
-          ),
-        ),
-      );
-    }
   }
 
   Future<void> _selectChannel(String id, List<Channel> allChannels) async {

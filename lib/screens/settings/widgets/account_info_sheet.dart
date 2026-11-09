@@ -140,7 +140,7 @@ class AccountInfoSheet extends ConsumerWidget {
                           content: const Text('Diagnostics copied to clipboard!'),
                           backgroundColor: const Color(0xFF1E1E1E),
                           behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                         ),
                       );
                     },

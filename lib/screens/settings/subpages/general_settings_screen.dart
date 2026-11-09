@@ -100,7 +100,7 @@ class GeneralSettingsScreen extends ConsumerWidget {
                       content: const Text('Thank you! Issue reporting submitted to admin logs.'),
                       backgroundColor: const Color(0xFF1E1E1E),
                       behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                     ),
                   );
                 },
