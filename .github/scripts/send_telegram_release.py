@@ -41,8 +41,8 @@ def format_changelog(notes_content: str) -> list[str]:
     return formatted
 
 
-def build_caption(tag: str, changelog_lines: list[str], release_url: str) -> str:
-    """Build the Telegram caption styled like the Cloudstream release format."""
+def build_caption(tag: str, changelog_lines: list[str]) -> str:
+    """Build the Telegram caption without external GitHub links."""
     now = datetime.datetime.now(datetime.timezone.utc)
     month_name = now.strftime("%B")  # e.g. "November"
 
@@ -54,17 +54,15 @@ def build_caption(tag: str, changelog_lines: list[str], release_url: str) -> str
         f"<b>Changelog</b>"
     )
 
-    footer = f'<a href="{release_url}">GitHub Releases</a>'
-
     # Check if full changelog fits
     full_changelog = "\n".join(changelog_lines).strip()
-    full_caption = f"{header}\n{full_changelog}\n\n{footer}"
+    full_caption = f"{header}\n{full_changelog}"
 
     if len(full_caption) <= MAX_CAPTION_LEN:
         return full_caption
 
     # Truncate changelog if it exceeds caption length
-    trunc_suffix = f'\n• ...\n\n<a href="{release_url}">[View full changelog on GitHub]</a>\n{footer}'
+    trunc_suffix = "\n• ..."
     available_space = MAX_CAPTION_LEN - len(header) - len(trunc_suffix) - 2
 
     current_body = []
@@ -213,7 +211,7 @@ def main():
             notes_content = f.read()
 
     changelog_lines = format_changelog(notes_content)
-    caption = build_caption(tag_name, changelog_lines, release_url)
+    caption = build_caption(tag_name, changelog_lines)
 
     file_size = os.path.getsize(apk_path)
     file_size_mb = file_size / (1024 * 1024)
