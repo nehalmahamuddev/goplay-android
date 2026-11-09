@@ -48,7 +48,7 @@ def build_caption(tag: str, changelog_lines: list[str]) -> str:
 
     # Header section matching screenshot format
     header = (
-        f"🎮 <b>GoPlay {html.escape(tag, quote=False)}</b>\n"
+        f"<b>GoPlay {html.escape(tag, quote=False)}</b>\n"
         f"Release\n\n"
         f"{month_name} Update\n\n"
         f"<b>Changelog</b>"
