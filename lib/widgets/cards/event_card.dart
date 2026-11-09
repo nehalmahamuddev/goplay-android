@@ -143,7 +143,7 @@ const int _kTileNameLines = 2;
 
 /// Vertical gap beneath each tile. Callers driving a fixed-extent list need
 /// [tileExtent], which folds this in.
-const double _kTileGap = 4.0;
+const double _kTileGap = 8.0;
 
 /// Single consolidated, stateless EventCard component supporting both tile and compact variants.
 class EventCard extends ConsumerWidget {

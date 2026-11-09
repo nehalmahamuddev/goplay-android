@@ -163,7 +163,7 @@ class _PlayZEventCardState extends ConsumerState<PlayZEventCard>
         : null;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4.0), // matches _kTileGap
+      padding: const EdgeInsets.only(bottom: 8.0), // matches _kTileGap
       child: RepaintBoundary(
         child: TvFocusable(
           borderRadius: BorderRadius.circular(cardRadius),

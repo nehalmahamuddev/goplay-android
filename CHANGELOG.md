@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.4.0] - 2026-11-09
+
+• Redesigned Home screen layout: removed "Trending Channels" and "Today's Matches" headings for a modern, content-first look.
+• Refined spacing across all home sections, including 16dp header gaps and 8dp match card separation.
+• Updated top app bar with dedicated Cast and custom SVG Profile action buttons.
+• Updated Channels navigation icon to minimal TV vector with solid filled state on selection.
+• General UI polish, performance optimizations, and stability improvements.
+
+---
+
 ## [2.3.9] - 2026-11-09
 
 • Redesigned server switcher bottom sheet with smooth slide animation.

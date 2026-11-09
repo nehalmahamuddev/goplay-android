@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/theme.dart';
 import '../../core/typography.dart';
 import '../../providers/app_providers.dart';
-import '../../widgets/section_header.dart';
 
 import 'widgets/home_sliver_app_bar.dart';
 import 'widgets/home_hero_banner.dart';
@@ -20,8 +18,8 @@ import 'widgets/home_announcements_section.dart';
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
-  /// Tight, balanced spacing (8dp) directly below search input to achieve visual symmetry
-  static const double _firstSectionTopSpacing = 8.0;
+  /// Modern airy spacing (16dp) directly below search input to achieve visual breathing room
+  static const double _firstSectionTopSpacing = 16.0;
 
   /// Standard inter-section spacing between subsequent content sections
   static const double _sectionSpacing = 16.0;
@@ -208,19 +206,6 @@ class HomeScreen extends ConsumerWidget {
         isFirstSection = false;
         widgets.addAll([
           SliverToBoxAdapter(child: SizedBox(height: topGap)),
-          SliverToBoxAdapter(
-            child: SectionHeader(
-              title: 'Trending Channels',
-              actionLabel: 'See all',
-              onAction: () {
-                final isTrendingEnabled = ref.read(showTrendingTabProvider);
-                ref.read(selectedCategoryProvider.notifier).select(
-                  isTrendingEnabled ? 'trending' : 'all',
-                );
-                context.go('/channels');
-              },
-            ),
-          ),
           const SliverToBoxAdapter(
             child: RepaintBoundary(child: HomeTrendingChannels()),
           ),
@@ -230,16 +215,9 @@ class HomeScreen extends ConsumerWidget {
         isFirstSection = false;
         widgets.addAll([
           SliverToBoxAdapter(child: SizedBox(height: topGap)),
-          SliverToBoxAdapter(
-            child: SectionHeader(
-              title: "Today's Matches",
-              actionLabel: 'See all',
-              onAction: () => context.go('/upcoming'),
-            ),
-          ),
           const SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.only(bottom: 10),
+              padding: EdgeInsets.only(bottom: 12),
               child: RepaintBoundary(child: HomeSportCategoryFilterChips()),
             ),
           ),
@@ -270,19 +248,6 @@ class HomeScreen extends ConsumerWidget {
     if (widgets.isEmpty) {
       widgets.addAll([
         const SliverToBoxAdapter(child: SizedBox(height: _firstSectionTopSpacing)),
-        SliverToBoxAdapter(
-          child: SectionHeader(
-            title: 'Trending Channels',
-            actionLabel: 'See all',
-            onAction: () {
-              final isTrendingEnabled = ref.read(showTrendingTabProvider);
-              ref.read(selectedCategoryProvider.notifier).select(
-                isTrendingEnabled ? 'trending' : 'all',
-              );
-              context.go('/channels');
-            },
-          ),
-        ),
         const SliverToBoxAdapter(
           child: RepaintBoundary(child: HomeTrendingChannels()),
         ),

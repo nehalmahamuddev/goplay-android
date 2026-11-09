@@ -7,9 +7,12 @@ import '../../../core/typography.dart';
 import '../../../providers/app_providers.dart';
 import '../../../providers/theme_provider.dart';
 import '../../../widgets/tv_focus_wrapper.dart';
-import '../../../widgets/app_overflow_menu.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../widgets/search_pill_card.dart';
+
+const String _kProfileSvg = '''
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><title>profile</title><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12.16 10.87c-.1-.01-.22-.01-.33 0a4.42 4.42 0 0 1-4.27-4.43C7.56 3.99 9.54 2 12 2a4.435 4.435 0 0 1 .16 8.87m-5 3.69c-2.42 1.62-2.42 4.26 0 5.87c2.75 1.84 7.26 1.84 10.01 0c2.42-1.62 2.42-4.26 0-5.87c-2.74-1.83-7.25-1.83-10.01 0"/></svg>
+''';
 
 /// Collapsing Dark-Themed & Edge-to-Edge Adaptive App Bar for HomeScreen
 class HomeSliverAppBar extends ConsumerWidget {
@@ -81,13 +84,92 @@ class HomeSliverAppBar extends ConsumerWidget {
                 // Collapsed Search Icon (appears smoothly when toolbar collapses past 50%)
                 if (collapseRatio >= 0.5)
                   Positioned(
-                    right: 44,
+                    right: 86,
                     top: topPadding,
                     height: kToolbarHeight,
                     child: Center(
-                      child: IconButton(
-                        icon: SvgPicture.string(
-                          kUpstreamSearchSvg,
+                      child: TvFocusable(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () => context.push('/search'),
+                        child: Container(
+                          width: 38,
+                          height: 38,
+                          alignment: Alignment.center,
+                          child: SvgPicture.string(
+                            kUpstreamSearchSvg,
+                            width: 22,
+                            height: 22,
+                            colorFilter: ColorFilter.mode(
+                              cs.onSurface,
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // Cast Button
+                Positioned(
+                  right: 46,
+                  top: topPadding,
+                  height: kToolbarHeight,
+                  child: Center(
+                    child: TvFocusable(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text(
+                              'No Cast devices found',
+                              style: TextStyle(
+                                fontFamily: GoPlayType.family,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            behavior: SnackBarBehavior.floating,
+                            duration: const Duration(seconds: 2),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Icons.cast_rounded,
+                          color: cs.onSurface,
+                          size: 22,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Profile / Settings Button
+                Positioned(
+                  right: 6,
+                  top: topPadding,
+                  height: kToolbarHeight,
+                  child: Center(
+                    child: TvFocusable(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        context.push('/settings');
+                      },
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        alignment: Alignment.center,
+                        child: SvgPicture.string(
+                          _kProfileSvg,
                           width: 24,
                           height: 24,
                           colorFilter: ColorFilter.mode(
@@ -95,18 +177,8 @@ class HomeSliverAppBar extends ConsumerWidget {
                             BlendMode.srcIn,
                           ),
                         ),
-                        onPressed: () => context.push('/search'),
                       ),
                     ),
-                  ),
-
-                // Overflow Menu (always accessible)
-                Positioned(
-                  right: 6,
-                  top: topPadding,
-                  height: kToolbarHeight,
-                  child: Center(
-                    child: AppOverflowMenu(iconColor: cs.onSurface),
                   ),
                 ),
 

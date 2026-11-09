@@ -36,6 +36,7 @@ class HomeAnnouncementsSection extends ConsumerWidget {
         if (announcements.isEmpty) return const SizedBox.shrink();
 
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SectionHeader(title: 'Announcements'),
             for (final a in announcements) _AnnouncementTile(announcement: a),

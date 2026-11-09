@@ -65,19 +65,19 @@ class SectionHeader extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-      child: hasAction
-          ? Align(
-              alignment: Alignment.centerLeft,
-              child: TvFocusable(
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: hasAction
+            ? TvFocusable(
                 borderRadius: BorderRadius.circular(8),
                 onTap: onAction,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
                   child: headerContent,
                 ),
-              ),
-            )
-          : headerContent,
+              )
+            : headerContent,
+      ),
     );
   }
 }
