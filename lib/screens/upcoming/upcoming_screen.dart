@@ -11,7 +11,7 @@ import '../../providers/theme_provider.dart';
 import '../../models/event.dart';
 import '../../services/event_stream_launcher.dart';
 import 'package:go_router/go_router.dart';
-import '../../widgets/cards/playz_event_card.dart';
+import '../../widgets/cards/modern_event_card.dart';
 import '../../widgets/tv_focus_wrapper.dart';
 import '../../widgets/search_pill_card.dart';
 
@@ -723,14 +723,14 @@ class _EventsListView extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(10, 10, 10, 100),
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
-                    mainAxisExtent: PlayZEventCard.tileExtent(context),
+                    mainAxisExtent: ModernEventCard.tileExtent(context),
                     crossAxisSpacing: 8,
                     mainAxisSpacing: 0,
                   ),
                   itemCount: events.length,
                   itemBuilder: (context, index) {
                     final event = events[index];
-                    return PlayZEventCard(
+                    return ModernEventCard(
                       key: ValueKey(event.id),
                       event: event,
                       onTap: () => onEventTap(event),
@@ -741,11 +741,11 @@ class _EventsListView extends StatelessWidget {
 
               return ListView.builder(
                 padding: const EdgeInsets.fromLTRB(10, 10, 10, 100),
-                itemExtent: PlayZEventCard.tileExtent(context),
+                itemExtent: ModernEventCard.tileExtent(context),
                 itemCount: events.length,
                 itemBuilder: (context, index) {
                   final event = events[index];
-                  return PlayZEventCard(
+                  return ModernEventCard(
                     key: ValueKey(event.id),
                     event: event,
                     onTap: () => onEventTap(event),
@@ -887,14 +887,14 @@ class _GroupedUpcomingListView extends StatelessWidget {
                         physics: const NeverScrollableScrollPhysics(),
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 3,
-                          mainAxisExtent: PlayZEventCard.tileExtent(context),
+                          mainAxisExtent: ModernEventCard.tileExtent(context),
                           crossAxisSpacing: 8,
                           mainAxisSpacing: 0,
                         ),
                         itemCount: dayEvents.length,
                         itemBuilder: (context, idx) {
                           final event = dayEvents[idx];
-                          return PlayZEventCard(
+                          return ModernEventCard(
                             key: ValueKey(event.id),
                             event: event,
                             onTap: () => onEventTap(event),
@@ -903,7 +903,7 @@ class _GroupedUpcomingListView extends StatelessWidget {
                       )
                     else
                       ...dayEvents.map(
-                        (event) => PlayZEventCard(
+                        (event) => ModernEventCard(
                           key: ValueKey(event.id),
                           event: event,
                           onTap: () => onEventTap(event),

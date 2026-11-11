@@ -5,7 +5,7 @@ import '../../../core/theme.dart';
 import '../../../models/event.dart';
 import '../../../providers/app_providers.dart';
 import '../../../services/event_stream_launcher.dart';
-import '../../../widgets/cards/playz_event_card.dart';
+import '../../../widgets/cards/modern_event_card.dart';
 import '../skeletons/home_skeletons.dart';
 
 /// Today's schedule & live matches section on HomeScreen
@@ -68,14 +68,14 @@ class _HomeTodayScheduleState extends ConsumerState<HomeTodaySchedule> {
             sliver: SliverGrid.builder(
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: crossAxisCount,
-                mainAxisExtent: PlayZEventCard.tileExtent(context),
+                mainAxisExtent: ModernEventCard.tileExtent(context),
                 crossAxisSpacing: 8,
                 mainAxisSpacing: 0,
               ),
               itemCount: events.length,
               itemBuilder: (context, index) {
                 final event = events[index];
-                return PlayZEventCard(
+                return ModernEventCard(
                   key: ValueKey(event.id),
                   event: event,
                   onTap: () => _handleEventTap(context, event),
@@ -86,13 +86,13 @@ class _HomeTodayScheduleState extends ConsumerState<HomeTodaySchedule> {
         }
 
         return SliverFixedExtentList.builder(
-          itemExtent: PlayZEventCard.tileExtent(context),
+          itemExtent: ModernEventCard.tileExtent(context),
           itemCount: events.length,
           itemBuilder: (context, index) {
             final event = events[index];
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: PlayZEventCard(
+              child: ModernEventCard(
                 key: ValueKey(event.id),
                 event: event,
                 onTap: () => _handleEventTap(context, event),

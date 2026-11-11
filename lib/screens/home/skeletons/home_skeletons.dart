@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme.dart';
-import '../../../widgets/cards/playz_event_card.dart';
+import '../../../widgets/cards/modern_event_card.dart';
 
 /// Skeleton for the Hero Banner carousel
 class HeroBannerSkeleton extends StatelessWidget {
@@ -124,7 +124,7 @@ class ScheduleSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SliverFixedExtentList.builder(
-      itemExtent: PlayZEventCard.tileExtent(context),
+      itemExtent: ModernEventCard.tileExtent(context),
       itemCount: 3,
       itemBuilder: (context, index) {
         return const Padding(

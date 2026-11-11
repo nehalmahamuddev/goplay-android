@@ -9,7 +9,7 @@ import '../../providers/app_providers.dart';
 import '../../models/channel.dart';
 import '../../models/event.dart';
 import '../../services/event_stream_launcher.dart';
-import '../../widgets/cards/playz_event_card.dart';
+import '../../widgets/cards/modern_event_card.dart';
 
 /// Opens [ch] in the player scoped to [scope] — the list the user tapped it in.
 void _openPlayer(BuildContext context, Channel ch, List<Channel> scope) {
@@ -694,7 +694,7 @@ class _SearchResultsState extends ConsumerState<_SearchResults> {
   }
 
   Widget _buildEventCard(BuildContext context, SportEvent event) {
-    return PlayZEventCard(
+    return ModernEventCard(
       event: event,
       onTap: () => EventStreamLauncher.launch(context, event),
     );
