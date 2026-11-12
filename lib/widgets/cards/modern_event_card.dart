@@ -197,6 +197,13 @@ class _ModernEventCardState extends ConsumerState<ModernEventCard>
     final isLive = event.isLive;
     final isFeatured = event.isFeatured;
     final cardHeight = ModernEventCard.tileHeight(context);
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+    final surfaceColor = theme.cardColor;
+    final badgeTextColor =
+        ThemeData.estimateBrightnessForColor(primaryColor) == Brightness.dark
+            ? Colors.white
+            : const Color(0xFF000000);
 
     final leagueText = event.league.isNotEmpty
         ? (event.sport.isNotEmpty
@@ -216,262 +223,261 @@ class _ModernEventCardState extends ConsumerState<ModernEventCard>
               builder: (context, constraints) {
                 final w = constraints.maxWidth;
 
+                final cardContent = Stack(
+                  children: [
+                    // --- TOP HEADER: Small 13x13 Logo + League Title ---
+                    Positioned(
+                      top: 6.0,
+                      left: 16.0,
+                      right: 16.0,
+                      height: 15.0,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildLeagueIcon(event),
+                          const SizedBox(width: 5),
+                          Flexible(
+                            child: Text(
+                              leagueText,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontFamily: GoPlayType.family,
+                                color: Color(0xFFBFC0D0),
+                                fontSize: 10.4,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 0.3,
+                                height: 1.1,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // --- LEFT: HOME TEAM (Exact Figma 3px margin, 90px width, 40x40 logo + 2px gap + name) ---
+                    Positioned(
+                      top: isFeatured ? 22.0 : 20.0,
+                      left: w * (3.0 / 380.0),
+                      width: w * (90.0 / 380.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TeamFlagWidget(
+                            flag: event.homeTeam.flag,
+                            size: 33.3, // size 33.3 * 1.2 = 40.0dp
+                            showBorder: false,
+                          ),
+                          const SizedBox(height: 2.0),
+                          Text(
+                            event.homeTeam.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontFamily: GoPlayType.family,
+                              color: Color(0xFFD2D2DC),
+                              fontSize: 10.2,
+                              fontWeight: FontWeight.w500,
+                              height: 1.15,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // --- RIGHT: AWAY TEAM (Exact Figma 3px margin, 90px width, 40x40 logo + 2px gap + name) ---
+                    Positioned(
+                      top: isFeatured ? 22.0 : 20.0,
+                      right: w * (3.0 / 380.0),
+                      width: w * (90.0 / 380.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TeamFlagWidget(
+                            flag: event.awayTeam.flag,
+                            size: 33.3, // size 33.3 * 1.2 = 40.0dp
+                            showBorder: false,
+                          ),
+                          const SizedBox(height: 2.0),
+                          Text(
+                            event.awayTeam.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontFamily: GoPlayType.family,
+                              color: Color(0xFFD2D2DC),
+                              fontSize: 10.2,
+                              fontWeight: FontWeight.w500,
+                              height: 1.15,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // --- MATCH DIVIDER (LEFT) ---
+                    Positioned(
+                      top: isFeatured ? 37.0 : 34.0,
+                      left: w * (119.0 / 380.0),
+                      width: 1.0,
+                      height: 21.0,
+                      child: Container(color: const Color(0xFF30323B)),
+                    ),
+
+                    // --- MATCH DIVIDER (RIGHT) ---
+                    Positioned(
+                      top: isFeatured ? 37.0 : 34.0,
+                      left: w * (261.0 / 380.0),
+                      width: 1.0,
+                      height: 21.0,
+                      child: Container(color: const Color(0xFF30323B)),
+                    ),
+
+                    // --- CENTER ELEMENTS (Exact Figma vertical placement) ---
+                    if (isLive) ...[
+                      // LIVE Badge (52x18)
+                      Positioned(
+                        top: isFeatured ? 32.0 : 29.0,
+                        left: (w - 52.0) / 2.0,
+                        width: 52.0,
+                        height: 18.0,
+                        child: _buildLiveBadge(),
+                      ),
+                      // Match timer (02:58:44)
+                      Positioned(
+                        top: isFeatured ? 53.5 : 51.0,
+                        left: 0,
+                        right: 0,
+                        child: Text(
+                          _formatElapsed(event.startTime),
+                          maxLines: 1,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontFamily: GoPlayType.family,
+                            color: Color(0xFFC9C9DC),
+                            fontSize: 11.0,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.2,
+                            height: 1.1,
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      // Upcoming match time
+                      Positioned(
+                        top: isFeatured ? 32.0 : 34.0,
+                        left: 0,
+                        right: 0,
+                        child: Text(
+                          _formatTime(event.startTime),
+                          maxLines: 1,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontFamily: GoPlayType.family,
+                            color: Color(0xFFF1F1F1),
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                            height: 1.1,
+                          ),
+                        ),
+                      ),
+                      // Date pill
+                      Positioned(
+                        top: isFeatured ? 52.0 : 55.0,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7.0,
+                              vertical: 1.5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(4.0),
+                            ),
+                            child: Text(
+                              _formatTimeInfo(event),
+                              maxLines: 1,
+                              style: const TextStyle(
+                                fontFamily: GoPlayType.family,
+                                color: Color(0xFFBFC0D0),
+                                fontSize: 9.2,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.3,
+                                height: 1.1,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    // --- DOCKED "HOT" BADGE (Pinned to bottom: 0, 80x16 curved tab) ---
+                    if (isFeatured)
+                      Positioned(
+                        bottom: 0.0,
+                        left: (w - 80.0) / 2.0,
+                        width: 80.0,
+                        height: 16.0,
+                        child: _buildHotBadge(primaryColor, badgeTextColor),
+                      ),
+                  ],
+                );
+
                 return Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    // --- 1. CARD CONTAINER (Gradient background, glow, rounded corners) ---
+                    // --- 1. CARD CONTAINER (Theme surface color, glow for HOT, rounded corners / notched bottom) ---
                     Positioned.fill(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: const BorderRadius.all(Radius.circular(12)),
-                          gradient: const LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Color(0xFF1A1E23),
-                              Color(0xFF080A0D),
-                            ],
-                          ),
-                          boxShadow: isFeatured
-                              ? [
+                      child: isFeatured
+                          ? DecoratedBox(
+                              decoration: BoxDecoration(
+                                borderRadius: const BorderRadius.all(Radius.circular(12)),
+                                color: surfaceColor,
+                                boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFFD4ED41).withValues(alpha: 0.16),
-                                    blurRadius: 6,
+                                    color: primaryColor.withValues(alpha: 0.20),
+                                    blurRadius: 8,
                                     spreadRadius: 0.0,
                                     offset: const Offset(0, 2.5),
                                   ),
-                                ]
-                              : const [
-                                  BoxShadow(
-                                    color: Color(0x1A000000),
-                                    blurRadius: 4,
-                                    offset: Offset(0, 1),
-                                  ),
                                 ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Stack(
-                            children: [
-                              // --- TOP HEADER: Small 13x13 Logo + League Title ---
-                              Positioned(
-                                top: 6.0,
-                                left: 16.0,
-                                right: 16.0,
-                                height: 15.0,
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    _buildLeagueIcon(event),
-                                    const SizedBox(width: 5),
-                                    Flexible(
-                                      child: Text(
-                                        leagueText,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          fontFamily: GoPlayType.family,
-                                          color: Color(0xFFBFC0D0),
-                                          fontSize: 10.4,
-                                          fontWeight: FontWeight.w500,
-                                          letterSpacing: 0.3,
-                                          height: 1.1,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
                               ),
-
-                              // --- LEFT: HOME TEAM (Exact Figma 3px margin, 90px width, 40x40 logo + 2px gap + name) ---
-                              Positioned(
-                                top: isFeatured ? 22.0 : 20.0,
-                                left: w * (3.0 / 380.0),
-                                width: w * (90.0 / 380.0),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    TeamFlagWidget(
-                                      flag: event.homeTeam.flag,
-                                      size: 33.3, // size 33.3 * 1.2 = 40.0dp
-                                      showBorder: false,
-                                    ),
-                                    const SizedBox(height: 2.0),
-                                    Text(
-                                      event.homeTeam.name,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        fontFamily: GoPlayType.family,
-                                        color: Color(0xFFD2D2DC),
-                                        fontSize: 10.2,
-                                        fontWeight: FontWeight.w500,
-                                        height: 1.15,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: cardContent,
                               ),
-
-                              // --- RIGHT: AWAY TEAM (Exact Figma 3px margin, 90px width, 40x40 logo + 2px gap + name) ---
-                              Positioned(
-                                top: isFeatured ? 22.0 : 20.0,
-                                right: w * (3.0 / 380.0),
-                                width: w * (90.0 / 380.0),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    TeamFlagWidget(
-                                      flag: event.awayTeam.flag,
-                                      size: 33.3, // size 33.3 * 1.2 = 40.0dp
-                                      showBorder: false,
-                                    ),
-                                    const SizedBox(height: 2.0),
-                                    Text(
-                                      event.awayTeam.name,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        fontFamily: GoPlayType.family,
-                                        color: Color(0xFFD2D2DC),
-                                        fontSize: 10.2,
-                                        fontWeight: FontWeight.w500,
-                                        height: 1.15,
-                                      ),
-                                    ),
-                                  ],
+                            )
+                          : ClipPath(
+                              clipper: const _NotchedCardClipper(),
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: surfaceColor,
                                 ),
+                                child: cardContent,
                               ),
+                            ),
+                    ),
 
-                              // --- MATCH DIVIDER (LEFT) ---
-                              Positioned(
-                                top: isFeatured ? 37.0 : 34.0,
-                                left: w * (119.0 / 380.0),
-                                width: 1.0,
-                                height: 21.0,
-                                child: Container(color: const Color(0xFF30323B)),
-                              ),
-
-                              // --- MATCH DIVIDER (RIGHT) ---
-                              Positioned(
-                                top: isFeatured ? 37.0 : 34.0,
-                                left: w * (261.0 / 380.0),
-                                width: 1.0,
-                                height: 21.0,
-                                child: Container(color: const Color(0xFF30323B)),
-                              ),
-
-                              // --- CENTER ELEMENTS (Exact Figma vertical placement) ---
-                              if (isLive) ...[
-                                // LIVE Badge (52x18)
-                                Positioned(
-                                  top: isFeatured ? 32.0 : 29.0,
-                                  left: (w - 52.0) / 2.0,
-                                  width: 52.0,
-                                  height: 18.0,
-                                  child: _buildLiveBadge(),
-                                ),
-                                // Match timer (02:58:44)
-                                Positioned(
-                                  top: isFeatured ? 53.5 : 51.0,
-                                  left: 0,
-                                  right: 0,
-                                  child: Text(
-                                    _formatElapsed(event.startTime),
-                                    maxLines: 1,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      fontFamily: GoPlayType.family,
-                                      color: Color(0xFFC9C9DC),
-                                      fontSize: 11.0,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 0.2,
-                                      height: 1.1,
-                                    ),
-                                  ),
-                                ),
-                              ] else ...[
-                                // Upcoming match time
-                                Positioned(
-                                  top: isFeatured ? 32.0 : 34.0,
-                                  left: 0,
-                                  right: 0,
-                                  child: Text(
-                                    _formatTime(event.startTime),
-                                    maxLines: 1,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      fontFamily: GoPlayType.family,
-                                      color: Color(0xFFF1F1F1),
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.3,
-                                      height: 1.1,
-                                    ),
-                                  ),
-                                ),
-                                // Date pill
-                                Positioned(
-                                  top: isFeatured ? 52.0 : 55.0,
-                                  left: 0,
-                                  right: 0,
-                                  child: Center(
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 7.0,
-                                        vertical: 1.5,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withValues(alpha: 0.08),
-                                        borderRadius: BorderRadius.circular(4.0),
-                                      ),
-                                      child: Text(
-                                        _formatTimeInfo(event),
-                                        maxLines: 1,
-                                        style: const TextStyle(
-                                          fontFamily: GoPlayType.family,
-                                          color: Color(0xFFBFC0D0),
-                                          fontSize: 9.2,
-                                          fontWeight: FontWeight.w600,
-                                          letterSpacing: 0.3,
-                                          height: 1.1,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-
-                              // --- DOCKED "HOT" BADGE (Pinned to bottom: 0, 80x16 curved tab) ---
-                              if (isFeatured)
-                                Positioned(
-                                  bottom: 0.0,
-                                  left: (w - 80.0) / 2.0,
-                                  width: 80.0,
-                                  height: 16.0,
-                                  child: _buildHotBadge(),
-                                ),
-                            ],
+                    // --- 2. CARD BORDER (Bottom theme highlight for HOT events; no border for non-hot) ---
+                    if (isFeatured)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: _CardBorderPainter(
+                              isFeatured: isFeatured,
+                              primaryColor: primaryColor,
+                              radius: 12.0,
+                              strokeWidth: 1.0,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-
-                    // --- 2. CARD BORDER (Subtle perimeter with volt highlight at bottom for HOT events) ---
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: CustomPaint(
-                          painter: _CardBorderPainter(
-                            isFeatured: isFeatured,
-                            radius: 12.0,
-                            strokeWidth: 1.0,
-                          ),
-                        ),
-                      ),
-                    ),
                   ],
                 );
               },
@@ -542,17 +548,18 @@ class _ModernEventCardState extends ConsumerState<ModernEventCard>
 
   /// Exact 80x16 Figma "Hot badge · curved tab" (node-id=29:36)
   /// Features reverse-curve shoulders, vector flame icon, and bold "HOT" typography.
-  Widget _buildHotBadge() {
-    return const SizedBox(
+  /// All colors dynamically flow from the active theme's [primaryColor].
+  Widget _buildHotBadge(Color primaryColor, Color textColor) {
+    return SizedBox(
       width: 80.0,
       height: 16.0,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // 1. Curved shoulder lime tab background (#D4FF00)
+          // 1. Curved shoulder theme primary tab background
           Positioned.fill(
             child: CustomPaint(
-              painter: _CurvedTabPainter(color: Color(0xFFD4FF00)),
+              painter: _CurvedTabPainter(color: primaryColor),
             ),
           ),
 
@@ -567,15 +574,15 @@ class _ModernEventCardState extends ConsumerState<ModernEventCard>
                   width: 9.05,
                   height: 11.0,
                   child: CustomPaint(
-                    painter: _FlameIconPainter(),
+                    painter: _FlameIconPainter(color: textColor),
                   ),
                 ),
-                SizedBox(width: 4.0),
+                const SizedBox(width: 4.0),
                 Text(
                   'HOT',
                   style: TextStyle(
                     fontFamily: GoPlayType.family,
-                    color: Colors.black,
+                    color: textColor,
                     fontSize: 11.2,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.3,
@@ -655,7 +662,9 @@ class _CurvedTabPainter extends CustomPainter {
 /// Exact vector flame icon painter from Figma (node-id=29:38)
 /// Path dimensions: 9.05 x 11.0
 class _FlameIconPainter extends CustomPainter {
-  const _FlameIconPainter();
+  final Color color;
+
+  const _FlameIconPainter({this.color = Colors.black});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -731,98 +740,181 @@ class _FlameIconPainter extends CustomPainter {
       ..close();
 
     final paint = Paint()
-      ..color = Colors.black
+      ..color = color
       ..style = PaintingStyle.fill;
 
     canvas.drawPath(path, paint);
   }
 
   @override
-  bool shouldRepaint(covariant _FlameIconPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _FlameIconPainter oldDelegate) => oldDelegate.color != color;
 }
 
 /// Custom painter for card border:
-/// Base border is a clean subtle grey perimeter (#526073).
-/// When isFeatured is true, the bottom border is highlighted in bright neon volt (#D4FF00)
-/// and smoothly blends through the bottom-left and bottom-right 12dp corner radii,
-/// leaving the vertical side borders clean without yellow climbing up the walls.
+/// When isFeatured is true, the bottom border is highlighted in the active theme's primary
+/// color, smoothly blending through the bottom-left and bottom-right 12dp corner radii.
+/// When isFeatured is false, no border is drawn (clean borderless surface).
 class _CardBorderPainter extends CustomPainter {
   final bool isFeatured;
+  final Color primaryColor;
   final double radius;
   final double strokeWidth;
 
   const _CardBorderPainter({
     required this.isFeatured,
+    required this.primaryColor,
     this.radius = 12.0,
     this.strokeWidth = 1.0,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (!isFeatured) return;
+
     final halfStroke = strokeWidth / 2.0;
     final cornerRadius = (radius - halfStroke).clamp(1.0, radius);
-    final rrect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(
-        halfStroke,
-        halfStroke,
-        size.width - strokeWidth,
-        size.height - strokeWidth,
-      ),
-      Radius.circular(cornerRadius),
-    );
 
-    // 1. Base clean border around the entire card
-    final basePaint = Paint()
+    // Featured highlight along the bottom edge and bottom 2 corners
+    // Smoothly blends from 0% alpha at the top of the corner to 100% theme primary color at the bottom edge.
+    final bottomPath = Path()
+      ..moveTo(halfStroke, size.height - radius)
+      ..arcToPoint(
+        Offset(radius, size.height - halfStroke),
+        radius: Radius.circular(cornerRadius),
+        clockwise: false,
+      )
+      ..lineTo(size.width - radius, size.height - halfStroke)
+      ..arcToPoint(
+        Offset(size.width - halfStroke, size.height - radius),
+        radius: Radius.circular(cornerRadius),
+        clockwise: false,
+      );
+
+    final cornerTopRatio = ((size.height - radius) / size.height).clamp(0.0, 1.0);
+
+    final highlightPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth
-      ..color = const Color(0xB3526073);
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          primaryColor.withValues(alpha: 0.0),
+          primaryColor.withValues(alpha: 0.0),
+          primaryColor,
+        ],
+        stops: [
+          0.0,
+          cornerTopRatio,
+          1.0,
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
 
-    canvas.drawRRect(rrect, basePaint);
-
-    if (isFeatured) {
-      // 2. Featured highlight along the bottom edge and bottom 2 corners
-      // Smoothly blends from 0% alpha at the top of the corner to 100% neon volt at the bottom edge.
-      final bottomPath = Path()
-        ..moveTo(halfStroke, size.height - radius)
-        ..arcToPoint(
-          Offset(radius, size.height - halfStroke),
-          radius: Radius.circular(cornerRadius),
-          clockwise: false,
-        )
-        ..lineTo(size.width - radius, size.height - halfStroke)
-        ..arcToPoint(
-          Offset(size.width - halfStroke, size.height - radius),
-          radius: Radius.circular(cornerRadius),
-          clockwise: false,
-        );
-
-      final cornerTopRatio = ((size.height - radius) / size.height).clamp(0.0, 1.0);
-
-      final highlightPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: const [
-            Color(0x00D4FF00),
-            Color(0x00D4FF00),
-            Color(0xFFD4FF00),
-          ],
-          stops: [
-            0.0,
-            cornerTopRatio,
-            1.0,
-          ],
-        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-
-      canvas.drawPath(bottomPath, highlightPaint);
-    }
+    canvas.drawPath(bottomPath, highlightPaint);
   }
 
   @override
   bool shouldRepaint(covariant _CardBorderPainter oldDelegate) =>
       oldDelegate.isFeatured != isFeatured ||
+      oldDelegate.primaryColor != primaryColor ||
       oldDelegate.radius != radius ||
       oldDelegate.strokeWidth != strokeWidth;
+}
+
+/// Builds the path for the non-hot card with the bottom center notch.
+///
+/// Exact Bézier path extracted from Figma (node-id=45:199, "Card surface · bottom notch"):
+/// M 12 0 H 368 C 376 0 380 4 380 12 V 79 C 380 87 376 91 368 91 H 228
+/// C 217 91 220 75 208 75 H 172 C 160 75 163 91 152 91 H 12 C 4 91 0 87 0 79
+/// V 12 C 0 4 4 0 12 0 Z
+///
+/// Parameterized with [inset] and [radius] to support both clipping ([inset] = 0)
+/// and stroke painting ([inset] = strokeWidth / 2.0).
+Path buildNotchedCardPath(
+  double width,
+  double height, {
+  double inset = 0.0,
+  double radius = 12.0,
+}) {
+  final topY = inset;
+  final bottomY = height - inset;
+  final leftX = inset;
+  final rightX = width - inset;
+  final r = (radius - inset).clamp(1.0, radius);
+  final cx = width / 2.0;
+
+  // Notch constants from Figma (nominal 380x91):
+  // Notch spans X: [cx - 38.0, cx + 38.0] (width = 76dp)
+  // Notch flat top X: [cx - 18.0, cx + 18.0] (width = 36dp)
+  // Notch depth: 16dp from bottom edge
+  final notchTopY = bottomY - 16.0;
+
+  return Path()
+    ..moveTo(leftX + r, topY)
+    ..lineTo(rightX - r, topY)
+    ..arcToPoint(
+      Offset(rightX, topY + r),
+      radius: Radius.circular(r),
+      clockwise: true,
+    )
+    ..lineTo(rightX, bottomY - r)
+    ..arcToPoint(
+      Offset(rightX - r, bottomY),
+      radius: Radius.circular(r),
+      clockwise: true,
+    )
+    // Bottom edge moving right to left towards notch
+    ..lineTo(cx + 38.0, bottomY)
+    // Entering notch (right shoulder)
+    ..cubicTo(
+      cx + 27.0,
+      bottomY,
+      cx + 30.0,
+      notchTopY,
+      cx + 18.0,
+      notchTopY,
+    )
+    // Notch flat ceiling
+    ..lineTo(cx - 18.0, notchTopY)
+    // Exiting notch (left shoulder)
+    ..cubicTo(
+      cx - 30.0,
+      notchTopY,
+      cx - 27.0,
+      bottomY,
+      cx - 38.0,
+      bottomY,
+    )
+    // Bottom edge moving left to bottom-left corner
+    ..lineTo(leftX + r, bottomY)
+    ..arcToPoint(
+      Offset(leftX, bottomY - r),
+      radius: Radius.circular(r),
+      clockwise: true,
+    )
+    ..lineTo(leftX, topY + r)
+    ..arcToPoint(
+      Offset(leftX + r, topY),
+      radius: Radius.circular(r),
+      clockwise: true,
+    )
+    ..close();
+}
+
+/// Custom clipper for the non-hot card surface featuring the bottom center notch.
+class _NotchedCardClipper extends CustomClipper<Path> {
+  const _NotchedCardClipper();
+
+  @override
+  Path getClip(Size size) {
+    return buildNotchedCardPath(
+      size.width,
+      size.height,
+      inset: 0.0,
+      radius: 12.0,
+    );
+  }
+
+  @override
+  bool shouldReclip(covariant _NotchedCardClipper oldClipper) => false;
 }
