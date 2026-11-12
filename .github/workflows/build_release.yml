@@ -123,6 +123,7 @@ jobs:
       - name: Build Release APK
         run: |
           flutter build apk --release \
+            --android-skip-build-dependency-validation \
             --build-name="${{ steps.version_step.outputs.version_name }}" \
             --build-number="${{ steps.version_step.outputs.version_code }}"
 
