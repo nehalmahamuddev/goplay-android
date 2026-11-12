@@ -19,7 +19,7 @@ class AppConstants {
 
   // App Info
   static const String appName = 'GoPlay';
-  static const String appVersion = '2.4.0';
+  static const String appVersion = '2.4.1';
   
   // Community & Social Links
   static const String telegramCommunityUrl = 'https://t.me/goplaycommunity';

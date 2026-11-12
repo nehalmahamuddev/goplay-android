@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.4.1] - 2026-11-12
+
+• Redesigned event card surface with custom bottom notch for non-hot matches.
+• Updated hot match card with curved shoulder tab badge, vector flame, and glowing border highlight.
+• Integrated dynamic theme surface and accent colors across all event card variants.
+• Clean borderless card design with enhanced visual contrast and responsiveness.
+
+---
+
 ## [2.4.0] - 2026-11-09
 
 • Redesigned Home screen layout: removed "Trending Channels" and "Today's Matches" headings for a modern, content-first look.
