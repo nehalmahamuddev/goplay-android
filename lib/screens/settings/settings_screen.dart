@@ -58,7 +58,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       category: 'Layout',
       route: '/settings/layout',
       icon: Icons.palette_outlined,
-      keywords: ['accent', 'color', 'blue', 'lime', 'volt', 'theme', 'looks'],
+      keywords: ['accent', 'color', 'white', 'blue', 'lime', 'volt', 'theme', 'looks'],
     ),
     _PreferenceSearchItem(
       title: 'App theme',

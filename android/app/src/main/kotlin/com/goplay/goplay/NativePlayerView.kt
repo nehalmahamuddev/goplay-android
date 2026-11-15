@@ -16,7 +16,10 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -70,6 +73,7 @@ class NativePlayerView(
     private val methodChannel: MethodChannel
     private var fallbackStage = 0
     private var lifecycleCallbacks: Application.ActivityLifecycleCallbacks? = null
+    private var preferredQualityHeight: Int = -1
 
     init {
         // Setup PlayerView
@@ -202,26 +206,11 @@ class NativePlayerView(
                 }
             }
             "setQuality" -> {
-                val height = call.arguments as? Int ?: -1
+                val height = (call.arguments as? Number)?.toInt() ?: -1
+                preferredQualityHeight = height
                 val exoPlayer = player
                 if (exoPlayer != null) {
-                    val currentParams = exoPlayer.trackSelectionParameters
-                    val builder = currentParams.buildUpon()
-                    if (height > 0) {
-                        val width = when (height) {
-                            1080 -> 1920
-                            720 -> 1280
-                            480 -> 854
-                            360 -> 640
-                            else -> height * 16 / 9
-                        }
-                        builder.setMaxVideoSize(width, height)
-                        builder.setMinVideoSize(width, height)
-                    } else {
-                        builder.setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE)
-                        builder.setMinVideoSize(0, 0)
-                    }
-                    exoPlayer.trackSelectionParameters = builder.build()
+                    applyQuality(exoPlayer, height, flushBuffer = true)
                     result.success(true)
                 } else {
                     result.success(false)
@@ -230,19 +219,7 @@ class NativePlayerView(
             "getVideoQualities" -> {
                 val exoPlayer = player
                 if (exoPlayer != null) {
-                    val heights = mutableListOf<Int>()
-                    val currentTracks = exoPlayer.currentTracks
-                    for (group in currentTracks.groups) {
-                        if (group.type == C.TRACK_TYPE_VIDEO) {
-                            for (i in 0 until group.length) {
-                                val format = group.getTrackFormat(i)
-                                if (format.height > 0) {
-                                    heights.add(format.height)
-                                }
-                            }
-                        }
-                    }
-                    val sortedHeights = heights.distinct().sortedDescending()
+                    val sortedHeights = extractVideoHeights(exoPlayer.currentTracks)
                     result.success(sortedHeights)
                 } else {
                     result.success(emptyList<Int>())
@@ -529,12 +506,37 @@ class NativePlayerView(
                     Log.d(TAG, "isPlaying changed: $isPlaying")
                     sendPlayerState()
                 }
+
+                override fun onTracksChanged(tracks: Tracks) {
+                    val sortedHeights = extractVideoHeights(tracks)
+                    val activeHeight = extractSelectedVideoHeight(tracks)
+                    Log.d(TAG, "onTracksChanged: detected video qualities: $sortedHeights, activeHeight: $activeHeight")
+                    methodChannel.invokeMethod("onTracksChanged", mapOf(
+                        "qualities" to sortedHeights,
+                        "activeQuality" to activeHeight
+                    ))
+
+                    if (preferredQualityHeight > 0 && sortedHeights.isNotEmpty()) {
+                        player?.let { p ->
+                            applyQuality(p, preferredQualityHeight, flushBuffer = false)
+                        }
+                    }
+                }
+
+                override fun onVideoSizeChanged(videoSize: VideoSize) {
+                    if (videoSize.height > 0) {
+                        methodChannel.invokeMethod("onVideoSizeChanged", mapOf(
+                            "width" to videoSize.width,
+                            "height" to videoSize.height
+                        ))
+                    }
+                }
             })
         } else {
             // Stop and reset for new media source
             exoPlayer.stop()
             exoPlayer.clearMediaItems()
-            // Reset track selection parameters to default (so previous DRM fallbacks/SD restrictions don't carry over)
+            // Reset track selection parameters to default so new stream loads cleanly without stale bounds
             exoPlayer.trackSelectionParameters = TrackSelectionParameters.Builder().build()
         }
 
@@ -555,6 +557,84 @@ class NativePlayerView(
                 "causeMessage" to (e.message ?: "")
             ))
         }
+    }
+
+    private fun extractVideoHeights(tracks: Tracks): List<Int> {
+        val heights = mutableListOf<Int>()
+        for (group in tracks.groups) {
+            if (group.type == C.TRACK_TYPE_VIDEO) {
+                for (i in 0 until group.length) {
+                    if (group.isTrackSupported(i)) {
+                        val format = group.getTrackFormat(i)
+                        if (format.height > 0) {
+                            heights.add(format.height)
+                        }
+                    }
+                }
+            }
+        }
+        return heights.distinct().sortedDescending()
+    }
+
+    private fun findBestMatchingHeight(availableHeights: List<Int>, targetHeight: Int): Int {
+        if (availableHeights.contains(targetHeight)) return targetHeight
+        val lower = availableHeights.filter { it <= targetHeight }.maxOrNull()
+        if (lower != null) return lower
+        return availableHeights.minOrNull() ?: targetHeight
+    }
+
+    private fun applyQuality(exoPlayer: ExoPlayer, height: Int, flushBuffer: Boolean = true) {
+        val currentParams = exoPlayer.trackSelectionParameters
+        val builder = currentParams.buildUpon()
+        builder.clearOverridesOfType(C.TRACK_TYPE_VIDEO)
+
+        if (height > 0) {
+            val heights = extractVideoHeights(exoPlayer.currentTracks)
+            val targetHeight = if (heights.isNotEmpty()) {
+                findBestMatchingHeight(heights, height)
+            } else {
+                height
+            }
+            builder.setMaxVideoSize(Int.MAX_VALUE, targetHeight)
+            builder.setMinVideoSize(1, targetHeight)
+
+            for (group in exoPlayer.currentTracks.groups) {
+                if (group.type == C.TRACK_TYPE_VIDEO) {
+                    for (i in 0 until group.length) {
+                        if (group.getTrackFormat(i).height == targetHeight) {
+                            builder.setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, i))
+                            break
+                        }
+                    }
+                }
+            }
+        } else {
+            builder.setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE)
+            builder.setMinVideoSize(0, 0)
+        }
+
+        exoPlayer.trackSelectionParameters = builder.build()
+
+        if (flushBuffer && exoPlayer.playbackState == Player.STATE_READY) {
+            val currentPos = exoPlayer.currentPosition
+            exoPlayer.seekTo(currentPos)
+        }
+    }
+
+    private fun extractSelectedVideoHeight(tracks: Tracks): Int {
+        for (group in tracks.groups) {
+            if (group.type == C.TRACK_TYPE_VIDEO) {
+                for (i in 0 until group.length) {
+                    if (group.isTrackSelected(i)) {
+                        val format = group.getTrackFormat(i)
+                        if (format.height > 0) {
+                            return format.height
+                        }
+                    }
+                }
+            }
+        }
+        return -1
     }
 
     private fun sendPlayerState() {

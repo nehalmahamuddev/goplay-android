@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hive/hive.dart';
+import '../../core/constants.dart';
 import '../../core/typography.dart';
 import '../../models/channel.dart';
 import '../../services/local_proxy.dart';
@@ -119,6 +121,7 @@ String _formatDuration(Duration d) {
 }
 
 enum _DragType { none, seek, brightness, volume }
+enum _SettingsSubpage { main, quality, speed, aspectRatio, servers }
 
 class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
   MethodChannel? _methodChannel;
@@ -298,12 +301,22 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
   }
 
 
-  // ignore: unused_field
   String _currentQuality = 'Auto';
+  List<int> _availableQualities = [];
+  int _activeQualityHeight = -1;
+  bool _isDetectingQualities = true;
+  double _playbackSpeed = 1.0;
+  final List<double> _speeds = [0.5, 1.0, 1.25, 1.5, 2.0];
+  int _consecutiveStalls = 0;
+  DateTime? _lastStallTime;
+  Timer? _stallTimer;
+  bool _hasPlayedInitially = false;
+  StateSetter? _settingsModalSetState;
+
   int _aspectRatioIndex = 0;
   bool _isLocked = false;
+  // ignore: unused_field
   bool _subtitlesEnabled = true;
-  double _playbackSpeed = 1.0;
 
   final List<int> _resizeModes = [0, 3, 4]; // RESIZE_MODE_FIT, RESIZE_MODE_FILL, RESIZE_MODE_ZOOM
   final List<String> _aspectLabels = ['FIT', 'STRETCH', 'ZOOM'];
@@ -369,9 +382,15 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
     final isPendingDynamic = rawUrl.isEmpty || rawUrl.startsWith('pro/') || rawUrl.contains('.txt');
     final playUrl = isPendingDynamic ? '' : rawUrl;
 
+    int initialQuality = -1;
+    if (_currentQuality != 'Auto') {
+      initialQuality = int.tryParse(_currentQuality.replaceAll('p', '')) ?? -1;
+    }
+
     final params = <String, dynamic>{
       'url': playUrl,
       'headers': headers,
+      'initial_quality': initialQuality,
     };
 
     if (widget.channel.hasDrm) {
@@ -418,6 +437,11 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         // Delegate to state machine for recovery logic
         _stateMachine.handleNativeStateEvent(args);
 
+        final wasBuffering = _isBuffering;
+        if (isReady) {
+          _hasPlayedInitially = true;
+        }
+
         // Update local UI state for controls rendering
         if (_isPlaying != isPlaying || _isBuffering != nowBuffering ||
             (isReady && (_hasError || _errorMessage != null))) {
@@ -431,12 +455,78 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
           });
         }
 
+        // Smart Stall Detection: only trigger after initial playback has started and transitioning into buffer
+        if (!wasBuffering && nowBuffering && _hasPlayedInitially && _currentQuality != 'Auto') {
+          final now = DateTime.now();
+          if (_lastStallTime != null && now.difference(_lastStallTime!).inSeconds <= 30) {
+            _consecutiveStalls++;
+          } else {
+            _consecutiveStalls = 1;
+          }
+          _lastStallTime = now;
+
+          _stallTimer?.cancel();
+          _stallTimer = Timer(const Duration(seconds: 10), () {
+            if (mounted && _isBuffering && _hasPlayedInitially && _currentQuality != 'Auto') {
+              _triggerStallRecovery();
+            }
+          });
+
+          if (_consecutiveStalls >= 3) {
+            _triggerStallRecovery();
+          }
+        } else if (!nowBuffering) {
+          _stallTimer?.cancel();
+          _stallTimer = null;
+        }
+
         if (isPlaying) {
           _startProgressTimer();
         } else {
           _stopProgressTimer();
         }
         _updateProgress();
+        break;
+
+      case 'onTracksChanged':
+        final args = Map<String, dynamic>.from(call.arguments as Map);
+        final rawQualities = (args['qualities'] as List?)?.cast<int>() ?? [];
+        final activeHeight = (args['activeQuality'] as int?) ?? -1;
+        if (mounted) {
+          setState(() {
+            _availableQualities = rawQualities;
+            _isDetectingQualities = false;
+            if (activeHeight > 0) {
+              _activeQualityHeight = activeHeight;
+            } else if (_availableQualities.isNotEmpty && _activeQualityHeight <= 0) {
+              _activeQualityHeight = _availableQualities.first;
+            }
+
+            // If user has a non-Auto preferred quality, apply best-effort matching via native player
+            if (_currentQuality != 'Auto') {
+              final targetHeight = int.tryParse(_currentQuality.replaceAll('p', '')) ?? -1;
+              if (targetHeight > 0) {
+                _methodChannel?.invokeMethod('setQuality', targetHeight);
+              }
+            }
+          });
+          try {
+            _settingsModalSetState?.call(() {});
+          } catch (_) {}
+        }
+        break;
+
+      case 'onVideoSizeChanged':
+        final args = Map<String, dynamic>.from(call.arguments as Map);
+        final height = (args['height'] as int?) ?? -1;
+        if (mounted && height > 0) {
+          setState(() {
+            _activeQualityHeight = height;
+          });
+          try {
+            _settingsModalSetState?.call(() {});
+          } catch (_) {}
+        }
         break;
 
       case 'onError':
@@ -473,7 +563,6 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
                 ? widget.servers![nextServerIndex].name
                 : 'Server ${nextServerIndex + 1}';
             debugPrint('[Failover] Stream failed on index ${widget.activeServerIndex}, switching to server index $nextServerIndex ($nextName)');
-            _showFeedbackPill('Stream unavailable, switched to $nextName', icon: Icons.swap_calls_rounded);
             widget.onServerSelected!(nextServerIndex);
           }
         }
@@ -634,50 +723,22 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
   void _setQuality(String label, int height) {
     setState(() {
       _currentQuality = label;
+      _consecutiveStalls = 0;
     });
+    try {
+      if (Hive.isBoxOpen(AppConstants.settingsBox)) {
+        Hive.box(AppConstants.settingsBox).put('default_video_quality', label);
+      }
+    } catch (_) {}
     _methodChannel?.invokeMethod('setQuality', height);
   }
 
-  void _showFeedbackPill(String message, {IconData? icon}) {
-    if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    final cs = Theme.of(context).colorScheme;
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, color: cs.primary, size: 16),
-              const SizedBox(width: 8),
-            ],
-            Flexible(
-              child: Text(
-                message,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontFamily: GoPlayType.family,
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.1,
-                ),
-              ),
-            ),
-          ],
-        ),
-        duration: const Duration(milliseconds: 1200),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: const Color(0xF21E1E22), // YouTube dark charcoal
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
-        elevation: 4,
-        margin: const EdgeInsets.symmetric(horizontal: 48, vertical: 20),
-      ),
-    );
+  void _triggerStallRecovery() {
+    if (!mounted || _currentQuality == 'Auto') return;
+    _consecutiveStalls = 0;
+    _stallTimer?.cancel();
+    _stallTimer = null;
+    _setQuality('Auto', -1);
   }
 
   void _toggleAspectRatio() {
@@ -686,10 +747,6 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
     });
     final mode = _resizeModes[_aspectRatioIndex];
     _methodChannel?.invokeMethod('setResizeMode', mode);
-    _showFeedbackPill(
-      'Aspect Ratio: ${_aspectLabels[_aspectRatioIndex]}',
-      icon: Icons.aspect_ratio_rounded,
-    );
   }
 
   // ignore: unused_element
@@ -710,10 +767,6 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         setState(() {
           _subtitlesEnabled = enabled;
         });
-        _showFeedbackPill(
-          _subtitlesEnabled ? 'Subtitles On' : 'Subtitles Off',
-          icon: Icons.subtitles_rounded,
-        );
       }
     } catch (e) {
       debugPrint('Error toggling subtitles: $e');
@@ -724,15 +777,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
   void _cycleAudioTrack() async {
     if (_methodChannel == null) return;
     try {
-      final lang = await _methodChannel!.invokeMethod<String>('cycleAudioTrack');
-      if (lang != null && mounted) {
-        _showFeedbackPill(
-          lang == "Default" || lang == "None"
-              ? 'Audio: Default'
-              : 'Audio: $lang',
-          icon: Icons.audiotrack_rounded,
-        );
-      }
+      await _methodChannel!.invokeMethod<String>('cycleAudioTrack');
     } catch (e) {
       debugPrint('Error cycling audio track: $e');
     }
@@ -750,113 +795,638 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         setState(() {
           _playbackSpeed = nextSpeed;
         });
-        _showFeedbackPill(
-          'Speed: ${nextSpeed}x',
-          icon: Icons.speed_rounded,
-        );
       }
     } catch (e) {
       debugPrint('Error setting playback speed: $e');
     }
   }
 
-  // ignore: unused_element
-  void _showQualityMenu(TapDownDetails details) async {
-    final position = details.globalPosition;
-
-    List<int> qualities = [];
+  Future<void> _setSpeed(double speed) async {
+    widget.onInteract?.call();
     try {
-      if (_methodChannel != null) {
-        final result = await _methodChannel!.invokeListMethod<int>('getVideoQualities');
-        if (result != null) {
-          qualities = result;
-        }
+      final success = await _methodChannel?.invokeMethod<bool>('setPlaybackSpeed', speed);
+      if (success == true && mounted) {
+        setState(() {
+          _playbackSpeed = speed;
+        });
       }
     } catch (e) {
-      debugPrint('Error getting video qualities: $e');
+      debugPrint('Error setting playback speed: $e');
+    }
+  }
+
+  void _showPlayerSettingsModal() {
+    widget.onInteract?.call();
+
+    // Query active qualities directly in case not yet pushed
+    if (_methodChannel != null && _availableQualities.isEmpty) {
+      _methodChannel!.invokeListMethod<int>('getVideoQualities').then((result) {
+        if (result != null && mounted) {
+          setState(() {
+            _availableQualities = result;
+            _isDetectingQualities = false;
+          });
+          _settingsModalSetState?.call(() {});
+        }
+      }).catchError((_) {});
     }
 
-    if (qualities.isEmpty) {
-      qualities = [1080, 720, 480, 360];
-    }
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      barrierColor: Colors.black.withValues(alpha: 0.65),
+      transitionDuration: const Duration(milliseconds: 240),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        final cs = Theme.of(dialogContext).colorScheme;
+        final mq = MediaQuery.of(dialogContext);
+        final bool isWide = mq.size.width >= 600;
+        final double sheetWidth = isWide ? math.min(mq.size.width * 0.85, 420.0) : double.infinity;
+        final double maxHeight = mq.size.height * 0.85;
 
-    if (!mounted) return;
+        bool isDismissing = false;
+        void dismiss() {
+          if (!isDismissing && Navigator.of(dialogContext).canPop()) {
+            isDismissing = true;
+            _settingsModalSetState = null;
+            Navigator.of(dialogContext).pop();
+          }
+        }
 
-    final List<PopupMenuEntry<String>> menuItems = [
-      PopupMenuItem<String>(
-        value: 'Auto',
+        _SettingsSubpage currentSubpage = _SettingsSubpage.main;
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            _settingsModalSetState = setModalState;
+            final isLiveNoDvr = _isLive && _duration == Duration.zero;
+
+            // Compute current quality display label for the root menu tile
+            final String qualityMenuLabel;
+            if (_currentQuality == 'Auto') {
+              if (_activeQualityHeight > 0) {
+                qualityMenuLabel = 'Auto (${_activeQualityHeight}p)';
+              } else if (_availableQualities.isNotEmpty) {
+                qualityMenuLabel = 'Auto (${_availableQualities.first}p)';
+              } else {
+                qualityMenuLabel = 'Auto';
+              }
+            } else {
+              qualityMenuLabel = _currentQuality;
+            }
+
+            final String speedMenuLabel = isLiveNoDvr
+                ? 'Live'
+                : (_playbackSpeed == 1.0 ? '1x' : '${_playbackSpeed}x');
+
+            final String aspectMenuLabel = _aspectLabels[_aspectRatioIndex];
+
+            // Build page content based on currentSubpage
+            Widget pageContent;
+            switch (currentSubpage) {
+              case _SettingsSubpage.main:
+                pageContent = Column(
+                  key: const ValueKey('settings_main'),
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildSettingsMenuItem(
+                      icon: Icons.tune_rounded,
+                      title: 'Quality',
+                      trailingValue: qualityMenuLabel,
+                      cs: cs,
+                      autoFocus: true,
+                      onTap: () => setModalState(() => currentSubpage = _SettingsSubpage.quality),
+                    ),
+                    _buildSettingsMenuItem(
+                      icon: Icons.slow_motion_video_rounded,
+                      title: 'Playback speed',
+                      trailingValue: speedMenuLabel,
+                      cs: cs,
+                      onTap: () => setModalState(() => currentSubpage = _SettingsSubpage.speed),
+                    ),
+                    _buildSettingsMenuItem(
+                      icon: Icons.aspect_ratio_rounded,
+                      title: 'Aspect ratio',
+                      trailingValue: aspectMenuLabel,
+                      cs: cs,
+                      onTap: () => setModalState(() => currentSubpage = _SettingsSubpage.aspectRatio),
+                    ),
+                    if (widget.servers != null && widget.servers!.length > 1)
+                      _buildSettingsMenuItem(
+                        icon: Icons.dns_rounded,
+                        title: 'Stream Source',
+                        trailingValue: widget.servers![widget.activeServerIndex].name.isNotEmpty
+                            ? widget.servers![widget.activeServerIndex].name
+                            : 'Server ${widget.activeServerIndex + 1}',
+                        cs: cs,
+                        onTap: () => setModalState(() => currentSubpage = _SettingsSubpage.servers),
+                      ),
+                    _buildSettingsMenuItem(
+                      icon: Icons.lock_outline_rounded,
+                      title: 'Lock screen',
+                      showChevron: false,
+                      cs: cs,
+                      onTap: () {
+                        dismiss();
+                        HapticFeedback.mediumImpact();
+                        setState(() {
+                          _isLocked = true;
+                        });
+                        widget.onLockChanged?.call(true);
+                      },
+                    ),
+                  ],
+                );
+                break;
+
+              case _SettingsSubpage.quality:
+                // Quality Subpage (YouTube Screenshot 2 style)
+                final List<String> qualityOptions = ['Auto'];
+                if (_availableQualities.contains(2160)) qualityOptions.add('2160p');
+                if (_availableQualities.contains(1440)) qualityOptions.add('1440p');
+                qualityOptions.addAll(['1080p', '720p', '480p', '360p']);
+                for (final q in _availableQualities) {
+                  final label = '${q}p';
+                  if (!qualityOptions.contains(label)) {
+                    qualityOptions.add(label);
+                  }
+                }
+
+                final currentActiveRes = _activeQualityHeight > 0
+                    ? '${_activeQualityHeight}p'
+                    : (_availableQualities.isNotEmpty
+                        ? '${_availableQualities.first}p'
+                        : (_isDetectingQualities ? 'Detecting...' : 'Auto'));
+
+                pageContent = Column(
+                  key: const ValueKey('settings_quality'),
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Subpage Header
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      child: Row(
+                        children: [
+                          TvFocusable(
+                            isCircle: true,
+                            focusColor: cs.primary,
+                            onTap: () => setModalState(() => currentSubpage = _SettingsSubpage.main),
+                            child: const Padding(
+                              padding: EdgeInsets.all(8),
+                              child: Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Quality for current video  ·  $currentActiveRes',
+                              style: const TextStyle(
+                                fontFamily: GoPlayType.family,
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(color: Color(0x1AFFFFFF), height: 1),
+                    const SizedBox(height: 6),
+                    if (_availableQualities.length <= 1 && _availableQualities.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.info_outline_rounded, color: Colors.white60, size: 16),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Broadcast is single-resolution (${_availableQualities.first}p). Your preference will apply to multi-bitrate streams.',
+                                  style: const TextStyle(
+                                    fontFamily: GoPlayType.family,
+                                    color: Colors.white60,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ...qualityOptions.map((opt) {
+                      final bool isSelected = _currentQuality == opt || (opt == 'Auto' && _currentQuality == 'Auto');
+                      final bool isChannelFixed = _availableQualities.length <= 1 && _availableQualities.isNotEmpty;
+                      final bool isNotNativeInFixed = isChannelFixed && opt != 'Auto' && opt != '${_availableQualities.first}p';
+
+                      return _buildSubpageOption(
+                        title: opt == 'Auto' ? 'Auto (recommended)' : opt,
+                        subtitle: isNotNativeInFixed
+                            ? 'Preferred · Playing at source (${_availableQualities.first}p)'
+                            : null,
+                        isSelected: isSelected,
+                        cs: cs,
+                        onTap: () {
+                          final height = opt == 'Auto' ? -1 : (int.tryParse(opt.replaceAll('p', '')) ?? -1);
+                          _setQuality(opt, height);
+                          setModalState(() {});
+                          Future.delayed(const Duration(milliseconds: 160), dismiss);
+                        },
+                      );
+                    }),
+                    const SizedBox(height: 8),
+                  ],
+                );
+                break;
+
+              case _SettingsSubpage.speed:
+                pageContent = Column(
+                  key: const ValueKey('settings_speed'),
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      child: Row(
+                        children: [
+                          TvFocusable(
+                            isCircle: true,
+                            focusColor: cs.primary,
+                            onTap: () => setModalState(() => currentSubpage = _SettingsSubpage.main),
+                            child: const Padding(
+                              padding: EdgeInsets.all(8),
+                              child: Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Text(
+                            'Playback speed',
+                            style: TextStyle(
+                              fontFamily: GoPlayType.family,
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(color: Color(0x1AFFFFFF), height: 1),
+                    const SizedBox(height: 6),
+                    if (isLiveNoDvr)
+                      const Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline_rounded, color: Colors.white38, size: 18),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Speed adjustment is not available during live broadcasts.',
+                                style: TextStyle(
+                                  fontFamily: GoPlayType.family,
+                                  color: Colors.white38,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      ..._speeds.map((s) {
+                        final isSelected = _playbackSpeed == s;
+                        final label = s == 1.0 ? '1x (Normal)' : '${s}x';
+                        return _buildSubpageOption(
+                          title: label,
+                          isSelected: isSelected,
+                          cs: cs,
+                          onTap: () {
+                            _setSpeed(s);
+                            setModalState(() {});
+                            Future.delayed(const Duration(milliseconds: 160), dismiss);
+                          },
+                        );
+                      }),
+                    const SizedBox(height: 8),
+                  ],
+                );
+                break;
+
+              case _SettingsSubpage.aspectRatio:
+                pageContent = Column(
+                  key: const ValueKey('settings_aspect'),
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      child: Row(
+                        children: [
+                          TvFocusable(
+                            isCircle: true,
+                            focusColor: cs.primary,
+                            onTap: () => setModalState(() => currentSubpage = _SettingsSubpage.main),
+                            child: const Padding(
+                              padding: EdgeInsets.all(8),
+                              child: Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Text(
+                            'Aspect ratio',
+                            style: TextStyle(
+                              fontFamily: GoPlayType.family,
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(color: Color(0x1AFFFFFF), height: 1),
+                    const SizedBox(height: 6),
+                    ...List.generate(_resizeModes.length, (idx) {
+                      final isSelected = _aspectRatioIndex == idx;
+                      final label = _aspectLabels[idx];
+                      return _buildSubpageOption(
+                        title: label,
+                        isSelected: isSelected,
+                        cs: cs,
+                        onTap: () {
+                          setState(() {
+                            _aspectRatioIndex = idx;
+                          });
+                          final mode = _resizeModes[idx];
+                          _methodChannel?.invokeMethod('setResizeMode', mode);
+                          setModalState(() {});
+                          Future.delayed(const Duration(milliseconds: 160), dismiss);
+                        },
+                      );
+                    }),
+                    const SizedBox(height: 8),
+                  ],
+                );
+                break;
+
+              case _SettingsSubpage.servers:
+                final servers = widget.servers ?? [];
+                pageContent = Column(
+                  key: const ValueKey('settings_servers'),
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      child: Row(
+                        children: [
+                          TvFocusable(
+                            isCircle: true,
+                            focusColor: cs.primary,
+                            onTap: () => setModalState(() => currentSubpage = _SettingsSubpage.main),
+                            child: const Padding(
+                              padding: EdgeInsets.all(8),
+                              child: Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Text(
+                            'Stream Source',
+                            style: TextStyle(
+                              fontFamily: GoPlayType.family,
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(color: Color(0x1AFFFFFF), height: 1),
+                    const SizedBox(height: 6),
+                    ...List.generate(servers.length, (idx) {
+                      final isSelected = widget.activeServerIndex == idx;
+                      final server = servers[idx];
+                      final label = server.name.isNotEmpty ? server.name : 'Server ${idx + 1}';
+                      return _buildSubpageOption(
+                        title: label,
+                        isSelected: isSelected,
+                        cs: cs,
+                        onTap: () {
+                          widget.onServerSelected?.call(idx);
+                          setModalState(() {});
+                          Future.delayed(const Duration(milliseconds: 160), dismiss);
+                        },
+                      );
+                    }),
+                    const SizedBox(height: 8),
+                  ],
+                );
+                break;
+            }
+
+            return PopScope(
+              canPop: currentSubpage == _SettingsSubpage.main,
+              onPopInvokedWithResult: (didPop, _) {
+                if (didPop) return;
+                setModalState(() {
+                  currentSubpage = _SettingsSubpage.main;
+                });
+              },
+              child: Align(
+                alignment: isWide ? Alignment.center : Alignment.bottomCenter,
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    width: sheetWidth,
+                    constraints: BoxConstraints(maxHeight: maxHeight),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF212121), // YouTube dark grey
+                      borderRadius: isWide
+                          ? BorderRadius.circular(20)
+                          : const BorderRadius.vertical(top: Radius.circular(20)),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x66000000),
+                          blurRadius: 28,
+                          offset: Offset(0, -4),
+                        ),
+                      ],
+                    ),
+                    child: SafeArea(
+                      top: false,
+                      left: !isWide,
+                      right: !isWide,
+                      bottom: true,
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Top Drag Handle (Screenshot 1 & 2)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 10, bottom: 6),
+                              child: Center(
+                                child: Container(
+                                  width: 36,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.25),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 180),
+                              child: pageContent,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    ).then((_) {
+      _settingsModalSetState = null;
+      if (!mounted || !widget.isFullscreen) return;
+      if (widget.playPauseFocusNode != null) {
+        widget.playPauseFocusNode!.requestFocus();
+      } else {
+        final ctx = _playPauseKey.currentContext;
+        if (ctx != null && ctx.mounted) {
+          Focus.of(ctx).requestFocus();
+        }
+      }
+    });
+  }
+
+  Widget _buildSettingsMenuItem({
+    required IconData icon,
+    required String title,
+    String? trailingValue,
+    bool showChevron = true,
+    required ColorScheme cs,
+    required VoidCallback onTap,
+    bool autoFocus = false,
+  }) {
+    return TvFocusable(
+      onTap: onTap,
+      autoFocus: autoFocus,
+      focusColor: cs.primary,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
         child: Row(
           children: [
-            Icon(
-              Icons.check_rounded,
-              color: _currentQuality == 'Auto' ? Colors.orange : Colors.transparent,
-              size: 18,
+            Icon(icon, color: Colors.white, size: 22),
+            const SizedBox(width: 18),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontFamily: GoPlayType.family,
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ),
-            const SizedBox(width: 8),
-            const Text(
-              'Auto (Adaptive)',
-              style: TextStyle(color: Colors.white, fontSize: GoPlayType.base),
+            if (trailingValue != null && trailingValue.isNotEmpty) ...[
+              Text(
+                trailingValue,
+                style: TextStyle(
+                  fontFamily: GoPlayType.family,
+                  color: Colors.white.withValues(alpha: 0.65),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+              const SizedBox(width: 4),
+            ],
+            if (showChevron)
+              Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.white.withValues(alpha: 0.45),
+                size: 20,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubpageOption({
+    required String title,
+    String? subtitle,
+    required bool isSelected,
+    required ColorScheme cs,
+    required VoidCallback onTap,
+  }) {
+    return TvFocusable(
+      onTap: onTap,
+      autoFocus: isSelected,
+      focusColor: cs.primary,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 24,
+              child: isSelected
+                  ? const Icon(Icons.check_rounded, color: Colors.white, size: 20)
+                  : const SizedBox.shrink(),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontFamily: GoPlayType.family,
+                      color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.85),
+                      fontSize: 15,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontFamily: GoPlayType.family,
+                        color: Colors.white38,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ],
         ),
       ),
-      const PopupMenuDivider(height: 1),
-      ...qualities.map((q) {
-        final label = '${q}p';
-        final isSelected = _currentQuality == label;
-        return PopupMenuItem<String>(
-          value: label,
-          child: Row(
-            children: [
-              Icon(
-                Icons.check_rounded,
-                color: isSelected ? Colors.orange : Colors.transparent,
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    fontFamily: GoPlayType.family,
-                    color: Colors.white,
-                    fontSize: GoPlayType.base,
-                    height: GoPlayType.leadingSnug,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        );
-      }),
-    ];
-
-    final selected = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        position.dx - 60,
-        position.dy - 200,
-        position.dx + 60,
-        position.dy,
-      ),
-      color: const Color(0xF21E1E22),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      items: menuItems,
-      elevation: 8,
     );
-
-    if (selected != null && mounted) {
-      int height = -1;
-      if (selected != 'Auto') {
-        height = int.tryParse(selected.replaceAll('p', '')) ?? -1;
-      }
-      _setQuality(selected, height);
-      _showFeedbackPill('Quality: $selected', icon: Icons.high_quality_rounded);
-    }
   }
 
 
@@ -876,6 +1446,15 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
   void initState() {
     super.initState();
     _isLocked = widget.isLocked;
+
+    try {
+      if (Hive.isBoxOpen(AppConstants.settingsBox)) {
+        final saved = Hive.box(AppConstants.settingsBox).get('default_video_quality') as String?;
+        if (saved != null && saved.isNotEmpty) {
+          _currentQuality = saved;
+        }
+      }
+    } catch (_) {}
 
     _focusNode = FocusNode(debugLabel: 'PlayerFocusNode');
     // NOTE: The play/pause TvFocusable button has autoFocus:true so it
@@ -909,7 +1488,6 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
             : 'Server ${nextIdx + 1}';
         debugPrint(
             'PlayerWidget: error on server ${widget.activeServerIndex}, auto-falling back to server $nextIdx ($nextName)');
-        _showFeedbackPill('Stream unavailable, switched to $nextName', icon: Icons.swap_calls_rounded);
         widget.onServerSelected?.call(nextIdx);
         return;
       }
@@ -957,6 +1535,8 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
       _stateMachine.playChannel(widget.channel);
 
       _cachedParams = null;
+      _stallTimer?.cancel();
+      _stallTimer = null;
 
       setState(() {
         _hasError = false;
@@ -965,6 +1545,10 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         _position = Duration.zero;
         _duration = Duration.zero;
         _bufferedPosition = Duration.zero;
+        _isDetectingQualities = true;
+        _availableQualities = [];
+        _consecutiveStalls = 0;
+        _hasPlayedInitially = false;
       });
 
       _methodChannel?.invokeMethod('play', _getCreationParams());
@@ -1147,6 +1731,8 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
     _scrubPositionNotifier.dispose();
     _seekDeltaNotifier.dispose();
     _stopProgressTimer();
+    _stallTimer?.cancel();
+    _settingsModalSetState = null;
     _focusNode.dispose();
     _seekBarFocusNode.dispose();
     _bottomControlsFocusNode.dispose();
@@ -1659,6 +2245,18 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
           ),
           SizedBox(width: btnSpacing),
 
+          // 2.5 Playback Settings Button (Quality, Speed)
+          TvFocusable(
+            isCircle: true,
+            focusColor: cs.primary,
+            onTap: _showPlayerSettingsModal,
+            child: Padding(
+              padding: EdgeInsets.all(btnPadding),
+              child: Icon(Icons.settings_rounded, color: Colors.white, size: iconSize),
+            ),
+          ),
+          SizedBox(width: btnSpacing),
+
           // 3. Volume Button
           TvFocusable(
             isCircle: true,
@@ -1769,6 +2367,18 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         ),
         const SizedBox(width: 6),
 
+        // 2.5 Playback Settings Button (Quality, Speed)
+        TvFocusable(
+          isCircle: true,
+          focusColor: cs.primary,
+          onTap: _showPlayerSettingsModal,
+          child: const Padding(
+            padding: EdgeInsets.all(6),
+            child: Icon(Icons.settings_rounded, color: Colors.white, size: 24),
+          ),
+        ),
+        const SizedBox(width: 6),
+
         // 3. Fullscreen Toggle Button
         if (widget.onFullscreenToggle != null)
           TvFocusable(
@@ -1810,6 +2420,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         void dismiss() {
           if (!isDismissing && Navigator.of(dialogContext).canPop()) {
             isDismissing = true;
+            _settingsModalSetState = null;
             Navigator.of(dialogContext).pop();
           }
         }

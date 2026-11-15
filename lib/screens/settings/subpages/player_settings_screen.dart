@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import '../../../core/constants.dart';
 import '../../../core/typography.dart';
 import '../../../providers/theme_provider.dart';
 import '../widgets/setting_section_header.dart';
@@ -19,9 +21,22 @@ class _PlayerSettingsScreenState extends ConsumerState<PlayerSettingsScreen> {
   bool _backgroundAudio = false;
   String _selectedBufferMode = 'Balanced';
   String _selectedAspectRatio = '16:9 (Fit)';
+  String _selectedQuality = 'Auto';
 
   final List<String> _bufferModes = ['Fast Load', 'Balanced', 'High Stability'];
   final List<String> _aspectRatios = ['16:9 (Fit)', 'Stretch', 'Original'];
+  final List<String> _qualityOptions = ['Auto', '1080p', '720p', '480p', '360p'];
+
+  @override
+  void initState() {
+    super.initState();
+    try {
+      if (Hive.isBoxOpen(AppConstants.settingsBox)) {
+        final box = Hive.box(AppConstants.settingsBox);
+        _selectedQuality = box.get('default_video_quality') as String? ?? 'Auto';
+      }
+    } catch (_) {}
+  }
 
   void _showSingleChoiceDialog({
     required String title,
@@ -179,6 +194,26 @@ class _PlayerSettingsScreenState extends ConsumerState<PlayerSettingsScreen> {
 
               // ─── Buffering & Video Layout Section ───
               const SettingSectionHeader(title: 'Buffering & Layout'),
+              SettingTile(
+                icon: Icons.high_quality_rounded,
+                title: 'Default Video Quality',
+                subtitle: _selectedQuality == 'Auto' ? 'Auto (Adaptive)' : '$_selectedQuality (Target)',
+                onTap: () {
+                  _showSingleChoiceDialog(
+                    title: 'Select Default Video Quality',
+                    options: _qualityOptions,
+                    currentValue: _selectedQuality,
+                    onSelected: (val) {
+                      setState(() => _selectedQuality = val);
+                      try {
+                        if (Hive.isBoxOpen(AppConstants.settingsBox)) {
+                          Hive.box(AppConstants.settingsBox).put('default_video_quality', val);
+                        }
+                      } catch (_) {}
+                    },
+                  );
+                },
+              ),
               SettingTile(
                 icon: Icons.speed_rounded,
                 title: 'Buffer Profile',

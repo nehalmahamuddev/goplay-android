@@ -224,6 +224,9 @@ class AccentColorChoiceDialog extends StatelessWidget {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: accent.color,
+                            border: accent == AppAccentColor.white
+                                ? Border.all(color: Colors.white30, width: 1.5)
+                                : null,
                             boxShadow: [
                               BoxShadow(
                                 color: accent.color.withValues(alpha: 0.35),

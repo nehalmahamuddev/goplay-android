@@ -424,6 +424,14 @@ enum AppAccentColor {
     displayName: 'Hot Pink',
     color: Color(0xFFFF2D55),
     onAccentColor: Colors.white,
+  ),
+
+  /// Pure White (#FFFFFF).
+  white(
+    id: 'white',
+    displayName: 'Pure White',
+    color: Color(0xFFFFFFFF),
+    onAccentColor: Color(0xFF0F0F0F),
   );
 
   /// Unique serialization ID.
@@ -452,7 +460,9 @@ enum AppAccentColor {
       (e) =>
           e.id == id ||
           (e == AppAccentColor.lime &&
-              (id == 'electric_lime' || id == 'cyber_lime')),
+              (id == 'electric_lime' || id == 'cyber_lime')) ||
+          (e == AppAccentColor.white &&
+              (id == 'pure_white' || id == 'white')),
       orElse: () => AppAccentColor.royalBlue,
     );
   }
