@@ -103,10 +103,10 @@ class ThemeSettingsState {
     required this.isUsingCustomTheme,
   });
 
-  /// Factory baseline default state (Upstream Dark + Royal Blue).
+  /// Factory baseline default state (Upstream Dark + Pure White).
   static const ThemeSettingsState defaults = ThemeSettingsState(
     themeMode: AppThemeMode.dark,
-    accentColor: AppAccentColor.royalBlue,
+    accentColor: AppAccentColor.white,
     isUsingCustomTheme: false,
   );
 

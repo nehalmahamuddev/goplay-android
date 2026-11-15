@@ -33,20 +33,32 @@ void main() {
       expect(AppAccentColor.fromId('lime'), AppAccentColor.lime);
       expect(AppAccentColor.fromId('electric_lime'), AppAccentColor.lime);
     });
+
+    test('white accent color is primary default with exact tokens', () {
+      const accent = AppAccentColor.white;
+      expect(accent.id, 'white');
+      expect(accent.displayName, 'Pure White (Default)');
+      expect(accent.color, const Color(0xFFFFFFFF));
+      expect(accent.onAccentColor, const Color(0xFF0F0F0F));
+
+      expect(AppAccentColor.fromId('white'), AppAccentColor.white);
+      expect(AppAccentColor.fromId('pure_white'), AppAccentColor.white);
+      expect(AppAccentColor.fromId(null), AppAccentColor.white);
+    });
   });
 
   group('ThemeSettingsState', () {
     test('defaults have expected initial values', () {
       const state = ThemeSettingsState.defaults;
       expect(state.themeMode, AppThemeMode.dark);
-      expect(state.accentColor, AppAccentColor.royalBlue);
+      expect(state.accentColor, AppAccentColor.white);
       expect(state.isUsingCustomTheme, isFalse);
       expect(state.isDark, isTrue);
       expect(state.isAmoled, isFalse);
       expect(state.surfaceColor, const Color(0xFF000000));
       expect(state.cardColor, const Color(0xFF161616));
       expect(state.bottomNavColor, const Color(0xFF161616));
-      expect(state.activeAccentColor, const Color(0xFF3D50FA));
+      expect(state.activeAccentColor, const Color(0xFFFFFFFF));
     });
 
     test('value equality and copyWith work as expected', () {
@@ -73,7 +85,7 @@ void main() {
       // Initial state
       expect(container.read(themeSettingsProvider), ThemeSettingsState.defaults);
       expect(container.read(activeThemeModeProvider), AppThemeMode.dark);
-      expect(container.read(activeAccentColorProvider), AppAccentColor.royalBlue);
+      expect(container.read(activeAccentColorProvider), AppAccentColor.white);
       expect(container.read(isCustomThemeProvider), isFalse);
 
       final notifier = container.read(themeSettingsProvider.notifier);

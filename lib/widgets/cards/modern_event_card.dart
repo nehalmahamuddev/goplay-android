@@ -20,7 +20,7 @@ import '../tv_focus_wrapper.dart';
 /// - Proportional match dividers (#30323B) framing the center column
 /// - 52x18 red gradient LIVE badge with animated pulsing dot and elapsed ticker (hh:mm:ss)
 /// - Upcoming match layout with kickoff time and clean date pill
-/// - Clean dark gradient container with subtle glow and dividers
+/// - Clean dark gradient container with dividers
 /// - Android TV D-Pad focus & navigation support via [TvFocusable]
 class ModernEventCard extends ConsumerStatefulWidget {
   final SportEvent event;
@@ -432,21 +432,13 @@ class _ModernEventCardState extends ConsumerState<ModernEventCard>
                 return Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    // --- 1. CARD CONTAINER (Theme surface color, glow for HOT, rounded corners / notched bottom) ---
+                    // --- 1. CARD CONTAINER (Theme surface color, rounded corners for HOT / notched bottom for non-hot) ---
                     Positioned.fill(
                       child: isFeatured
                           ? DecoratedBox(
                               decoration: BoxDecoration(
                                 borderRadius: const BorderRadius.all(Radius.circular(12)),
                                 color: surfaceColor,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: primaryColor.withValues(alpha: 0.20),
-                                    blurRadius: 8,
-                                    spreadRadius: 0.0,
-                                    offset: const Offset(0, 2.5),
-                                  ),
-                                ],
                               ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(12),

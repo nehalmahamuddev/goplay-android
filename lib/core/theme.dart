@@ -17,10 +17,10 @@ class GoPlayTheme {
   // ==========================================
   //               BRAND COLORS
   // ==========================================
-  static const Color primary = Color(0xFF3D50FA); // Electric Royal Blue accent (Upstream Openstream)
-  static const Color primaryDark = Color(0xFF3700B3);
-  static const Color primaryLight = Color(0xFF6B7BFF);
-  static const Color secondary = Color(0xFF5664B7);
+  static const Color primary = Color(0xFFFFFFFF); // Pure White primary accent
+  static const Color primaryDark = Color(0xFFCCCCCC);
+  static const Color primaryLight = Color(0xFFFFFFFF);
+  static const Color secondary = Color(0xFFE9EAEE);
   static const Color error = Color(0xFFFF453A);
   static const Color success = Color(0xFF32D74B);
   static const Color warning = Color(0xFFFFB020);
@@ -40,9 +40,9 @@ class GoPlayTheme {
   static const Color darkOnSurfaceMuted = Color(0xFF9BA0A6); // Upstream Icon/Muted text (#9BA0A6)
   static const Color darkCardBorder = Colors.transparent; // Borderless cards
   static const Color darkDivider = Color(0x1AFFFFFF);
-  static const Color darkPrimaryContainer = Color(0xFF242E00);
-  static const Color darkOnPrimaryContainer = Color(0xFFE2FF66);
-  static const Color darkOnPrimary = Color(0xFFFFFFFF);
+  static const Color darkPrimaryContainer = Color(0x26FFFFFF); // 15% white overlay container
+  static const Color darkOnPrimaryContainer = Color(0xFFFFFFFF);
+  static const Color darkOnPrimary = Color(0xFF0F0F0F); // High-contrast black on pure white primary
 
   // ==========================================
   //             LIGHT MODE PALETTE
@@ -119,7 +119,7 @@ class GoPlayTheme {
       primaryContainer: darkPrimaryContainer,
       onPrimaryContainer: darkOnPrimaryContainer,
       secondary: secondary,
-      onSecondary: Color(0xFF1B2300),
+      onSecondary: darkOnPrimary,
       surface: darkSurface,
       surfaceContainerLowest: Color(0xFF08090A),
       surfaceContainerLow: darkSurfaceContainerLow,
@@ -742,6 +742,8 @@ class GoPlayTheme {
 
   static ThemeData buildDynamicTheme(ThemeConfig config) {
     final dynPrimary = parseHex(config.primaryColor, defaultColor: primary);
+    final isPrimaryLight = ThemeData.estimateBrightnessForColor(dynPrimary) == Brightness.light;
+    final dynOnPrimary = isPrimaryLight ? const Color(0xFF0F0F0F) : Colors.white;
     final dynSurface = parseHex(config.surfaceColor, defaultColor: darkSurface);
     final dynCard = parseHex(config.cardColor, defaultColor: darkSurfaceContainer);
 
@@ -753,11 +755,11 @@ class GoPlayTheme {
 
     final colorScheme = ColorScheme.dark(
       primary: dynPrimary,
-      onPrimary: darkOnPrimary,
+      onPrimary: dynOnPrimary,
       primaryContainer: dynPrimary.withValues(alpha: 0.2),
-      onPrimaryContainer: dynPrimary,
+      onPrimaryContainer: isPrimaryLight ? const Color(0xFFFFFFFF) : dynPrimary,
       secondary: dynPrimary,
-      onSecondary: darkOnPrimary,
+      onSecondary: dynOnPrimary,
       surface: dynSurface,
       surfaceContainerLowest: dynSurface,
       surfaceContainerLow: dynSurface,

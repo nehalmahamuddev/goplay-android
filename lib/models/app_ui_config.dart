@@ -256,7 +256,7 @@ class ThemeConfig {
 
   const ThemeConfig.defaults()
       : preset = 'upstream',
-        primaryColor = '#3D50FA',
+        primaryColor = '#FFFFFF',
         surfaceColor = '#000000',
         cardColor = '#161616';
 
@@ -269,7 +269,7 @@ class ThemeConfig {
     final rawPreset = json['preset'] as String?;
     final resolvedPreset = (rawPreset == null || rawPreset == 'volt' || rawPreset == 'openstream') ? 'upstream' : rawPreset;
     final rawPrimary = json['primary_color'] as String?;
-    final resolvedPrimary = (rawPrimary == null || rawPrimary == '#C8FF00') ? '#3D50FA' : rawPrimary;
+    final resolvedPrimary = (rawPrimary == null || rawPrimary == '#C8FF00' || rawPrimary == '#3D50FA') ? '#FFFFFF' : rawPrimary;
     return ThemeConfig(
       preset: resolvedPreset,
       primaryColor: resolvedPrimary,

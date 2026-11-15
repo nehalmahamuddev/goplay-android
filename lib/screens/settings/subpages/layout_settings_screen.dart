@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/typography.dart';
+import '../../../models/app_theme_options.dart';
 import '../../../providers/app_providers.dart';
 import '../../../providers/theme_provider.dart';
 import '../widgets/setting_section_header.dart';
@@ -66,6 +67,9 @@ class LayoutSettingsScreen extends ConsumerWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: themeState.accentColor.color,
+                    border: themeState.accentColor == AppAccentColor.white
+                        ? Border.all(color: Colors.white38, width: 1.5)
+                        : null,
                   ),
                 ),
                 title: 'Primary color',

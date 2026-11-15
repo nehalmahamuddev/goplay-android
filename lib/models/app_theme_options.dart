@@ -198,15 +198,16 @@ enum AppThemeMode {
 
   /// Builds a complete Material 3 [ColorScheme] paired with an [AppAccentColor].
   ColorScheme toColorScheme(AppAccentColor accent) {
-    final primary = accent.color;
-    final onPrimary = accent.onAccentColor;
+    final isWhiteAccent = accent == AppAccentColor.white;
+    final primary = (!isDark && isWhiteAccent) ? const Color(0xFF111417) : accent.color;
+    final onPrimary = (!isDark && isWhiteAccent) ? Colors.white : accent.onAccentColor;
 
     return ColorScheme(
       brightness: isDark ? Brightness.dark : Brightness.light,
       primary: primary,
       onPrimary: onPrimary,
       primaryContainer: primary.withValues(alpha: 0.18),
-      onPrimaryContainer: primary,
+      onPrimaryContainer: isDark && isWhiteAccent ? const Color(0xFFFFFFFF) : primary,
       secondary: primary,
       onSecondary: onPrimary,
       surface: surfaceColor,
@@ -354,10 +355,18 @@ enum AppThemeMode {
 
 /// Defines the accent and brand highlight colors supported in GoPlay.
 enum AppAccentColor {
+  /// Pure White (#FFFFFF).
+  white(
+    id: 'white',
+    displayName: 'Pure White (Default)',
+    color: Color(0xFFFFFFFF),
+    onAccentColor: Color(0xFF0F0F0F),
+  ),
+
   /// Openstream signature Electric Royal Blue (#3D50FA).
   royalBlue(
     id: 'royal_blue',
-    displayName: 'Royal Blue (Default)',
+    displayName: 'Royal Blue',
     color: Color(0xFF3D50FA),
     onAccentColor: Colors.white,
   ),
@@ -424,14 +433,6 @@ enum AppAccentColor {
     displayName: 'Hot Pink',
     color: Color(0xFFFF2D55),
     onAccentColor: Colors.white,
-  ),
-
-  /// Pure White (#FFFFFF).
-  white(
-    id: 'white',
-    displayName: 'Pure White',
-    color: Color(0xFFFFFFFF),
-    onAccentColor: Color(0xFF0F0F0F),
   );
 
   /// Unique serialization ID.
@@ -453,17 +454,17 @@ enum AppAccentColor {
     required this.onAccentColor,
   });
 
-  /// Resolves an [AppAccentColor] by [id], falling back to [AppAccentColor.royalBlue].
+  /// Resolves an [AppAccentColor] by [id], falling back to [AppAccentColor.white].
   static AppAccentColor fromId(String? id) {
-    if (id == null) return AppAccentColor.royalBlue;
+    if (id == null) return AppAccentColor.white;
     return AppAccentColor.values.firstWhere(
       (e) =>
           e.id == id ||
-          (e == AppAccentColor.lime &&
-              (id == 'electric_lime' || id == 'cyber_lime')) ||
           (e == AppAccentColor.white &&
-              (id == 'pure_white' || id == 'white')),
-      orElse: () => AppAccentColor.royalBlue,
+              (id == 'pure_white' || id == 'white')) ||
+          (e == AppAccentColor.lime &&
+              (id == 'electric_lime' || id == 'cyber_lime')),
+      orElse: () => AppAccentColor.white,
     );
   }
 }
