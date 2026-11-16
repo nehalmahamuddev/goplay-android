@@ -224,10 +224,13 @@ class AppUiConfig {
   /// Resolves Category Chip border radius:
   double resolveCategoryChipRadius({bool isHome = false}) {
     final chips = componentStyles.categoryChips;
-    if (chips.separateHomeAndUpcoming) {
-      return isHome ? chips.homeOverride.borderRadius : chips.upcomingOverride.borderRadius;
+    if (chips.useCustomOverride) {
+      if (chips.separateHomeAndUpcoming) {
+        return isHome ? chips.homeOverride.borderRadius : chips.upcomingOverride.borderRadius;
+      }
+      return chips.borderRadius;
     }
-    return chips.borderRadius;
+    return isHome ? 8.0 : 24.0;
   }
 
   /// Resolves Settings Card background:
@@ -1250,12 +1253,12 @@ class CategoryChipsStyleConfig {
         activeTextColor = '#0F0F0F',
         inactiveBgColor = '#161616',
         inactiveTextColor = '#FFFFFF',
-        borderRadius = 20.0,
+        borderRadius = 24.0,
         borderColor = 'transparent',
         borderWidth = 0.0,
         separateHomeAndUpcoming = false,
         homeOverride = const ChipOverrideStyle.defaults(radius: 8.0),
-        upcomingOverride = const ChipOverrideStyle.defaults(radius: 20.0);
+        upcomingOverride = const ChipOverrideStyle.defaults(radius: 24.0);
 
   factory CategoryChipsStyleConfig.fromJson(dynamic raw) {
     final json = _deepCastMap(raw);
@@ -1268,7 +1271,7 @@ class CategoryChipsStyleConfig {
       activeTextColor: json['active_text_color'] as String? ?? '#0F0F0F',
       inactiveBgColor: resolvedInactive,
       inactiveTextColor: json['inactive_text_color'] as String? ?? '#FFFFFF',
-      borderRadius: (json['border_radius'] as num?)?.toDouble() ?? 20.0,
+      borderRadius: (json['border_radius'] as num?)?.toDouble() ?? 24.0,
       borderColor: json['border_color'] as String? ?? 'transparent',
       borderWidth: (json['border_width'] as num?)?.toDouble() ?? 0.0,
       separateHomeAndUpcoming: json['separate_home_and_upcoming'] as bool? ?? false,
@@ -1278,7 +1281,7 @@ class CategoryChipsStyleConfig {
       ),
       upcomingOverride: ChipOverrideStyle.fromJson(
         _deepCastMap(json['upcoming_override']),
-        defaultRadius: 20.0,
+        defaultRadius: 24.0,
       ),
     );
   }

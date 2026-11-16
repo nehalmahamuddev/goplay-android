@@ -537,6 +537,73 @@ class ShowTrendingTabNotifier extends Notifier<bool> {
   }
 }
 
+// ─── User Preference: Show Live Tab Counter ──────────────────────
+final showLiveTabCounterProvider =
+    NotifierProvider<ShowLiveTabCounterNotifier, bool>(
+  ShowLiveTabCounterNotifier.new,
+);
+
+class ShowLiveTabCounterNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    return ref.read(cacheServiceProvider).getShowLiveTabCounterUserPref();
+  }
+
+  Future<void> toggle(bool enabled) async {
+    state = enabled;
+    await ref.read(cacheServiceProvider).saveShowLiveTabCounterUserPref(enabled);
+  }
+}
+
+// ─── User Preference: Show Sport Category Icons ──────────────────
+final showSportCategoryIconsProvider =
+    NotifierProvider<ShowSportCategoryIconsNotifier, bool>(
+  ShowSportCategoryIconsNotifier.new,
+);
+
+class ShowSportCategoryIconsNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    return ref.read(cacheServiceProvider).getShowSportCategoryIconsUserPref();
+  }
+
+  Future<void> toggle(bool enabled) async {
+    state = enabled;
+    await ref.read(cacheServiceProvider).saveShowSportCategoryIconsUserPref(enabled);
+  }
+}
+
+/// Resolves a relevant Material sport icon for a given sport name or category.
+IconData getSportCategoryIcon(String sport) {
+  final s = sport.trim().toLowerCase();
+  if (s == 'all') return Icons.sports_rounded;
+  if (s.contains('cricket')) return Icons.sports_cricket_rounded;
+  if (s.contains('football') || s.contains('soccer')) return Icons.sports_soccer_rounded;
+  if (s.contains('motor') || s.contains('racing') || s.contains('formula') || s.contains('f1')) {
+    return Icons.sports_motorsports_rounded;
+  }
+  if (s.contains('tennis') || s.contains('badminton') || s.contains('ping pong') || s.contains('table tennis')) {
+    return Icons.sports_tennis_rounded;
+  }
+  if (s.contains('basket')) return Icons.sports_basketball_rounded;
+  if (s.contains('volley')) return Icons.sports_volleyball_rounded;
+  if (s.contains('base')) return Icons.sports_baseball_rounded;
+  if (s.contains('golf')) return Icons.sports_golf_rounded;
+  if (s.contains('rugby') || s.contains('american football') || s.contains('nfl')) {
+    return Icons.sports_rugby_rounded;
+  }
+  if (s.contains('box') || s.contains('mma') || s.contains('ufc') || s.contains('fight')) {
+    return Icons.sports_mma_rounded;
+  }
+  if (s.contains('wrestl') || s.contains('kabaddi')) return Icons.sports_kabaddi_rounded;
+  if (s.contains('cycl') || s.contains('bike')) return Icons.directions_bike_rounded;
+  if (s.contains('swim') || s.contains('pool')) return Icons.pool_rounded;
+  if (s.contains('dart')) return Icons.adjust_rounded;
+  if (s.contains('hockey')) return Icons.sports_hockey_rounded;
+  if (s.contains('handball')) return Icons.sports_handball_rounded;
+  return Icons.sports_rounded;
+}
+
 // ─── Favorites (persisted to Hive) ────────────────────────────
 final favoriteChannelIdsProvider =
     NotifierProvider<FavoriteNotifier, Set<String>>(

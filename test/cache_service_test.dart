@@ -18,6 +18,8 @@ void main() {
       expect(cache.getLocalEvents(), isEmpty);
       expect(cache.getLocalAnnouncements(), isEmpty);
       expect(cache.getFavoriteChannelIds(), isEmpty);
+      expect(cache.getShowTrendingTabUserPref(), isTrue);
+      expect(cache.getShowLiveTabCounterUserPref(), isFalse);
       expect(cache.getLocalChannelsVersion(), isNull);
       expect(cache.getLocalEventsVersion(), isNull);
     });

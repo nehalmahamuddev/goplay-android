@@ -159,7 +159,10 @@ void showChannelSelector({
                           // not everything in the channel's category.
                           context.push(
                             '/player/${channel.id}',
-                            extra: {'eventChannels': event.channels},
+                            extra: {
+                              'eventChannels': event.channels,
+                              'sportEvent': event,
+                            },
                           );
                         },
                       ),

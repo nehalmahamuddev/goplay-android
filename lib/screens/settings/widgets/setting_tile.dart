@@ -138,7 +138,7 @@ class SettingSwitchTile extends StatelessWidget {
       trailing: Switch(
         value: value,
         onChanged: enabled ? onChanged : null,
-        activeThumbColor: Colors.white,
+        activeThumbColor: cs.onPrimary,
         activeTrackColor: cs.primary,
         inactiveThumbColor: const Color(0xFFB0B0B0),
         inactiveTrackColor: const Color(0xFF2C2C2E),

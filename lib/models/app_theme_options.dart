@@ -349,6 +349,13 @@ enum AppThemeMode {
         thickness: 1,
         space: 1,
       ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) =>
+            states.contains(WidgetState.selected) ? scheme.onPrimary : onSurfaceMutedColor),
+        trackColor: WidgetStateProperty.resolveWith((states) =>
+            states.contains(WidgetState.selected) ? scheme.primary : surfaceContainerHigh),
+        trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+      ),
     );
   }
 }

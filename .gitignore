@@ -52,6 +52,8 @@ dart_devtools_*.json
 .kilo/
 .claude/
 graphify-out/
+graft/
+skills-lock.json
 
 # Binary APKs and bundles
 *.apk

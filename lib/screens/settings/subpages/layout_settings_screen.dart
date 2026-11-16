@@ -22,6 +22,8 @@ class LayoutSettingsScreen extends ConsumerWidget {
     final headerBg = theme.bottomNavigationBarTheme.backgroundColor ?? themeMode.bottomNavColor;
 
     final showTrending = ref.watch(showTrendingTabProvider);
+    final showLiveTabCounter = ref.watch(showLiveTabCounterProvider);
+    final showSportCategoryIcons = ref.watch(showSportCategoryIconsProvider);
     final uiConfig = ref.watch(uiConfigProvider);
     final tabConfig = uiConfig.channelsTab;
 
@@ -121,6 +123,24 @@ class LayoutSettingsScreen extends ConsumerWidget {
                 value: showTrending,
                 onChanged: (val) {
                   ref.read(showTrendingTabProvider.notifier).toggle(val);
+                },
+              ),
+              SettingSwitchTile(
+                icon: Icons.numbers_rounded,
+                title: 'Show Live Tab Counter',
+                subtitle: 'Display active match count on the Live tab in Events',
+                value: showLiveTabCounter,
+                onChanged: (val) {
+                  ref.read(showLiveTabCounterProvider.notifier).toggle(val);
+                },
+              ),
+              SettingSwitchTile(
+                icon: Icons.sports_rounded,
+                title: 'Sport Category Icons',
+                subtitle: 'Display sport icons inside category filter pills in Events',
+                value: showSportCategoryIcons,
+                onChanged: (val) {
+                  ref.read(showSportCategoryIconsProvider.notifier).toggle(val);
                 },
               ),
               SettingSwitchTile(

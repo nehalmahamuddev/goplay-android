@@ -3,6 +3,10 @@
     "supabase": {
       "type": "http",
       "url": "https://mcp.supabase.com/mcp"
+    },
+    "allsvgicons": {
+      "type": "http",
+      "url": "https://i.allsvgicons.com/mcp"
     }
   }
 }

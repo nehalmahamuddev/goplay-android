@@ -195,6 +195,30 @@ class CacheService {
     await box.put('user_show_trending_tab', enabled);
   }
 
+  // ─── User Preference: Show Live Tab Counter ──────────────────
+  bool getShowLiveTabCounterUserPref() {
+    final box = _boxOrNull(AppConstants.settingsBox);
+    return box?.get('user_show_live_tab_counter') as bool? ?? false;
+  }
+
+  Future<void> saveShowLiveTabCounterUserPref(bool enabled) async {
+    final box = _boxOrNull(AppConstants.settingsBox);
+    if (box == null) return;
+    await box.put('user_show_live_tab_counter', enabled);
+  }
+
+  // ─── User Preference: Show Sport Category Icons ──────────────
+  bool getShowSportCategoryIconsUserPref() {
+    final box = _boxOrNull(AppConstants.settingsBox);
+    return box?.get('user_show_sport_category_icons') as bool? ?? true;
+  }
+
+  Future<void> saveShowSportCategoryIconsUserPref(bool enabled) async {
+    final box = _boxOrNull(AppConstants.settingsBox);
+    if (box == null) return;
+    await box.put('user_show_sport_category_icons', enabled);
+  }
+
   // ─── Sync Versions ──────────────────────────────────────────
   int? getLocalChannelsVersion() =>
       _boxOrNull(AppConstants.settingsBox)?.get('channels_version') as int?;

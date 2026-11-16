@@ -10,6 +10,7 @@ import '../../core/theme.dart';
 import '../../core/typography.dart';
 import '../../providers/app_providers.dart';
 import '../../models/channel.dart';
+import '../../models/category.dart';
 import '../../models/event.dart';
 import '../../widgets/player/channel_video_player.dart';
 import '../../widgets/tv_focus_wrapper.dart';
@@ -513,6 +514,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final channelsAsync = ref.watch(channelsProvider);
+    final categoriesAsync = ref.watch(categoriesProvider);
     final mq = MediaQuery.of(context);
     // TV detection: matches improved logic from ShellScreen
     final isTv = mq.navigationMode == NavigationMode.directional ||
@@ -678,6 +680,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   ? () => _selectChannel(nextChannel.id, allChannels)
                   : null;
 
+              // Compute dynamic section title for related channels panel
+              String sectionTitle = 'SWITCH CHANNEL';
+              if (widget.sportEvent == null &&
+                  channel.category != null &&
+                  channel.category!.trim().isNotEmpty) {
+                final catTrimmed = channel.category!.trim();
+                final categories = categoriesAsync.asData?.value;
+                final matchedCategory = categories?.cast<Category?>().firstWhere(
+                      (c) =>
+                          c != null &&
+                          (c.id.toLowerCase() == catTrimmed.toLowerCase() ||
+                              c.name.toLowerCase() == catTrimmed.toLowerCase()),
+                      orElse: () => null,
+                    );
+                final rawName = (matchedCategory?.name.trim().isNotEmpty == true)
+                    ? matchedCategory!.name.trim()
+                    : catTrimmed;
+                final upper = rawName.toUpperCase();
+                sectionTitle = upper.endsWith(' CHANNELS') ? upper : '$upper CHANNELS';
+              }
+
               // WIDESCREEN / TV RESPONSIVE SPLIT LAYOUT (NON-FULLSCREEN)
               if (isWide && !isFullscreen) {
                 return Row(
@@ -777,7 +800,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                         setState(() => _activeServerIndex = index);
                                       },
                                     ),
-                                  const _SectionLabel(text: 'SWITCH CHANNEL'),
+                                  _SectionLabel(text: sectionTitle),
                                   Expanded(
                                     child: _RelatedChannelsList(
                                       category: channel.category ?? '',
@@ -834,7 +857,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                       activeServerIndex: _activeServerIndex,
                                       onServerSelected: _handleServerSelected,
                                     ),
-                                  const _SectionLabel(text: 'SWITCH CHANNEL'),
+                                  _SectionLabel(text: sectionTitle),
                                   Expanded(
                                     child: _RelatedChannelsList(
                                       category: channel.category ?? '',

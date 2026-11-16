@@ -124,8 +124,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         const SizedBox(height: 8),
                         _RailNavItem(
                           focusNode: _navFocusNodes[3],
-                          icon: Icons.sports_soccer_outlined,
-                          selectedIcon: Icons.sports_soccer_rounded,
+                          svgAsset: 'assets/images/events.svg',
+                          selectedSvgAsset: 'assets/images/events_filled.svg',
                           label: 'Events',
                           isSelected: index == 3,
                           onTap: () => _goBranch(3),
@@ -186,8 +186,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     ref.watch(uiConfigProvider).navigationBranding.enabledTabs.contains('events'))
                   _NavItem(
                     focusNode: _navFocusNodes[3],
-                    icon: Icons.sports_soccer_outlined,
-                    selectedIcon: Icons.sports_soccer_rounded,
+                    svgAsset: 'assets/images/events.svg',
+                    selectedSvgAsset: 'assets/images/events_filled.svg',
                     label: 'Events',
                     isSelected: index == 3,
                     onTap: () => _goBranch(3),

@@ -405,7 +405,11 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
     final headerBg = theme.bottomNavigationBarTheme.backgroundColor ?? themeMode.bottomNavColor;
     final sportsAsync = ref.watch(sortedSportCategoriesProvider);
     final selectedSport = ref.watch(selectedSportFilterProvider);
-    final liveEventsCount = ref.watch(liveEventsProvider).value?.length ?? 0;
+    final showLiveTabCounter = ref.watch(showLiveTabCounterProvider);
+    final showSportCategoryIcons = ref.watch(showSportCategoryIconsProvider);
+    final liveEventsCount = showLiveTabCounter
+        ? (ref.watch(liveEventsProvider).value?.length ?? 0)
+        : 0;
     final uiConfig = ref.watch(uiConfigProvider);
 
     final hasOverride = uiConfig.componentStyles.categoryChips.useCustomOverride;
@@ -414,13 +418,17 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
         : cs.primary;
     final inactiveBg = hasOverride
         ? GoPlayTheme.parseHex(uiConfig.resolveCategoryChipInactiveBg(isHome: false))
-        : theme.cardColor;
+        : (isDark
+            ? Color.alphaBlend(cs.primary.withValues(alpha: 0.09), cs.surfaceContainerHigh)
+            : Color.alphaBlend(cs.primary.withValues(alpha: 0.06), cs.surfaceContainerHigh));
     final activeTextColor = hasOverride
         ? GoPlayTheme.parseHex(uiConfig.resolveCategoryChipActiveTextColor(isHome: false))
         : cs.onPrimary;
     final inactiveTextColor = hasOverride
         ? GoPlayTheme.parseHex(uiConfig.resolveCategoryChipInactiveTextColor(isHome: false))
-        : cs.onSurface;
+        : (isDark
+            ? cs.onSurface.withValues(alpha: 0.88)
+            : cs.onSurface.withValues(alpha: 0.75));
     final chipRadius = uiConfig.resolveCategoryChipRadius(isHome: false);
 
     final overlayStyle = SystemUiOverlayStyle(
@@ -479,11 +487,12 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
                       ),
                       sportChips: sportsAsync.when(
                         data: (sports) => SizedBox(
-                          height: 44,
+                          height: 36,
                           child: ListView.separated(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.only(
+                                left: 10, right: 10, bottom: 4),
                             scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
                             itemCount: sports.length,
                             separatorBuilder: (context, index) =>
                                 const SizedBox(width: 8),
@@ -491,6 +500,7 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
                               final sport = sports[index];
                               final isSelected = sport.toLowerCase() ==
                                   selectedSport.toLowerCase();
+                              final textColor = isSelected ? activeTextColor : inactiveTextColor;
                               return TvFocusable(
                                 borderRadius: BorderRadius.circular(chipRadius),
                                 onTap: () {
@@ -499,25 +509,41 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
                                       .select(sport);
                                 },
                                 child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 6),
+                                  duration: const Duration(milliseconds: 150),
+                                  curve: Curves.easeInOut,
+                                  padding: EdgeInsets.symmetric(
+                                      horizontal: showSportCategoryIcons ? 11 : 14,
+                                      vertical: 6),
                                   decoration: BoxDecoration(
                                     color: isSelected ? activeBg : inactiveBg,
                                     borderRadius:
                                         BorderRadius.circular(chipRadius),
                                   ),
-                                  child: Text(
-                                    sport,
-                                    style: TextStyle(
-                                      fontFamily: GoPlayType.family,
-                                      fontSize: 12,
-                                      fontWeight: isSelected
-                                          ? FontWeight.w700
-                                          : FontWeight.w500,
-                                      color: isSelected
-                                          ? activeTextColor
-                                          : inactiveTextColor,
+                                  child: Center(
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (showSportCategoryIcons) ...[
+                                          Icon(
+                                            getSportCategoryIcon(sport),
+                                            size: 13.5,
+                                            color: textColor,
+                                          ),
+                                          const SizedBox(width: 4.5),
+                                        ],
+                                        Text(
+                                          sport,
+                                          style: TextStyle(
+                                            fontFamily: GoPlayType.family,
+                                            fontSize: GoPlayType.sm,
+                                            fontWeight: isSelected
+                                                ? FontWeight.w700
+                                                : FontWeight.w500,
+                                            color: textColor,
+                                            height: GoPlayType.leadingSnug,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
@@ -525,7 +551,7 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
                             },
                           ),
                         ),
-                        loading: () => const SizedBox(height: 44),
+                        loading: () => const SizedBox(height: 36),
                         error: (err, stack) => const SizedBox.shrink(),
                       ),
                       tabBar: TabBar(
@@ -536,18 +562,18 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
                         padding: const EdgeInsets.only(left: 4),
                         labelPadding:
                             const EdgeInsets.symmetric(horizontal: 12),
-                        indicator: const UnderlineTabIndicator(
+                        indicator: UnderlineTabIndicator(
                           borderSide: BorderSide(
-                              color: GoPlayTheme.primary, width: 3.0),
+                              color: cs.primary, width: 3.0),
                           borderRadius:
-                              BorderRadius.all(Radius.circular(1.5)),
+                              const BorderRadius.all(Radius.circular(1.5)),
                         ),
                         indicatorSize: TabBarIndicatorSize.label,
                         indicatorPadding: const EdgeInsets.only(bottom: 2),
                         dividerColor: Colors.transparent,
                         dividerHeight: 0,
-                        labelColor: GoPlayTheme.primary,
-                        unselectedLabelColor: GoPlayTheme.onSurfaceVariant,
+                        labelColor: cs.primary,
+                        unselectedLabelColor: cs.onSurface.withValues(alpha: 0.65),
                         labelStyle: GoPlayType.label.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
@@ -556,8 +582,9 @@ class _UpcomingScreenState extends ConsumerState<UpcomingScreen>
                         ),
                         tabs: [
                           Tab(
-                            text:
-                                'Live${liveEventsCount > 0 ? ' ($liveEventsCount)' : ''}',
+                            text: (showLiveTabCounter && liveEventsCount > 0)
+                                ? 'Live ($liveEventsCount)'
+                                : 'Live',
                           ),
                           const Tab(text: 'Today'),
                           const Tab(text: 'Tomorrow'),
@@ -989,8 +1016,8 @@ class _UpcomingHeaderDelegate extends SliverPersistentHeaderDelegate {
   final Color backgroundColor;
 
   static const double _searchHeight = 54.0;
-  static const double _chipsHeight = 44.0;
-  static const double _collapsibleHeight = _searchHeight + _chipsHeight; // 98.0
+  static const double _chipsHeight = 36.0;
+  static const double _collapsibleHeight = _searchHeight + _chipsHeight; // 90.0
 
   _UpcomingHeaderDelegate({
     required this.statusBarHeight,

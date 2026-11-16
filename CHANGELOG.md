@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.4.2] - 2026-11-16
+
+• Dynamic category title in player screen: replaced static "SWITCH CHANNEL" with channel category title (e.g. BANGLA CHANNELS, SPORTS CHANNELS).
+• YouTube-style video quality selection popup with manual track override, resolution badges, and pure white active state.
+• Custom vector SVG icons for Events tab with distinct solid filled states across mobile bottom bar and TV rail.
+• New layout settings toggles for sport category filter icons and live match badge counters in Events tab.
+• Refined event cards and category chip pill radius with polished borderless switch theme.
+• General UI polish, performance optimizations, and stability improvements.
+
+---
+
 ## [2.4.1] - 2026-11-12
 
 • Redesigned event card surface with custom bottom notch for non-hot matches.
