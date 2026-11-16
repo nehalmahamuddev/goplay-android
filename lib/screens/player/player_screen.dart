@@ -12,8 +12,10 @@ import '../../providers/app_providers.dart';
 import '../../models/channel.dart';
 import '../../models/category.dart';
 import '../../models/event.dart';
+import 'package:go_router/go_router.dart';
 import '../../widgets/player/channel_video_player.dart';
 import '../../widgets/tv_focus_wrapper.dart';
+import '../../widgets/main_bottom_nav_bar.dart';
 import '../../services/stream_decryptor.dart';
 
 // ─── Pre-cached top-level constants — zero per-frame allocations ─
@@ -545,6 +547,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         onKeyEvent: _handlePlayerKeyEvent,
         child: Scaffold(
           backgroundColor: cs.surface,
+          bottomNavigationBar: (!isWide && !isFullscreen)
+              ? MainBottomNavBar(
+                  currentIndex: 2,
+                  onTap: (targetIndex) {
+                    switch (targetIndex) {
+                      case 0:
+                        context.go('/home');
+                        break;
+                      case 1:
+                        context.go('/categories');
+                        break;
+                      case 2:
+                        context.go('/channels');
+                        break;
+                      case 3:
+                        context.go('/upcoming');
+                        break;
+                    }
+                  },
+                )
+              : null,
           body: DecoratedBox(
             decoration: BoxDecoration(color: cs.surface),
           child: channelsAsync.when(

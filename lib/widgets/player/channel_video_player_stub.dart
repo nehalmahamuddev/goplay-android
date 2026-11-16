@@ -149,6 +149,17 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
 
   final ValueNotifier<double?> _brightnessOsdNotifier = ValueNotifier<double?>(null);
   final ValueNotifier<double?> _volumeOsdNotifier = ValueNotifier<double?>(null);
+  final ValueNotifier<String?> _gestureToastNotifier = ValueNotifier<String?>(null);
+  Timer? _gestureToastTimer;
+  static const _keysChannel = MethodChannel('com.goplay/player_keys');
+
+  bool _swipeGesturesEnabled = true;
+  bool _extraBrightnessEnabled = false;
+  bool _doubleTapSeekEnabled = false;
+  bool _isVolumeLocked = false;
+  bool _isBrightnessLocked = false;
+  bool _hasShownThresholdToast = false;
+  bool _hasShownVolumeBoostToast = false;
 
   // Unified Drag/Pan & Scrubbing state
   _DragType _dragType = _DragType.none;
@@ -195,23 +206,98 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
 
   void _handleDoubleTapDown(TapDownDetails details) {
     if (_isLocked) return;
+    _loadGestureSettings();
     final width = MediaQuery.of(context).size.width;
     final x = details.localPosition.dx;
     if (x < width * 0.35) {
-      _onDoubleTapSeek(-10);
+      if (_doubleTapSeekEnabled) {
+        _onDoubleTapSeek(-10);
+      }
     } else if (x > width * 0.65) {
-      _onDoubleTapSeek(10);
+      if (_doubleTapSeekEnabled) {
+        _onDoubleTapSeek(10);
+      }
     } else {
       widget.onFullscreenToggle?.call();
     }
   }
 
+  void _loadGestureSettings() {
+    try {
+      if (Hive.isBoxOpen(AppConstants.settingsBox)) {
+        final box = Hive.box(AppConstants.settingsBox);
+        _swipeGesturesEnabled = box.get(AppConstants.volumeBrightnessGesturesKey) as bool? ?? true;
+        _extraBrightnessEnabled = box.get(AppConstants.extraBrightnessKey) as bool? ?? false;
+        _doubleTapSeekEnabled = box.get(AppConstants.doubleTapSeekKey) as bool? ?? false;
+      }
+    } catch (_) {}
+  }
+
+  void _showGestureToast(String message) {
+    _gestureToastTimer?.cancel();
+    _gestureToastNotifier.value = message;
+    _gestureToastTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        _gestureToastNotifier.value = null;
+      }
+    });
+  }
+
+  Future<void> _fetchInitialPlayerState() async {
+    try {
+      final state = await _methodChannel?.invokeMapMethod<String, dynamic>('getInitialState');
+      if (state != null && mounted) {
+        final vol = (state['volume'] as num?)?.toDouble();
+        final bri = (state['brightness'] as num?)?.toDouble();
+        if (vol != null) {
+          _volume = vol.clamp(0.0, 1.0);
+          _isMuted = _volume == 0;
+        }
+        if (bri != null) {
+          _brightness = bri.clamp(0.004, 1.0);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching initial player state: $e');
+    }
+  }
+
+  Future<dynamic> _handleKeyMethodCall(MethodCall call) async {
+    if (!mounted) return;
+    switch (call.method) {
+      case 'onVolumeKeyDelta':
+        final delta = (call.arguments as num?)?.toDouble() ?? 0.0;
+        _handleVolumeKeyDelta(delta);
+        break;
+    }
+  }
+
+  void _handleVolumeKeyDelta(double delta) {
+    final prev = _volume;
+    final next = (_volume + delta).clamp(0.0, 2.0);
+    if (prev <= 1.0 && next > 1.0 && !_hasShownVolumeBoostToast) {
+      _hasShownVolumeBoostToast = true;
+      _showGestureToast('Volume exceeded 100% (Boost)');
+    } else if (next <= 1.0) {
+      _hasShownVolumeBoostToast = false;
+    }
+    _volume = next;
+    _isMuted = _volume == 0;
+    _methodChannel?.invokeMethod('setVolume', _volume);
+    _volumeOsdNotifier.value = _volume;
+    _startOsdHideTimer();
+  }
+
   void _handlePanStart(DragStartDetails details) {
     if (_isLocked) return;
+    _loadGestureSettings();
     _dragStartPosition = details.localPosition;
     _dragStartSeekPosition = _position;
     _dragType = _DragType.none;
     _osdHideTimer?.cancel();
+    _isVolumeLocked = _volume < 1.0;
+    _isBrightnessLocked = _brightness < 1.0;
+    _hasShownThresholdToast = false;
   }
 
   void _handlePanUpdate(DragUpdateDetails details) {
@@ -234,7 +320,8 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         _seekDeltaNotifier.value = Duration.zero;
       } else if (dy.abs() > dx.abs()) {
         // Vertical swipe -> Brightness (left half) or Volume (right half)
-        if (widget.isFullscreen) {
+        // Respect settings toggle & fullscreen mode
+        if (widget.isFullscreen && _swipeGesturesEnabled) {
           if (_dragStartPosition.dx < screen.width / 2) {
             _dragType = _DragType.brightness;
             _brightnessOsdNotifier.value = _brightness;
@@ -259,12 +346,35 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
       _seekDeltaNotifier.value = Duration(milliseconds: targetMs - _dragStartSeekPosition.inMilliseconds);
     } else if (_dragType == _DragType.brightness) {
       final delta = -details.delta.dy / (screen.height * 0.7);
-      _brightness = (_brightness + delta).clamp(0.01, 1.0);
-      _methodChannel?.invokeMethod('setBrightness', _brightness);
+      final raw = _brightness + delta;
+      double next;
+      final maxAllowed = _extraBrightnessEnabled ? 2.0 : 1.0;
+      if (_isBrightnessLocked || !_extraBrightnessEnabled) {
+        next = raw.clamp(0.004, 1.0);
+        if (_extraBrightnessEnabled && raw > 1.0 && !_hasShownThresholdToast) {
+          _hasShownThresholdToast = true;
+          _showGestureToast('Slide up again to exceed 100%');
+        }
+      } else {
+        next = raw.clamp(0.004, maxAllowed);
+      }
+      _brightness = next;
+      _methodChannel?.invokeMethod('setBrightness', _brightness.clamp(0.004, 1.0));
       _brightnessOsdNotifier.value = _brightness;
     } else if (_dragType == _DragType.volume) {
       final delta = -details.delta.dy / (screen.height * 0.7);
-      _volume = (_volume + delta).clamp(0.0, 1.0);
+      final raw = _volume + delta;
+      double next;
+      if (_isVolumeLocked) {
+        next = raw.clamp(0.0, 1.0);
+        if (raw > 1.0 && !_hasShownThresholdToast) {
+          _hasShownThresholdToast = true;
+          _showGestureToast('Slide up again to exceed 100%');
+        }
+      } else {
+        next = raw.clamp(0.0, 2.0);
+      }
+      _volume = next;
       _isMuted = _volume == 0;
       _methodChannel?.invokeMethod('setVolume', _volume);
       _volumeOsdNotifier.value = _volume;
@@ -292,7 +402,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
 
   void _startOsdHideTimer() {
     _osdHideTimer?.cancel();
-    _osdHideTimer = Timer(const Duration(milliseconds: 1200), () {
+    _osdHideTimer = Timer(const Duration(milliseconds: 1500), () {
       if (mounted) {
         _brightnessOsdNotifier.value = null;
         _volumeOsdNotifier.value = null;
@@ -419,6 +529,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
     if (widget.channel.streamUrl.contains('otte.cache.aiv-cdn.net')) {
       LocalProxy.startKkx4Auth();
     }
+    _fetchInitialPlayerState();
   }
 
   // ─── Method call handler ─────────────────────────────────────────
@@ -1446,6 +1557,9 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
   void initState() {
     super.initState();
     _isLocked = widget.isLocked;
+    _loadGestureSettings();
+    _keysChannel.setMethodCallHandler(_handleKeyMethodCall);
+    _keysChannel.invokeMethod('setPlayerFullscreen', widget.isFullscreen);
 
     try {
       if (Hive.isBoxOpen(AppConstants.settingsBox)) {
@@ -1518,6 +1632,9 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
   @override
   void didUpdateWidget(ChannelVideoPlayerNative oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.isFullscreen != widget.isFullscreen) {
+      _keysChannel.invokeMethod('setPlayerFullscreen', widget.isFullscreen);
+    }
     if (oldWidget.isLocked != widget.isLocked) {
       _isLocked = widget.isLocked;
     }
@@ -1742,6 +1859,10 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
     if (widget.channel.streamUrl.contains('otte.cache.aiv-cdn.net')) {
       LocalProxy.stopKkx4Auth();
     }
+    _gestureToastTimer?.cancel();
+    _gestureToastNotifier.dispose();
+    _keysChannel.invokeMethod('setPlayerFullscreen', false);
+    _keysChannel.setMethodCallHandler(null);
     _methodChannel?.setMethodCallHandler(null);
     super.dispose();
   }
@@ -1774,6 +1895,25 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
                   onPlatformViewCreated: _onPlatformViewCreated,
                 ),
               ),
+
+              // ── Extra Brightness Filter Overlay (Fullscreen) ──
+              if (widget.isFullscreen)
+                ValueListenableBuilder<double?>(
+                  valueListenable: _brightnessOsdNotifier,
+                  builder: (context, value, child) {
+                    if (!_extraBrightnessEnabled || _brightness <= 1.0) {
+                      return const SizedBox.shrink();
+                    }
+                    final extraAlpha = ((_brightness - 1.0).clamp(0.0, 1.0) * 0.40);
+                    return Positioned.fill(
+                      child: IgnorePointer(
+                        child: ColoredBox(
+                          color: Colors.white.withValues(alpha: extraAlpha),
+                        ),
+                      ),
+                    );
+                  },
+                ),
 
               // Buffering indicator (isolated — when controls are hidden)
               if (_isBuffering && !widget.showControls)
@@ -1873,6 +2013,43 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
                   ),
                 ),
               ],
+
+              // ── Gesture Hint Toast Pill ──
+              ValueListenableBuilder<String?>(
+                valueListenable: _gestureToastNotifier,
+                builder: (context, msg, _) {
+                  if (msg == null) return const SizedBox.shrink();
+                  return Positioned(
+                    bottom: widget.isFullscreen ? 80 : 36,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: RepaintBoundary(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.8),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                            boxShadow: const [
+                              BoxShadow(color: Colors.black54, blurRadius: 8),
+                            ],
+                          ),
+                          child: Text(
+                            msg,
+                            style: const TextStyle(
+                              fontFamily: GoPlayType.family,
+                              color: Colors.white,
+                              fontSize: GoPlayType.sm,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
 
               // ── State machine status overlay ──
               Positioned(
@@ -3740,64 +3917,83 @@ class _BrightnessOsd extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return ValueListenableBuilder<double?>(
       valueListenable: notifier,
       builder: (context, value, _) {
         if (value == null) return const SizedBox.shrink();
-        final percentage = (value * 100).round();
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                value > 0.6
-                    ? Icons.wb_sunny_rounded
-                    : (value > 0.3 ? Icons.wb_sunny_outlined : Icons.brightness_3_rounded),
-                color: cs.primary,
-                size: 24,
-                shadows: const [Shadow(color: Colors.black87, blurRadius: 4)],
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: 5,
-                height: 90,
-                child: Stack(
-                  alignment: Alignment.bottomCenter,
-                  children: [
-                    Container(
+        final isBoosted = value > 1.0;
+        const boostColor = Color(0xFFFFA726);
+
+        IconData sunIcon;
+        if (value < 0.3) {
+          sunIcon = Icons.brightness_3_rounded;
+        } else if (value < 0.6) {
+          sunIcon = Icons.wb_sunny_outlined;
+        } else {
+          sunIcon = Icons.wb_sunny_rounded;
+        }
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              sunIcon,
+              color: isBoosted ? boostColor : Colors.white,
+              size: 26,
+              shadows: [
+                Shadow(
+                  color: isBoosted ? const Color(0xAAFFA726) : Colors.black87,
+                  blurRadius: isBoosted ? 10 : 6,
+                ),
+                const Shadow(color: Colors.black54, blurRadius: 4),
+              ],
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: 5,
+              height: 120,
+              child: Stack(
+                alignment: Alignment.bottomCenter,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(3),
+                      boxShadow: const [
+                        BoxShadow(color: Colors.black45, blurRadius: 3),
+                      ],
+                    ),
+                  ),
+                  FractionallySizedBox(
+                    heightFactor: value.clamp(0.0, 1.0),
+                    child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.25),
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(3),
+                        boxShadow: const [
+                          BoxShadow(color: Colors.black54, blurRadius: 3),
+                        ],
                       ),
                     ),
+                  ),
+                  if (isBoosted)
                     FractionallySizedBox(
-                      heightFactor: value,
+                      heightFactor: (value - 1.0).clamp(0.0, 1.0),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: cs.primary,
+                          color: boostColor,
                           borderRadius: BorderRadius.circular(3),
-                          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 3)],
+                          boxShadow: const [
+                            BoxShadow(color: Color(0xAAFFA726), blurRadius: 8, spreadRadius: 1),
+                            BoxShadow(color: Colors.black54, blurRadius: 2),
+                          ],
                         ),
                       ),
                     ),
-                  ],
-                ),
+                ],
               ),
-              const SizedBox(height: 10),
-              Text(
-                '$percentage%',
-                style: const TextStyle(
-                  fontFamily: GoPlayType.family,
-                  color: Colors.white,
-                  fontSize: GoPlayType.xs,
-                  fontWeight: FontWeight.w700,
-                  shadows: [Shadow(color: Colors.black87, blurRadius: 4)],
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );
@@ -3811,64 +4007,83 @@ class _VolumeOsd extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return ValueListenableBuilder<double?>(
       valueListenable: notifier,
       builder: (context, value, _) {
         if (value == null) return const SizedBox.shrink();
-        final percentage = (value * 100).round();
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                value == 0
-                    ? Icons.volume_off_rounded
-                    : (value < 0.5 ? Icons.volume_down_rounded : Icons.volume_up_rounded),
-                color: cs.primary,
-                size: 24,
-                shadows: const [Shadow(color: Colors.black87, blurRadius: 4)],
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: 5,
-                height: 90,
-                child: Stack(
-                  alignment: Alignment.bottomCenter,
-                  children: [
-                    Container(
+        final isBoosted = value > 1.0;
+        const boostColor = Color(0xFFFFA726);
+
+        IconData volIcon;
+        if (value <= 0.001) {
+          volIcon = Icons.volume_off_rounded;
+        } else if (value < 0.5) {
+          volIcon = Icons.volume_down_rounded;
+        } else {
+          volIcon = Icons.volume_up_rounded;
+        }
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              volIcon,
+              color: isBoosted ? boostColor : Colors.white,
+              size: 26,
+              shadows: [
+                Shadow(
+                  color: isBoosted ? const Color(0xAAFFA726) : Colors.black87,
+                  blurRadius: isBoosted ? 10 : 6,
+                ),
+                const Shadow(color: Colors.black54, blurRadius: 4),
+              ],
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: 5,
+              height: 120,
+              child: Stack(
+                alignment: Alignment.bottomCenter,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(3),
+                      boxShadow: const [
+                        BoxShadow(color: Colors.black45, blurRadius: 3),
+                      ],
+                    ),
+                  ),
+                  FractionallySizedBox(
+                    heightFactor: value.clamp(0.0, 1.0),
+                    child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.25),
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(3),
+                        boxShadow: const [
+                          BoxShadow(color: Colors.black54, blurRadius: 3),
+                        ],
                       ),
                     ),
+                  ),
+                  if (isBoosted)
                     FractionallySizedBox(
-                      heightFactor: value,
+                      heightFactor: (value - 1.0).clamp(0.0, 1.0),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: cs.primary,
+                          color: boostColor,
                           borderRadius: BorderRadius.circular(3),
-                          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 3)],
+                          boxShadow: const [
+                            BoxShadow(color: Color(0xAAFFA726), blurRadius: 8, spreadRadius: 1),
+                            BoxShadow(color: Colors.black54, blurRadius: 2),
+                          ],
                         ),
                       ),
                     ),
-                  ],
-                ),
+                ],
               ),
-              const SizedBox(height: 10),
-              Text(
-                '$percentage%',
-                style: const TextStyle(
-                  fontFamily: GoPlayType.family,
-                  color: Colors.white,
-                  fontSize: GoPlayType.xs,
-                  fontWeight: FontWeight.w700,
-                  shadows: [Shadow(color: Colors.black87, blurRadius: 4)],
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );

@@ -17,6 +17,11 @@ class AppConstants {
   static const String announcementsBox = 'announcements_cache';
   static const String heroBannersBox = 'hero_banners_cache';
 
+  // Player Gesture Settings Keys
+  static const String volumeBrightnessGesturesKey = 'volume_brightness_gestures_enabled';
+  static const String extraBrightnessKey = 'extra_brightness_enabled';
+  static const String doubleTapSeekKey = 'double_tap_seek_enabled';
+
   // App Info
   static const String appName = 'GoPlay';
   static const String appVersion = '2.4.1';

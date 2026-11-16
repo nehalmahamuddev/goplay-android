@@ -5,6 +5,7 @@ import android.app.PictureInPictureParams
 import android.os.Build
 import android.os.Bundle
 import android.util.Rational
+import android.view.KeyEvent
 import androidx.media3.common.util.UnstableApi
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -13,7 +14,9 @@ import io.flutter.plugin.common.MethodChannel
 @UnstableApi
 class MainActivity : FlutterActivity() {
     private var pipChannel: MethodChannel? = null
+    private var playerKeysChannel: MethodChannel? = null
     private var isPlayerActive = false
+    private var isPlayerFullscreen = false
 
     private fun isTvDevice(): Boolean {
         val uiModeManager = getSystemService(UI_MODE_SERVICE) as? android.app.UiModeManager
@@ -108,6 +111,33 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        playerKeysChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.goplay/player_keys")
+        playerKeysChannel?.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "setPlayerFullscreen" -> {
+                    isPlayerFullscreen = call.arguments as? Boolean ?: false
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (isPlayerFullscreen && !isTvDevice()) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_VOLUME_UP -> {
+                    playerKeysChannel?.invokeMethod("onVolumeKeyDelta", 0.05)
+                    return true
+                }
+                KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                    playerKeysChannel?.invokeMethod("onVolumeKeyDelta", -0.05)
+                    return true
+                }
+            }
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     override fun onUserLeaveHint() {

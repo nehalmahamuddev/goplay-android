@@ -7,6 +7,7 @@ import '../providers/app_providers.dart';
 import '../core/theme.dart';
 import '../core/typography.dart';
 import '../widgets/tv_focus_wrapper.dart';
+import '../widgets/main_bottom_nav_bar.dart';
 
 /// Main shell screen with bottom navigation bar.
 ///
@@ -69,7 +70,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final isTv = MediaQuery.navigationModeOf(context) == NavigationMode.directional ||
         FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
     final isDesktop = isLandscape || isTv;
-    final bottomPadding = MediaQuery.paddingOf(context).bottom;
 
     Widget content;
 
@@ -147,54 +147,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         backgroundColor: cs.surface,
         extendBody: false,
         body: widget.navigationShell,
-        bottomNavigationBar: RepaintBoundary(
-          child: Container(
-            height: 64 + bottomPadding,
-            decoration: BoxDecoration(
-              color: navBarBg,
-            ),
-            padding: EdgeInsets.only(bottom: bottomPadding),
-            child: Row(
-              children: [
-                _NavItem(
-                  focusNode: _navFocusNodes[0],
-                  svgAsset: 'assets/images/home.svg',
-                  selectedSvgAsset: 'assets/images/home_filled.svg',
-                  label: 'Home',
-                  isSelected: index == 0,
-                  onTap: () => _goBranch(0),
-                ),
-                if (ref.watch(uiConfigProvider).navigationBranding.enabledTabs.contains('categories'))
-                  _NavItem(
-                    focusNode: _navFocusNodes[1],
-                    icon: Icons.grid_view_outlined,
-                    selectedIcon: Icons.grid_view_rounded,
-                    label: 'Categories',
-                    isSelected: index == 1,
-                    onTap: () => _goBranch(1),
-                  ),
-                if (ref.watch(uiConfigProvider).navigationBranding.enabledTabs.contains('channels'))
-                  _NavItem(
-                    focusNode: _navFocusNodes[2],
-                    svgAsset: 'assets/images/channels.svg',
-                    selectedSvgAsset: 'assets/images/channels_filled.svg',
-                    label: 'Channels',
-                    isSelected: index == 2,
-                    onTap: () => _goBranch(2),
-                  ),
-                if (ref.watch(uiConfigProvider).navigationBranding.enabledTabs.contains('upcoming') ||
-                    ref.watch(uiConfigProvider).navigationBranding.enabledTabs.contains('events'))
-                  _NavItem(
-                    focusNode: _navFocusNodes[3],
-                    svgAsset: 'assets/images/events.svg',
-                    selectedSvgAsset: 'assets/images/events_filled.svg',
-                    label: 'Events',
-                    isSelected: index == 3,
-                    onTap: () => _goBranch(3),
-                  ),
-              ],
-            ),
-          ),
+        bottomNavigationBar: MainBottomNavBar(
+          currentIndex: index,
+          onTap: _goBranch,
+          focusNodes: _navFocusNodes,
         ),
       );
     }
@@ -300,104 +256,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 }
 
-// ─── Mobile Bottom Nav Item ──────────────────────────────────────
-// Lightweight: InkWell with splash + haptic feedback.
-// No TvFocusable overhead (Focus/Stack/AnimatedScale) on mobile.
-
-class _NavItem extends StatelessWidget {
-  final IconData? icon;
-  final IconData? selectedIcon;
-  final String? svgAsset;
-  final String? selectedSvgAsset;
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final FocusNode? focusNode;
-
-  const _NavItem({
-    this.icon,
-    this.selectedIcon,
-    this.svgAsset,
-    this.selectedSvgAsset,
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-    this.focusNode,
-  }) : assert(icon != null || svgAsset != null, 'Either icon or svgAsset must be provided');
-
-  static final _borderRadius = BorderRadius.circular(10);
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final activeColor = theme.colorScheme.primary;
-    final defaultColor = Colors.white;
-    final itemColor = isSelected ? activeColor : defaultColor;
-    final currentSvg = isSelected ? (selectedSvgAsset ?? svgAsset) : svgAsset;
-
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        child: TvFocusable(
-          focusNode: focusNode,
-          onTap: () {
-            HapticFeedback.selectionClick();
-            onTap();
-          },
-          borderRadius: _borderRadius,
-          child: Container(
-            // 8dp of vertical air instead of 6, with a 22dp glyph instead of
-            // 24: the bar keeps its 64dp height but the icon/label pair stops
-            // filling it edge to edge.
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            color: Colors.transparent,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (currentSvg != null)
-                  SvgPicture.asset(
-                    currentSvg,
-                    width: 22,
-                    height: 22,
-                    colorFilter: ColorFilter.mode(
-                      itemColor,
-                      BlendMode.srcIn,
-                    ),
-                  )
-                else
-                  Icon(
-                    isSelected ? (selectedIcon ?? icon) : icon,
-                    color: itemColor,
-                    size: 22,
-                  ),
-                const SizedBox(height: 4),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoPlayType.inter(
-                        color: itemColor,
-                        fontSize: GoPlayType.xs,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                        height: GoPlayType.leadingFlat,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 // ─── TV Side Rail Nav Item ────────────────────────────────────────
 // Keeps TvFocusable for D-Pad focus ring on TV/desktop.

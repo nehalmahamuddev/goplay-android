@@ -41,6 +41,10 @@ import io.flutter.plugin.platform.PlatformViewFactory
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.StandardMessageCodec
 import android.view.LayoutInflater
+import android.media.AudioManager
+import android.media.audiofx.LoudnessEnhancer
+import android.provider.Settings
+import kotlin.math.roundToInt
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -74,6 +78,10 @@ class NativePlayerView(
     private var fallbackStage = 0
     private var lifecycleCallbacks: Application.ActivityLifecycleCallbacks? = null
     private var preferredQualityHeight: Int = -1
+    private var loudnessEnhancer: LoudnessEnhancer? = null
+    private val audioManager: AudioManager? by lazy {
+        context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    }
 
     init {
         // Setup PlayerView
@@ -153,12 +161,48 @@ class NativePlayerView(
             getActivity(context)?.application?.unregisterActivityLifecycleCallbacks(it)
         }
         methodChannel.setMethodCallHandler(null)
+        try {
+            loudnessEnhancer?.release()
+        } catch (_: Exception) {}
+        loudnessEnhancer = null
         player?.release()
         player = null
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
+            "getInitialState" -> {
+                val am = audioManager
+                val curVolume = if (am != null) {
+                    val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                    val cur = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+                    if (max > 0) cur.toFloat() / max.toFloat() else 0.5f
+                } else {
+                    1.0f
+                }
+                val activity = getActivity(context)
+                val curBrightness = if (activity != null) {
+                    val winBrightness = activity.window.attributes.screenBrightness
+                    if (winBrightness >= 0f) {
+                        winBrightness
+                    } else {
+                        try {
+                            Settings.System.getInt(
+                                activity.contentResolver,
+                                Settings.System.SCREEN_BRIGHTNESS
+                            ) / 255f
+                        } catch (_: Exception) {
+                            0.5f
+                        }
+                    }
+                } else {
+                    0.5f
+                }
+                result.success(mapOf(
+                    "volume" to curVolume.toDouble(),
+                    "brightness" to curBrightness.coerceIn(0.004f, 1.0f).toDouble()
+                ))
+            }
             "play" -> {
                 val args = call.arguments as? Map<*, *>
                 if (args != null) {
@@ -188,7 +232,46 @@ class NativePlayerView(
             }
             "setVolume" -> {
                 val volume = (call.arguments as? Double)?.toFloat() ?: 1.0f
-                player?.volume = volume
+                val am = audioManager
+                if (am != null) {
+                    val maxStep = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                    val curStep = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+                    val targetStep = (volume.coerceIn(0.0f, 1.0f) * maxStep).roundToInt().coerceIn(0, maxStep)
+                    if (targetStep != curStep) {
+                        am.setStreamVolume(AudioManager.STREAM_MUSIC, targetStep, 0)
+                    }
+                }
+                player?.volume = 1.0f
+
+                // Handle LoudnessEnhancer for volume boost above 100% (1.0 to 2.0)
+                if (volume > 1.0f) {
+                    val boost = ((volume - 1.0f) * 1000).toInt()
+                    val existing = loudnessEnhancer
+                    if (existing != null) {
+                        try {
+                            existing.setTargetGain(boost)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error updating LoudnessEnhancer gain", e)
+                        }
+                    } else {
+                        val sessionId = player?.audioSessionId
+                        if (sessionId != null && sessionId != AudioManager.ERROR) {
+                            try {
+                                loudnessEnhancer = LoudnessEnhancer(sessionId).apply {
+                                    setTargetGain(boost)
+                                    enabled = true
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error creating LoudnessEnhancer", e)
+                            }
+                        }
+                    }
+                } else {
+                    try {
+                        loudnessEnhancer?.release()
+                    } catch (_: Exception) {}
+                    loudnessEnhancer = null
+                }
                 result.success(true)
             }
             "setBrightness" -> {
@@ -197,7 +280,7 @@ class NativePlayerView(
                 if (activity != null) {
                     activity.runOnUiThread {
                         val lp = activity.window.attributes
-                        lp.screenBrightness = if (brightness < 0) -1.0f else brightness.coerceIn(0.01f, 1.0f)
+                        lp.screenBrightness = if (brightness < 0) -1.0f else brightness.coerceIn(0.004f, 1.0f)
                         activity.window.attributes = lp
                     }
                     result.success(true)

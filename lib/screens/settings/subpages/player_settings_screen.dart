@@ -19,6 +19,9 @@ class _PlayerSettingsScreenState extends ConsumerState<PlayerSettingsScreen> {
   bool _hwAcceleration = true;
   bool _autoPlay = true;
   bool _backgroundAudio = false;
+  bool _volumeBrightnessGestures = true;
+  bool _extraBrightness = false;
+  bool _doubleTapSeek = false;
   String _selectedBufferMode = 'Balanced';
   String _selectedAspectRatio = '16:9 (Fit)';
   String _selectedQuality = 'Auto';
@@ -34,6 +37,9 @@ class _PlayerSettingsScreenState extends ConsumerState<PlayerSettingsScreen> {
       if (Hive.isBoxOpen(AppConstants.settingsBox)) {
         final box = Hive.box(AppConstants.settingsBox);
         _selectedQuality = box.get('default_video_quality') as String? ?? 'Auto';
+        _volumeBrightnessGestures = box.get(AppConstants.volumeBrightnessGesturesKey) as bool? ?? true;
+        _extraBrightness = box.get(AppConstants.extraBrightnessKey) as bool? ?? false;
+        _doubleTapSeek = box.get(AppConstants.doubleTapSeekKey) as bool? ?? false;
       }
     } catch (_) {}
   }
@@ -188,6 +194,53 @@ class _PlayerSettingsScreenState extends ConsumerState<PlayerSettingsScreen> {
                 subtitle: 'Keep audio active when screen is turned off or navigating away',
                 value: _backgroundAudio,
                 onChanged: (val) => setState(() => _backgroundAudio = val),
+              ),
+
+              const SizedBox(height: 12),
+
+              // ─── Gestures & Controls Section ───
+              const SettingSectionHeader(title: 'Gestures & Controls'),
+              SettingSwitchTile(
+                icon: Icons.swipe_vertical_rounded,
+                title: 'Swipe for Volume & Brightness',
+                subtitle: 'Slide up/down on screen edges in fullscreen to adjust volume and brightness',
+                value: _volumeBrightnessGestures,
+                onChanged: (val) {
+                  setState(() => _volumeBrightnessGestures = val);
+                  try {
+                    if (Hive.isBoxOpen(AppConstants.settingsBox)) {
+                      Hive.box(AppConstants.settingsBox).put(AppConstants.volumeBrightnessGesturesKey, val);
+                    }
+                  } catch (_) {}
+                },
+              ),
+              SettingSwitchTile(
+                icon: Icons.wb_sunny_rounded,
+                title: 'Extra Brightness',
+                subtitle: 'Allows brightening the screen beyond 100% with a display overlay filter',
+                value: _extraBrightness,
+                onChanged: (val) {
+                  setState(() => _extraBrightness = val);
+                  try {
+                    if (Hive.isBoxOpen(AppConstants.settingsBox)) {
+                      Hive.box(AppConstants.settingsBox).put(AppConstants.extraBrightnessKey, val);
+                    }
+                  } catch (_) {}
+                },
+              ),
+              SettingSwitchTile(
+                icon: Icons.touch_app_rounded,
+                title: 'Double-tap to Seek (10s)',
+                subtitle: 'Double-tap left or right side of the screen to seek 10 seconds backward or forward',
+                value: _doubleTapSeek,
+                onChanged: (val) {
+                  setState(() => _doubleTapSeek = val);
+                  try {
+                    if (Hive.isBoxOpen(AppConstants.settingsBox)) {
+                      Hive.box(AppConstants.settingsBox).put(AppConstants.doubleTapSeekKey, val);
+                    }
+                  } catch (_) {}
+                },
               ),
 
               const SizedBox(height: 12),
