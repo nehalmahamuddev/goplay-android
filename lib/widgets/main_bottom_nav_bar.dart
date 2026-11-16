@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../core/typography.dart';
+import '../models/nav_destination.dart';
 import '../providers/app_providers.dart';
 import 'tv_focus_wrapper.dart';
 
@@ -10,14 +11,34 @@ import 'tv_focus_wrapper.dart';
 class MainBottomNavBar extends ConsumerWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
+  final ValueChanged<NavDestination>? onDestinationTap;
   final List<FocusNode>? focusNodes;
 
   const MainBottomNavBar({
     super.key,
     required this.currentIndex,
     required this.onTap,
+    this.onDestinationTap,
     this.focusNodes,
   });
+
+  bool _isDestinationSelected(
+    NavDestination destination,
+    int currentIndex,
+    String selectedCategory,
+    bool hasFavoritesTab,
+  ) {
+    if (destination == NavDestination.favorites) {
+      return currentIndex == 2 && selectedCategory == 'favorite';
+    }
+    if (destination == NavDestination.channels) {
+      if (hasFavoritesTab) {
+        return currentIndex == 2 && selectedCategory != 'favorite';
+      }
+      return currentIndex == 2;
+    }
+    return currentIndex == destination.branchIndex;
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -25,7 +46,10 @@ class MainBottomNavBar extends ConsumerWidget {
     final cs = theme.colorScheme;
     final navBarBg = theme.bottomNavigationBarTheme.backgroundColor ?? cs.surfaceContainerHighest;
     final bottomPadding = MediaQuery.paddingOf(context).bottom;
-    final enabledTabs = ref.watch(uiConfigProvider).navigationBranding.enabledTabs;
+
+    final tabs = ref.watch(customNavTabsProvider);
+    final selectedCategory = ref.watch(selectedCategoryProvider);
+    final hasFavoritesTab = tabs.any((t) => t == NavDestination.favorites);
 
     return RepaintBoundary(
       child: Container(
@@ -36,41 +60,38 @@ class MainBottomNavBar extends ConsumerWidget {
         padding: EdgeInsets.only(bottom: bottomPadding),
         child: Row(
           children: [
-            MainNavItem(
-              focusNode: (focusNodes != null && focusNodes!.isNotEmpty) ? focusNodes![0] : null,
-              svgAsset: 'assets/images/home.svg',
-              selectedSvgAsset: 'assets/images/home_filled.svg',
-              label: 'Home',
-              isSelected: currentIndex == 0,
-              onTap: () => onTap(0),
-            ),
-            if (enabledTabs.contains('categories'))
+            for (int i = 0; i < tabs.length; i++) ...[
               MainNavItem(
-                focusNode: (focusNodes != null && focusNodes!.length > 1) ? focusNodes![1] : null,
-                icon: Icons.grid_view_outlined,
-                selectedIcon: Icons.grid_view_rounded,
-                label: 'Categories',
-                isSelected: currentIndex == 1,
-                onTap: () => onTap(1),
+                focusNode: (focusNodes != null && i < focusNodes!.length) ? focusNodes![i] : null,
+                svgAsset: tabs[i].svgAsset,
+                selectedSvgAsset: tabs[i].selectedSvgAsset,
+                icon: tabs[i].icon,
+                selectedIcon: tabs[i].selectedIcon,
+                label: tabs[i].label,
+                isSelected: _isDestinationSelected(
+                  tabs[i],
+                  currentIndex,
+                  selectedCategory,
+                  hasFavoritesTab,
+                ),
+                onTap: () {
+                  if (tabs[i] == NavDestination.favorites) {
+                    ref.read(selectedCategoryProvider.notifier).select('favorite');
+                  } else if (tabs[i] == NavDestination.channels) {
+                    if (ref.read(selectedCategoryProvider) == 'favorite') {
+                      ref.read(selectedCategoryProvider.notifier).select('all');
+                    }
+                  }
+                  ref.read(lastActiveNavTabProvider.notifier).setActiveTab(tabs[i].id);
+
+                  if (onDestinationTap != null) {
+                    onDestinationTap!(tabs[i]);
+                  } else {
+                    onTap(tabs[i].branchIndex);
+                  }
+                },
               ),
-            if (enabledTabs.contains('channels'))
-              MainNavItem(
-                focusNode: (focusNodes != null && focusNodes!.length > 2) ? focusNodes![2] : null,
-                svgAsset: 'assets/images/channels.svg',
-                selectedSvgAsset: 'assets/images/channels_filled.svg',
-                label: 'Channels',
-                isSelected: currentIndex == 2,
-                onTap: () => onTap(2),
-              ),
-            if (enabledTabs.contains('upcoming') || enabledTabs.contains('events'))
-              MainNavItem(
-                focusNode: (focusNodes != null && focusNodes!.length > 3) ? focusNodes![3] : null,
-                svgAsset: 'assets/images/events.svg',
-                selectedSvgAsset: 'assets/images/events_filled.svg',
-                label: 'Events',
-                isSelected: currentIndex == 3,
-                onTap: () => onTap(3),
-              ),
+            ],
           ],
         ),
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/typography.dart';
 import '../../../providers/app_providers.dart';
 import '../../../providers/theme_provider.dart';
@@ -63,28 +64,44 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
 
     return Scaffold(
       backgroundColor: cs.surface,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          // Pinned App Bar
-          SliverAppBar(
-            pinned: true,
-            floating: false,
-            backgroundColor: headerBg,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            automaticallyImplyLeading: false,
-            leading: IconButton(
-              icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
-              tooltip: 'Back',
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            title: Text(
-              'Data & Cloud Sync',
-              style: TextStyle(
-                fontFamily: GoPlayType.family,
-                fontSize: 20,
+      body: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          } else {
+            context.go('/settings');
+          }
+        },
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            // Pinned App Bar
+            SliverAppBar(
+              pinned: true,
+              floating: false,
+              backgroundColor: headerBg,
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              automaticallyImplyLeading: false,
+              leading: IconButton(
+                icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
+                tooltip: 'Back',
+                onPressed: () {
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  } else {
+                    context.go('/settings');
+                  }
+                },
+              ),
+              title: Text(
+                'Data & Cloud Sync',
+                style: TextStyle(
+                  fontFamily: GoPlayType.family,
+                  fontSize: 20,
                 fontWeight: FontWeight.w700,
                 color: cs.onSurface,
                 letterSpacing: -0.3,
@@ -228,7 +245,8 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 }
 

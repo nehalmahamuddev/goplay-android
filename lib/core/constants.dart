@@ -22,6 +22,11 @@ class AppConstants {
   static const String extraBrightnessKey = 'extra_brightness_enabled';
   static const String doubleTapSeekKey = 'double_tap_seek_enabled';
 
+  // Navigation & Startup Settings Keys
+  static const String customNavTabsKey = 'custom_nav_tabs';
+  static const String defaultLaunchPageKey = 'default_launch_page';
+  static const String lastActiveNavTabKey = 'last_active_nav_tab';
+
   // App Info
   static const String appName = 'GoPlay';
   static const String appVersion = '2.4.1';

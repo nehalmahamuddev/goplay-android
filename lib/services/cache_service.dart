@@ -10,6 +10,7 @@ import '../models/category.dart';
 import '../models/announcement.dart';
 import '../models/hero_banner_item.dart';
 import '../models/app_ui_config.dart';
+import '../models/nav_destination.dart';
 
 /// Service for managing local Hive cache operations for channels, categories,
 /// events, favorites and sync versions.
@@ -217,6 +218,57 @@ class CacheService {
     final box = _boxOrNull(AppConstants.settingsBox);
     if (box == null) return;
     await box.put('user_show_sport_category_icons', enabled);
+  }
+
+  // ─── User Preference: Navigation Tabs & Launch Screen ────────
+  List<String> getCustomNavTabsUserPref() {
+    final box = _boxOrNull(AppConstants.settingsBox);
+    final raw = box?.get(AppConstants.customNavTabsKey);
+    if (raw is List) {
+      final list = raw.cast<String>().where((id) {
+        return NavDestination.values.any((d) => d.id == id);
+      }).toList();
+      if (list.length >= 3 && list.length <= 5) {
+        return list;
+      }
+    }
+    return List<String>.from(NavDestination.defaultTabIds);
+  }
+
+  Future<void> saveCustomNavTabsUserPref(List<String> tabs) async {
+    final box = _boxOrNull(AppConstants.settingsBox);
+    if (box == null) return;
+    await box.put(AppConstants.customNavTabsKey, tabs);
+  }
+
+  String getDefaultLaunchPageUserPref() {
+    final box = _boxOrNull(AppConstants.settingsBox);
+    final raw = box?.get(AppConstants.defaultLaunchPageKey) as String?;
+    if (raw != null && raw.isNotEmpty) {
+      return raw;
+    }
+    return 'home';
+  }
+
+  Future<void> saveDefaultLaunchPageUserPref(String page) async {
+    final box = _boxOrNull(AppConstants.settingsBox);
+    if (box == null) return;
+    await box.put(AppConstants.defaultLaunchPageKey, page);
+  }
+
+  String getLastActiveNavTabUserPref() {
+    final box = _boxOrNull(AppConstants.settingsBox);
+    final raw = box?.get(AppConstants.lastActiveNavTabKey) as String?;
+    if (raw != null && raw.isNotEmpty) {
+      return raw;
+    }
+    return 'home';
+  }
+
+  Future<void> saveLastActiveNavTabUserPref(String tab) async {
+    final box = _boxOrNull(AppConstants.settingsBox);
+    if (box == null) return;
+    await box.put(AppConstants.lastActiveNavTabKey, tab);
   }
 
   // ─── Sync Versions ──────────────────────────────────────────

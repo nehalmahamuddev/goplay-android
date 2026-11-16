@@ -89,12 +89,47 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         debugPrint('Analytics init error: $e');
       }));
 
-      context.go('/home');
+      _navigateToInitialDestination();
     }).catchError((_) {
       if (mounted) {
-        context.go('/home');
+        _navigateToInitialDestination();
       }
     });
+  }
+
+  void _navigateToInitialDestination() {
+    if (!mounted) return;
+    final defaultPage = ref.read(defaultLaunchPageProvider);
+    String target = defaultPage;
+
+    if (target == 'last_used') {
+      target = ref.read(lastActiveNavTabProvider);
+    }
+
+    switch (target) {
+      case 'channels':
+        ref.read(selectedCategoryProvider.notifier).select('all');
+        context.go('/channels');
+        break;
+      case 'favorites':
+        ref.read(selectedCategoryProvider.notifier).select('favorite');
+        context.go('/channels');
+        break;
+      case 'categories':
+        context.go('/categories');
+        break;
+      case 'events':
+      case 'upcoming':
+        context.go('/upcoming');
+        break;
+      case 'settings':
+        context.go('/settings');
+        break;
+      case 'home':
+      default:
+        context.go('/home');
+        break;
+    }
   }
 
   @override

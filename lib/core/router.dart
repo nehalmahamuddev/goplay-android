@@ -17,6 +17,10 @@ import '../screens/settings/subpages/updates_settings_screen.dart';
 import '../screens/settings/subpages/sync_settings_screen.dart';
 import '../screens/settings/subpages/general_settings_screen.dart';
 import '../screens/settings/subpages/account_settings_screen.dart';
+import '../screens/settings/subpages/navigation_tabs_settings_screen.dart';
+import '../screens/settings/subpages/primary_color_settings_screen.dart';
+import '../screens/settings/subpages/app_theme_settings_screen.dart';
+import '../screens/settings/subpages/launch_screen_settings_screen.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 final shellNavigatorKey = GlobalKey<NavigatorState>();
@@ -28,43 +32,6 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/',
       builder: (context, state) => const SplashScreen(),
-    ),
-    GoRoute(
-      path: '/settings',
-      parentNavigatorKey: rootNavigatorKey,
-      builder: (context, state) => const SettingsScreen(),
-      routes: [
-        GoRoute(
-          path: 'general',
-          parentNavigatorKey: rootNavigatorKey,
-          builder: (context, state) => const GeneralSettingsScreen(),
-        ),
-        GoRoute(
-          path: 'player',
-          parentNavigatorKey: rootNavigatorKey,
-          builder: (context, state) => const PlayerSettingsScreen(),
-        ),
-        GoRoute(
-          path: 'layout',
-          parentNavigatorKey: rootNavigatorKey,
-          builder: (context, state) => const LayoutSettingsScreen(),
-        ),
-        GoRoute(
-          path: 'updates',
-          parentNavigatorKey: rootNavigatorKey,
-          builder: (context, state) => const UpdatesSettingsScreen(),
-        ),
-        GoRoute(
-          path: 'sync',
-          parentNavigatorKey: rootNavigatorKey,
-          builder: (context, state) => const SyncSettingsScreen(),
-        ),
-        GoRoute(
-          path: 'account',
-          parentNavigatorKey: rootNavigatorKey,
-          builder: (context, state) => const AccountSettingsScreen(),
-        ),
-      ],
     ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
@@ -105,6 +72,58 @@ final appRouter = GoRouter(
             GoRoute(
               path: '/upcoming',
               builder: (context, state) => const UpcomingScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/settings',
+              builder: (context, state) => const SettingsScreen(isShellTab: true),
+              routes: [
+                GoRoute(
+                  path: 'general',
+                  builder: (context, state) => const GeneralSettingsScreen(),
+                ),
+                GoRoute(
+                  path: 'player',
+                  builder: (context, state) => const PlayerSettingsScreen(),
+                ),
+                GoRoute(
+                  path: 'layout',
+                  builder: (context, state) => const LayoutSettingsScreen(),
+                  routes: [
+                    GoRoute(
+                      path: 'navigation',
+                      builder: (context, state) => const NavigationTabsSettingsScreen(),
+                    ),
+                    GoRoute(
+                      path: 'primary-color',
+                      builder: (context, state) => const PrimaryColorSettingsScreen(),
+                    ),
+                    GoRoute(
+                      path: 'app-theme',
+                      builder: (context, state) => const AppThemeSettingsScreen(),
+                    ),
+                    GoRoute(
+                      path: 'launch-screen',
+                      builder: (context, state) => const LaunchScreenSettingsScreen(),
+                    ),
+                  ],
+                ),
+                GoRoute(
+                  path: 'updates',
+                  builder: (context, state) => const UpdatesSettingsScreen(),
+                ),
+                GoRoute(
+                  path: 'sync',
+                  builder: (context, state) => const SyncSettingsScreen(),
+                ),
+                GoRoute(
+                  path: 'account',
+                  builder: (context, state) => const AccountSettingsScreen(),
+                ),
+              ],
             ),
           ],
         ),

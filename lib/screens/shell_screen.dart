@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/app_providers.dart';
+import '../models/nav_destination.dart';
 import '../core/theme.dart';
 import '../core/typography.dart';
 import '../widgets/tv_focus_wrapper.dart';
@@ -32,7 +33,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   void initState() {
     super.initState();
     _navFocusNodes = List.generate(
-      4,
+      6,
       (i) => FocusNode(debugLabel: 'NavMenu_$i'),
     );
   }
@@ -52,12 +53,46 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     );
   }
 
+  void _handleDestinationTap(NavDestination dest) {
+    if (dest == NavDestination.favorites) {
+      ref.read(selectedCategoryProvider.notifier).select('favorite');
+    } else if (dest == NavDestination.channels) {
+      if (ref.read(selectedCategoryProvider) == 'favorite') {
+        ref.read(selectedCategoryProvider.notifier).select('all');
+      }
+    }
+    ref.read(lastActiveNavTabProvider.notifier).setActiveTab(dest.id);
+    _goBranch(dest.branchIndex);
+  }
+
+  bool _isDestinationSelected(
+    NavDestination destination,
+    int currentIndex,
+    String selectedCategory,
+    bool hasFavoritesTab,
+  ) {
+    if (destination == NavDestination.favorites) {
+      return currentIndex == 2 && selectedCategory == 'favorite';
+    }
+    if (destination == NavDestination.channels) {
+      if (hasFavoritesTab) {
+        return currentIndex == 2 && selectedCategory != 'favorite';
+      }
+      return currentIndex == 2;
+    }
+    return currentIndex == destination.branchIndex;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final navBarBg = theme.bottomNavigationBarTheme.backgroundColor ?? cs.surfaceContainerHighest;
     final index = widget.navigationShell.currentIndex;
+
+    final tabs = ref.watch(customNavTabsProvider);
+    final selectedCategory = ref.watch(selectedCategoryProvider);
+    final hasFavoritesTab = tabs.any((t) => t == NavDestination.favorites);
 
     // Scoped MediaQuery reads. `MediaQuery.of(context)` subscribes to every
     // field — including `viewInsets` — so it rebuilt the whole shell (and every
@@ -89,46 +124,22 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _RailNavItem(
-                        focusNode: _navFocusNodes[0],
-                        svgAsset: 'assets/images/home.svg',
-                        selectedSvgAsset: 'assets/images/home_filled.svg',
-                        label: 'Home',
-                        isSelected: index == 0,
-                        onTap: () => _goBranch(0),
-                      ),
-                      if (ref.watch(uiConfigProvider).navigationBranding.enabledTabs.contains('categories')) ...[
-                        const SizedBox(height: 8),
+                      for (int i = 0; i < tabs.length; i++) ...[
+                        if (i > 0) const SizedBox(height: 8),
                         _RailNavItem(
-                          focusNode: _navFocusNodes[1],
-                          icon: Icons.grid_view_outlined,
-                          selectedIcon: Icons.grid_view_rounded,
-                          label: 'Categories',
-                          isSelected: index == 1,
-                          onTap: () => _goBranch(1),
-                        ),
-                      ],
-                      if (ref.watch(uiConfigProvider).navigationBranding.enabledTabs.contains('channels')) ...[
-                        const SizedBox(height: 8),
-                        _RailNavItem(
-                          focusNode: _navFocusNodes[2],
-                          svgAsset: 'assets/images/channels.svg',
-                          selectedSvgAsset: 'assets/images/channels_filled.svg',
-                          label: 'Channels',
-                          isSelected: index == 2,
-                          onTap: () => _goBranch(2),
-                        ),
-                      ],
-                      if (ref.watch(uiConfigProvider).navigationBranding.enabledTabs.contains('upcoming') ||
-                          ref.watch(uiConfigProvider).navigationBranding.enabledTabs.contains('events')) ...[
-                        const SizedBox(height: 8),
-                        _RailNavItem(
-                          focusNode: _navFocusNodes[3],
-                          svgAsset: 'assets/images/events.svg',
-                          selectedSvgAsset: 'assets/images/events_filled.svg',
-                          label: 'Events',
-                          isSelected: index == 3,
-                          onTap: () => _goBranch(3),
+                          focusNode: (i < _navFocusNodes.length) ? _navFocusNodes[i] : null,
+                          svgAsset: tabs[i].svgAsset,
+                          selectedSvgAsset: tabs[i].selectedSvgAsset,
+                          icon: tabs[i].icon,
+                          selectedIcon: tabs[i].selectedIcon,
+                          label: tabs[i].label,
+                          isSelected: _isDestinationSelected(
+                            tabs[i],
+                            index,
+                            selectedCategory,
+                            hasFavoritesTab,
+                          ),
+                          onTap: () => _handleDestinationTap(tabs[i]),
                         ),
                       ],
                     ],
@@ -150,6 +161,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         bottomNavigationBar: MainBottomNavBar(
           currentIndex: index,
           onTap: _goBranch,
+          onDestinationTap: _handleDestinationTap,
           focusNodes: _navFocusNodes,
         ),
       );

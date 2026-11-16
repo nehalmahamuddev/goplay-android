@@ -41,7 +41,8 @@ class _PreferenceSearchItem {
 /// - 6 Category Tiles (General, Player, Layout, Updates and Backup, Data & Cloud Sync, Accounts and Security).
 /// - Exact Build Stamp Footer ("2.2.2 • commit-hash • build-date") with tap-to-copy.
 class SettingsScreen extends ConsumerStatefulWidget {
-  const SettingsScreen({super.key});
+  final bool isShellTab;
+  const SettingsScreen({super.key, this.isShellTab = false});
 
   @override
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
@@ -216,6 +217,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 12),
+                    if (!widget.isShellTab && Navigator.of(context).canPop())
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: IconButton(
+                          icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
+                          tooltip: 'Back',
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                      ),
 
                     // ─── 1. Profile / Account Header (Screenshot 1) ───
                   InkWell(
@@ -407,7 +417,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       color: cs.onSurfaceVariant.withValues(alpha: 0.6),
                     ),
                     onTap: () {
-                      context.push(item.route);
+                      context.go(item.route);
                     },
                   );
                 },
@@ -422,7 +432,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   icon: Icons.build_rounded,
                   title: 'General',
                   subtitle: 'Language, Downloads, ISP Bypasses, Links',
-                  onTap: () => context.push('/settings/general'),
+                  onTap: () => context.go('/settings/general'),
                 ),
 
                 // Tile 2: Player
@@ -430,7 +440,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   icon: Icons.play_arrow_rounded,
                   title: 'Player',
                   subtitle: 'Subtitles, Player features, Gestures, Layout, Cache',
-                  onTap: () => context.push('/settings/player'),
+                  onTap: () => context.go('/settings/player'),
                 ),
 
                 // Tile 3: Layout
@@ -438,7 +448,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   icon: Icons.format_paint_rounded,
                   title: 'Layout',
                   subtitle: 'Looks, Features, Poster, Toggle UI elements on poster',
-                  onTap: () => context.push('/settings/layout'),
+                  onTap: () => context.go('/settings/layout'),
                 ),
 
                 // Tile 4: Updates and Backup
@@ -446,7 +456,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   icon: Icons.file_download_outlined,
                   title: 'Updates and Backup',
                   subtitle: 'App updates, Backup, Extensions, Actions',
-                  onTap: () => context.push('/settings/updates'),
+                  onTap: () => context.go('/settings/updates'),
                 ),
 
                 // Tile 5: Data & Cloud Sync
@@ -454,7 +464,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   icon: Icons.cloud_sync_rounded,
                   title: 'Data & Cloud Sync',
                   subtitle: 'Sync frequency, Force sync, Clear cache, Reset UI',
-                  onTap: () => context.push('/settings/sync'),
+                  onTap: () => context.go('/settings/sync'),
                 ),
 
                 // Tile 6: Accounts and Security
@@ -462,7 +472,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   icon: Icons.shield_outlined,
                   title: 'Accounts and Security',
                   subtitle: 'Accounts, Security',
-                  onTap: () => context.push('/settings/account'),
+                  onTap: () => context.go('/settings/account'),
                 ),
 
                 const SizedBox(height: 28),

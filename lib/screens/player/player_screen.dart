@@ -12,6 +12,7 @@ import '../../providers/app_providers.dart';
 import '../../models/channel.dart';
 import '../../models/category.dart';
 import '../../models/event.dart';
+import '../../models/nav_destination.dart';
 import 'package:go_router/go_router.dart';
 import '../../widgets/player/channel_video_player.dart';
 import '../../widgets/tv_focus_wrapper.dart';
@@ -550,6 +551,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           bottomNavigationBar: (!isWide && !isFullscreen)
               ? MainBottomNavBar(
                   currentIndex: 2,
+                  onDestinationTap: (dest) {
+                    if (dest == NavDestination.favorites) {
+                      ref.read(selectedCategoryProvider.notifier).select('favorite');
+                      context.go('/channels');
+                    } else if (dest == NavDestination.channels) {
+                      if (ref.read(selectedCategoryProvider) == 'favorite') {
+                        ref.read(selectedCategoryProvider.notifier).select('all');
+                      }
+                      context.go('/channels');
+                    } else {
+                      context.go(dest.route);
+                    }
+                  },
                   onTap: (targetIndex) {
                     switch (targetIndex) {
                       case 0:
@@ -563,6 +577,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         break;
                       case 3:
                         context.go('/upcoming');
+                        break;
+                      case 4:
+                        context.go('/settings');
                         break;
                     }
                   },

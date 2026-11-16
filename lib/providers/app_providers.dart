@@ -12,6 +12,7 @@ import '../models/announcement.dart';
 import '../models/hero_banner_item.dart';
 import '../services/stream_decryptor.dart';
 import '../models/app_ui_config.dart';
+import '../models/nav_destination.dart';
 import 'theme_provider.dart';
 
 // ─── Core Service Providers ───────────────────────────────────
@@ -570,6 +571,73 @@ class ShowSportCategoryIconsNotifier extends Notifier<bool> {
   Future<void> toggle(bool enabled) async {
     state = enabled;
     await ref.read(cacheServiceProvider).saveShowSportCategoryIconsUserPref(enabled);
+  }
+}
+
+// ─── User Preference: Navigation Tabs ───────────────────────────
+final customNavTabsProvider =
+    NotifierProvider<CustomNavTabsNotifier, List<NavDestination>>(
+  CustomNavTabsNotifier.new,
+);
+
+class CustomNavTabsNotifier extends Notifier<List<NavDestination>> {
+  @override
+  List<NavDestination> build() {
+    final ids = ref.read(cacheServiceProvider).getCustomNavTabsUserPref();
+    return ids.map(NavDestination.fromId).toList();
+  }
+
+  Future<bool> setTabs(List<NavDestination> tabs) async {
+    if (tabs.length < 3 || tabs.length > 5) return false;
+    state = List<NavDestination>.unmodifiable(tabs);
+    await ref.read(cacheServiceProvider).saveCustomNavTabsUserPref(
+      tabs.map((t) => t.id).toList(),
+    );
+    return true;
+  }
+
+  Future<void> resetToDefault() async {
+    state = List<NavDestination>.unmodifiable(NavDestination.defaultTabs);
+    await ref.read(cacheServiceProvider).saveCustomNavTabsUserPref(
+      NavDestination.defaultTabIds,
+    );
+  }
+}
+
+// ─── User Preference: Default Launch Page ────────────────────────
+final defaultLaunchPageProvider =
+    NotifierProvider<DefaultLaunchPageNotifier, String>(
+  DefaultLaunchPageNotifier.new,
+);
+
+class DefaultLaunchPageNotifier extends Notifier<String> {
+  @override
+  String build() {
+    return ref.read(cacheServiceProvider).getDefaultLaunchPageUserPref();
+  }
+
+  Future<void> setLaunchPage(String page) async {
+    state = page;
+    await ref.read(cacheServiceProvider).saveDefaultLaunchPageUserPref(page);
+  }
+}
+
+// ─── User Preference: Last Active Nav Tab ─────────────────────────
+final lastActiveNavTabProvider =
+    NotifierProvider<LastActiveNavTabNotifier, String>(
+  LastActiveNavTabNotifier.new,
+);
+
+class LastActiveNavTabNotifier extends Notifier<String> {
+  @override
+  String build() {
+    return ref.read(cacheServiceProvider).getLastActiveNavTabUserPref();
+  }
+
+  Future<void> setActiveTab(String tab) async {
+    if (state == tab) return;
+    state = tab;
+    await ref.read(cacheServiceProvider).saveLastActiveNavTabUserPref(tab);
   }
 }
 
