@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.5.0] - 2026-11-18
+
+• Customizable Navigation Tabs: Reorder, show, and hide bottom navigation tabs (3 to 5 tabs supported) to personalize your app navigation.
+• Dedicated Favorites Tab: Quick access to pinned favorite channels directly from the bottom navigation bar.
+• Configurable Launch Screen: Choose your preferred initial landing screen (Home or custom default tab) or resume your last active tab on app launch.
+• Full-Screen Layout Settings: Redesigned layout preferences with options to toggle edge-to-edge content and customize navigation bar behavior.
+• Advanced Player Volume & Brightness Controls: CloudStream-inspired volume boost up to 200% with LoudnessEnhancer and 200% extra brightness overlay.
+• Hardware Volume Key Interception: Smoothly adjust volume using physical volume keys while in fullscreen player mode.
+• Minimalist Player OSD: Transparent, unobtrusive on-screen display for volume and brightness adjustments without clutter.
+• Player Gesture Customization: Settings toggles for volume/brightness vertical swipes and 10s double-tap seek.
+
+---
+
 ## [2.4.2] - 2026-11-16
 
 • Video Resolution Selector: Switch stream quality on the fly with a clean YouTube-style resolution popup.
