@@ -12,6 +12,8 @@ class SettingTile extends StatelessWidget {
   final Widget? trailing;
   final VoidCallback? onTap;
   final bool enabled;
+  final Color? titleColor;
+  final Color? subtitleColor;
 
   const SettingTile({
     super.key,
@@ -22,6 +24,8 @@ class SettingTile extends StatelessWidget {
     this.trailing,
     this.onTap,
     this.enabled = true,
+    this.titleColor,
+    this.subtitleColor,
   }) : assert(icon != null || leading != null, 'Either icon or leading must be provided');
 
   @override
@@ -63,7 +67,9 @@ class SettingTile extends StatelessWidget {
                       fontFamily: GoPlayType.family,
                       fontSize: GoPlayType.base,
                       fontWeight: FontWeight.w600,
-                      color: enabled ? cs.onSurface : cs.onSurface.withValues(alpha: 0.4),
+                      color: enabled
+                          ? (titleColor ?? cs.onSurface)
+                          : (titleColor?.withValues(alpha: 0.4) ?? cs.onSurface.withValues(alpha: 0.4)),
                       letterSpacing: -0.2,
                     ),
                   ),
@@ -75,7 +81,9 @@ class SettingTile extends StatelessWidget {
                         fontFamily: GoPlayType.family,
                         fontSize: GoPlayType.sm,
                         fontWeight: FontWeight.w400,
-                        color: cs.onSurfaceVariant.withValues(alpha: enabled ? 0.8 : 0.4),
+                        color: enabled
+                            ? (subtitleColor ?? cs.onSurfaceVariant.withValues(alpha: 0.8))
+                            : (subtitleColor?.withValues(alpha: 0.4) ?? cs.onSurfaceVariant.withValues(alpha: 0.4)),
                         height: 1.3,
                       ),
                       maxLines: 2,

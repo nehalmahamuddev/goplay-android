@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    
+    <linearGradient id="bg-base" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#04041F" />
+      <stop offset="55%" stop-color="#020210" />
+      <stop offset="100%" stop-color="#000000" />
+    </linearGradient>
+
+    
+    <linearGradient id="cyan-wave-grad" x1="0%" y1="20%" x2="80%" y2="80%">
+      <stop offset="0%" stop-color="#006A80" />
+      <stop offset="45%" stop-color="#003B75" />
+      <stop offset="100%" stop-color="#08083B" stop-opacity="0" />
+    </linearGradient>
+
+    
+    <linearGradient id="magenta-ribbon-grad" x1="0%" y1="30%" x2="100%" y2="60%">
+      <stop offset="0%" stop-color="#5E0051" stop-opacity="0.7" />
+      <stop offset="45%" stop-color="#8A004E" />
+      <stop offset="75%" stop-color="#380059" />
+      <stop offset="100%" stop-color="#16003B" stop-opacity="0" />
+    </linearGradient>
+
+    
+    <linearGradient id="bottom-black-fade" x1="0%" y1="55%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0" />
+      <stop offset="55%" stop-color="#000000" stop-opacity="0.78" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="1" />
+    </linearGradient>
+
+    
+    <filter id="mesh-blur" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="95" />
+    </filter>
+
+    
+    <filter id="film-grain" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="3" stitchTiles="stitch" result="noise" />
+      <feColorMatrix type="matrix" values="
+        1 0 0 0 0
+        0 1 0 0 0
+        0 0 1 0 0
+        0 0 0 0.05 0" in="noise" result="coloredNoise" />
+      <feComposite operator="in" in2="SourceGraphic" />
+    </filter>
+  </defs>
+
+  
+  <rect width="1080" height="1920" fill="url(#bg-base)" />
+
+  
+  <g filter="url(#mesh-blur)">
+    
+    
+    <ellipse cx="860" cy="480" rx="340" ry="380" fill="#29004D" opacity="0.8">
+      <animateTransform attributeName="transform" type="translate" values="0,0; -45,55; 30,-35; 0,0" dur="18s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="opacity" values="0.75; 0.95; 0.75" dur="12s" repeatCount="indefinite" />
+    </ellipse>
+
+    
+    <ellipse cx="1050" cy="1020" rx="220" ry="320" fill="#130959" opacity="0.65">
+      <animateTransform attributeName="transform" type="translate" values="0,0; -35,-75; 15,45; 0,0" dur="16s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+    </ellipse>
+
+    
+    <path fill="url(#cyan-wave-grad)" d="M -150,480 C 180,540 280,1080 560,1150 C 720,1190 850,1080 980,960 L 980,1260 C 750,1360 450,1340 240,1060 C 80,850 -50,740 -150,720 Z">
+      <animate attributeName="d" values="
+          M -150,480 C 180,540 280,1080 560,1150 C 720,1190 850,1080 980,960 L 980,1260 C 750,1360 450,1340 240,1060 C 80,850 -50,740 -150,720 Z;
+          M -150,560 C 210,460 320,1010 590,1070 C 760,1110 880,1150 1010,1030 L 1010,1330 C 780,1410 470,1270 260,990 C 100,780 -40,810 -150,790 Z;
+          M -150,480 C 180,540 280,1080 560,1150 C 720,1190 850,1080 980,960 L 980,1260 C 750,1360 450,1340 240,1060 C 80,850 -50,740 -150,720 Z" dur="14s" repeatCount="indefinite" calcMode="spline" keySplines="0.45 0 0.55 1; 0.45 0 0.55 1" />
+    </path>
+
+    
+    <path fill="url(#magenta-ribbon-grad)" d="M -100,420 C 220,460 360,880 620,860 C 840,840 920,420 1150,460 L 1150,720 C 920,760 820,1140 560,1120 C 300,1100 180,660 -100,600 Z">
+      <animate attributeName="d" values="
+          M -100,420 C 220,460 360,880 620,860 C 840,840 920,420 1150,460 L 1150,720 C 920,760 820,1140 560,1120 C 300,1100 180,660 -100,600 Z;
+          M -100,360 C 250,540 340,960 600,930 C 820,900 950,350 1150,390 L 1150,660 C 940,700 840,1210 580,1180 C 310,1150 150,590 -100,540 Z;
+          M -100,420 C 220,460 360,880 620,860 C 840,840 920,420 1150,460 L 1150,720 C 920,760 820,1140 560,1120 C 300,1100 180,660 -100,600 Z" dur="12s" repeatCount="indefinite" calcMode="spline" keySplines="0.45 0 0.55 1; 0.45 0 0.55 1" />
+    </path>
+
+  </g>
+
+  
+  <rect width="1080" height="1920" fill="url(#bottom-black-fade)" />
+
+  
+  <rect width="1080" height="1920" fill="#000000" opacity="0.22" />
+
+  
+  <rect width="1080" height="1920" fill="#FFFFFF" filter="url(#film-grain)" style="mix-blend-mode: overlay;" />
+</svg>

@@ -29,16 +29,13 @@ class IptvAddSourceDialog extends ConsumerStatefulWidget {
     IptvSourceType initialType = IptvSourceType.m3uUrl,
     IptvPlaylist? existingPlaylist,
   }) {
-    return showDialog<IptvPlaylist>(
+    return showModalBottomSheet<IptvPlaylist>(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-        child: IptvAddSourceDialog(
-          initialType: existingPlaylist?.sourceType ?? initialType,
-          existingPlaylist: existingPlaylist,
-        ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => IptvAddSourceDialog(
+        initialType: existingPlaylist?.sourceType ?? initialType,
+        existingPlaylist: existingPlaylist,
       ),
     );
   }
@@ -556,52 +553,69 @@ class _IptvAddSourceDialogState extends ConsumerState<IptvAddSourceDialog> {
   Widget build(BuildContext context) {
     final themeMode = ref.watch(activeThemeModeProvider);
     final accentColor = ref.watch(activeAccentColorProvider);
+    final sheetBg =
+        Theme.of(context).bottomNavigationBarTheme.backgroundColor ??
+            themeMode.bottomNavColor;
+    final viewInsetsBottom = MediaQuery.viewInsetsOf(context).bottom;
 
-    return Container(
-      constraints: BoxConstraints(
-        maxWidth: 520,
-        maxHeight: MediaQuery.of(context).size.height * 0.88,
-      ),
-      decoration: BoxDecoration(
-        color: themeMode.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: themeMode.dividerColor, width: 1.0),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildHeader(themeMode),
-          Flexible(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (_errorMsg != null) ...[
-                      _buildErrorBanner(_errorMsg!),
-                      const SizedBox(height: 12),
-                    ],
-                    if (_sourceType == IptvSourceType.directStream) _buildVideoLinkForm(),
-                    if (_sourceType == IptvSourceType.m3uUrl) _buildPlaylistLinkForm(),
-                    if (_sourceType == IptvSourceType.m3uFile) _buildLocalPlaylistForm(),
-                    if (_sourceType == IptvSourceType.xtream) _buildXtreamForm(),
-                    if (_sourceType == IptvSourceType.stalker) _buildStalkerForm(),
-                  ],
+    return Padding(
+      padding: EdgeInsets.only(bottom: viewInsetsBottom),
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.88,
+        ),
+        decoration: BoxDecoration(
+          color: sheetBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag handle matching Add New & Guide sheets
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(top: 10, bottom: 4),
+                decoration: BoxDecoration(
+                  color: themeMode.dividerColor,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
-          ),
-          _buildFooter(themeMode, accentColor),
-        ],
+            _buildHeader(themeMode),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (_errorMsg != null) ...[
+                        _buildErrorBanner(_errorMsg!),
+                        const SizedBox(height: 12),
+                      ],
+                      if (_sourceType == IptvSourceType.directStream) _buildVideoLinkForm(),
+                      if (_sourceType == IptvSourceType.m3uUrl) _buildPlaylistLinkForm(),
+                      if (_sourceType == IptvSourceType.m3uFile) _buildLocalPlaylistForm(),
+                      if (_sourceType == IptvSourceType.xtream) _buildXtreamForm(),
+                      if (_sourceType == IptvSourceType.stalker) _buildStalkerForm(),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            _buildFooter(themeMode, accentColor),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildHeader(AppThemeMode themeMode) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+      padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
       child: Row(
         children: [
           Expanded(
@@ -1430,8 +1444,12 @@ class _IptvAddSourceDialogState extends ConsumerState<IptvAddSourceDialog> {
   }
 
   Widget _buildFooter(AppThemeMode themeMode, AppAccentColor accentColor) {
+    final bottomPadding = MediaQuery.viewInsetsOf(context).bottom > 0
+        ? 0.0
+        : MediaQuery.paddingOf(context).bottom;
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 16 + bottomPadding),
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: themeMode.dividerColor)),
       ),
@@ -1497,14 +1515,18 @@ class _IptvAddSourceDialogState extends ConsumerState<IptvAddSourceDialog> {
         }
       },
       validator: validator,
-      style: const TextStyle(color: Colors.white, fontSize: 13.5),
+      style: TextStyle(color: ref.watch(activeThemeModeProvider).onSurfaceColor, fontSize: 13.5),
       decoration: _inputDecoration(
         label: label,
         hint: hint,
         helper: helper,
         suffixIcon: controller.text.isNotEmpty
             ? IconButton(
-                icon: const Icon(Icons.close_rounded, size: 17, color: Colors.white54),
+                icon: Icon(
+                  Icons.close_rounded,
+                  size: 17,
+                  color: ref.watch(activeThemeModeProvider).onSurfaceMutedColor,
+                ),
                 tooltip: 'Clear $label',
                 onPressed: () {
                   controller.clear();
@@ -1528,6 +1550,9 @@ class _IptvAddSourceDialogState extends ConsumerState<IptvAddSourceDialog> {
     String? helper,
   }) {
     final themeMode = ref.watch(activeThemeModeProvider);
+    final sheetBg =
+        Theme.of(context).bottomNavigationBarTheme.backgroundColor ??
+            themeMode.bottomNavColor;
 
     return DropdownButtonFormField<T>(
       key: ValueKey('${label}_$value'),
@@ -1535,7 +1560,7 @@ class _IptvAddSourceDialogState extends ConsumerState<IptvAddSourceDialog> {
       items: items,
       onChanged: onChanged,
       isExpanded: true,
-      dropdownColor: themeMode.surfaceContainerHigh,
+      dropdownColor: sheetBg,
       style: TextStyle(color: themeMode.onSurfaceColor, fontSize: 13.5),
       decoration: _inputDecoration(label: label, helper: helper),
     );
@@ -1549,6 +1574,14 @@ class _IptvAddSourceDialogState extends ConsumerState<IptvAddSourceDialog> {
   }) {
     final themeMode = ref.watch(activeThemeModeProvider);
     final accentColor = ref.watch(activeAccentColorProvider);
+    final sheetBg =
+        Theme.of(context).bottomNavigationBarTheme.backgroundColor ??
+            themeMode.bottomNavColor;
+    final recessedBg = Color.lerp(
+      sheetBg,
+      Colors.black,
+      themeMode.isDark ? 0.38 : 0.04,
+    )!;
 
     return InputDecoration(
       labelText: label,
@@ -1560,7 +1593,7 @@ class _IptvAddSourceDialogState extends ConsumerState<IptvAddSourceDialog> {
       hintStyle: TextStyle(color: themeMode.onSurfaceMutedColor.withAlpha(120), fontSize: 13),
       suffixIcon: suffixIcon,
       filled: true,
-      fillColor: themeMode.cardColor,
+      fillColor: recessedBg,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),

@@ -14,6 +14,29 @@ enum IptvSourceType {
   const IptvSourceType(this.label, this.description);
 }
 
+/// IPTV page background mode persisted in settings.
+enum IptvBackgroundMode {
+  /// App default theme scaffold background (pure dark / light surface).
+  defaultTheme,
+
+  /// Animated shader mesh gradient (IptvAnimatedBackground).
+  animated,
+
+  /// User-picked image from device gallery.
+  customImage;
+
+  static IptvBackgroundMode fromName(String? raw) {
+    switch (raw) {
+      case 'animated':
+        return IptvBackgroundMode.animated;
+      case 'customImage':
+        return IptvBackgroundMode.customImage;
+      default:
+        return IptvBackgroundMode.defaultTheme;
+    }
+  }
+}
+
 /// 4 channel card display modes matching `M3U8MediationAdapter` (`0..3`).
 enum IptvDisplayMode {
   list(0, 'List'),
@@ -126,6 +149,12 @@ class IptvGlobalSettings {
   /// User-defined bookmark category buckets.
   final List<String> bookmarkCategories;
 
+  /// IPTV page background rendering mode (default / animated / customImage).
+  final IptvBackgroundMode backgroundMode;
+
+  /// Absolute path to the user-picked background image (only used when [backgroundMode] == customImage).
+  final String? backgroundImagePath;
+
   const IptvGlobalSettings({
     this.sortCategoriesByCount = false,
     this.hideAllCategory = false,
@@ -133,6 +162,8 @@ class IptvGlobalSettings {
     this.rememberBookmarkChoice = false,
     this.rememberedCategories = const ['All'],
     this.bookmarkCategories = const ['All', 'Sports', 'Movies', 'News', 'Kids'],
+    this.backgroundMode = IptvBackgroundMode.defaultTheme,
+    this.backgroundImagePath,
   });
 
   IptvGlobalSettings copyWith({
@@ -142,6 +173,9 @@ class IptvGlobalSettings {
     bool? rememberBookmarkChoice,
     List<String>? rememberedCategories,
     List<String>? bookmarkCategories,
+    IptvBackgroundMode? backgroundMode,
+    String? backgroundImagePath,
+    bool clearBackgroundImagePath = false,
   }) {
     return IptvGlobalSettings(
       sortCategoriesByCount: sortCategoriesByCount ?? this.sortCategoriesByCount,
@@ -150,6 +184,10 @@ class IptvGlobalSettings {
       rememberBookmarkChoice: rememberBookmarkChoice ?? this.rememberBookmarkChoice,
       rememberedCategories: rememberedCategories ?? this.rememberedCategories,
       bookmarkCategories: bookmarkCategories ?? this.bookmarkCategories,
+      backgroundMode: backgroundMode ?? this.backgroundMode,
+      backgroundImagePath: clearBackgroundImagePath
+          ? null
+          : backgroundImagePath ?? this.backgroundImagePath,
     );
   }
 
@@ -160,6 +198,8 @@ class IptvGlobalSettings {
         'rememberBookmarkChoice': rememberBookmarkChoice,
         'rememberedCategories': rememberedCategories,
         'bookmarkCategories': bookmarkCategories,
+        'backgroundMode': backgroundMode.name,
+        if (backgroundImagePath != null) 'backgroundImagePath': backgroundImagePath,
       };
 
   factory IptvGlobalSettings.fromJson(Map<String, dynamic> json) {
@@ -176,6 +216,9 @@ class IptvGlobalSettings {
               ?.map((e) => e.toString())
               .toList() ??
           const ['All', 'Sports', 'Movies', 'News', 'Kids'],
+      backgroundMode:
+          IptvBackgroundMode.fromName(json['backgroundMode'] as String?),
+      backgroundImagePath: json['backgroundImagePath'] as String?,
     );
   }
 }

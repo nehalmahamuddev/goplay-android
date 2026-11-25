@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,7 +8,6 @@ import '../../models/channel.dart';
 import '../../providers/app_providers.dart';
 import '../../services/channel_stream_launcher.dart';
 import '../tv_focus_wrapper.dart';
-import 'clean_card.dart';
 
 /// Logical height of the card's fixed (non-text) content: vertical padding,
 /// the logo avatar, and the gap beneath it.
@@ -112,42 +110,6 @@ class ChannelCard extends ConsumerWidget {
           )
         : null;
 
-    final useCustomOverride = channelCardStyle.useCustomOverride &&
-        (channelCardStyle.backgroundColor.isNotEmpty || channelCardStyle.borderWidth > 0);
-
-    final borderGradient = LinearGradient(
-      begin: const Alignment(-0.85, -0.65),
-      end: const Alignment(0.85, 0.55),
-      stops: const [0.0, 0.45, 1.0],
-      colors: [
-        Colors.white.withValues(alpha: isDark ? 0.72 : 0.85),
-        Colors.white.withValues(alpha: isDark ? 0.18 : 0.25),
-        Colors.white.withValues(alpha: isDark ? 0.35 : 0.45),
-      ],
-    );
-
-    final surfaceGradient = isDark
-        ? const LinearGradient(
-            begin: Alignment(-0.85, -0.9),
-            end: Alignment(0.85, 0.9),
-            stops: [0.0, 0.45, 1.0],
-            colors: [
-              Color(0x3BFFFFFF),
-              Color(0x24FFFFFF),
-              Color(0x1AFFFFFF),
-            ],
-          )
-        : LinearGradient(
-            begin: const Alignment(-0.85, -0.9),
-            end: const Alignment(0.85, 0.9),
-            stops: const [0.0, 0.5, 1.0],
-            colors: [
-              Colors.white.withValues(alpha: 0.94),
-              Colors.white.withValues(alpha: 0.84),
-              Colors.white.withValues(alpha: 0.88),
-            ],
-          );
-
     return TvFocusable(
       borderRadius: BorderRadius.circular(cardRadius),
       onTap: () => _open(context),
@@ -159,38 +121,13 @@ class ChannelCard extends ConsumerWidget {
           ? '${channel.displayName}, $quality${isFavorite ? ', favorite' : ''}'
           : '${channel.displayName}${isFavorite ? ', favorite' : ''}',
       child: SizedBox.expand(
-        child: Container(
+        child: DecoratedBox(
           decoration: BoxDecoration(
+            color: cardBg,
             borderRadius: BorderRadius.all(Radius.circular(cardRadius)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            border: cardBorder,
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.all(Radius.circular(cardRadius)),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-              child: CustomPaint(
-                foregroundPainter: useCustomOverride
-                    ? null
-                    : CleanLiquidGlassPainter(
-                        strokeWidth: 1.0,
-                        radius: cardRadius,
-                        borderGradient: borderGradient,
-                        isDark: isDark,
-                      ),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: useCustomOverride ? cardBg : null,
-                    gradient: useCustomOverride ? null : surfaceGradient,
-                    borderRadius: BorderRadius.all(Radius.circular(cardRadius)),
-                    border: useCustomOverride ? cardBorder : null,
-                  ),
-                  child: Stack(
+          child: Stack(
             alignment: Alignment.center,
             children: [
               // ── Main content ─────────────────────────────────
@@ -312,10 +249,6 @@ class ChannelCard extends ConsumerWidget {
             ],
           ),
         ),
-      ),
-    ),
-  ),
-),
       ),
     );
   }

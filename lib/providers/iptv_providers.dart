@@ -92,6 +92,19 @@ class IptvSettingsNotifier extends Notifier<IptvGlobalSettings> {
         .toList();
     await updateSettings(state.copyWith(bookmarkCategories: nextCats));
   }
+
+  Future<void> setBackgroundMode(
+    IptvBackgroundMode mode, {
+    String? imagePath,
+  }) async {
+    await updateSettings(
+      state.copyWith(
+        backgroundMode: mode,
+        backgroundImagePath: imagePath,
+        clearBackgroundImagePath: mode != IptvBackgroundMode.customImage,
+      ),
+    );
+  }
 }
 
 /// Per-playlist view settings map (`playlistId -> IptvViewConfig`) matching `context.md` §6.2.

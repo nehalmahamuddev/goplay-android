@@ -118,6 +118,55 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       keywords: ['aspect', '16:9', 'fit', 'stretch', 'zoom', 'scaling'],
     ),
     _PreferenceSearchItem(
+      title: 'IPTV Playlists & Settings',
+      category: 'IPTV',
+      route: '/settings/iptv',
+      icon: Icons.live_tv_rounded,
+      keywords: ['iptv', 'playlist', 'm3u', 'channels', 'streams', 'live tv'],
+    ),
+    _PreferenceSearchItem(
+      title: 'Sort Categories by Channel Count',
+      category: 'IPTV',
+      route: '/settings/iptv',
+      icon: Icons.sort_rounded,
+      keywords: ['iptv', 'sort', 'categories', 'channels', 'count', 'order'],
+    ),
+    _PreferenceSearchItem(
+      title: 'Hide "All" Category Tab',
+      category: 'IPTV',
+      route: '/settings/iptv',
+      icon: Icons.tab_unselected_rounded,
+      keywords: ['iptv', 'hide', 'all', 'category', 'tab', 'groups'],
+    ),
+    _PreferenceSearchItem(
+      title: '24-Hour Smart Playlist Cache',
+      category: 'IPTV',
+      route: '/settings/iptv',
+      icon: Icons.cached_rounded,
+      keywords: ['iptv', 'cache', '24h', 'instant', 'speed', 'sync'],
+    ),
+    _PreferenceSearchItem(
+      title: 'Saved Bookmarks',
+      category: 'IPTV',
+      route: '/settings/iptv',
+      icon: Icons.bookmark_outline_rounded,
+      keywords: ['iptv', 'bookmarks', 'favorite', 'saved channels'],
+    ),
+    _PreferenceSearchItem(
+      title: 'Manage TV Guides (EPG)',
+      category: 'IPTV',
+      route: '/settings/iptv',
+      icon: Icons.dvr_rounded,
+      keywords: ['iptv', 'epg', 'tv guide', 'xmltv', 'schedule', 'guide'],
+    ),
+    _PreferenceSearchItem(
+      title: 'Export / Import Playlists Backup',
+      category: 'IPTV',
+      route: '/settings/iptv',
+      icon: Icons.upload_file_rounded,
+      keywords: ['iptv', 'backup', 'export', 'import', 'json', 'playlists', 'restore'],
+    ),
+    _PreferenceSearchItem(
       title: 'Check for Update',
       category: 'Updates and Backup',
       route: '/settings/updates',
@@ -443,7 +492,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   onTap: () => context.go('/settings/player'),
                 ),
 
-                // Tile 3: Layout
+                // Tile 3: IPTV
+                SettingTile(
+                  icon: Icons.live_tv_rounded,
+                  title: 'IPTV',
+                  subtitle: 'Playlists, EPG Guides, Category sorting, Cache & Backups',
+                  onTap: () => context.go('/settings/iptv'),
+                ),
+
+                // Tile 4: Layout
                 SettingTile(
                   icon: Icons.format_paint_rounded,
                   title: 'Layout',

@@ -34,13 +34,21 @@ class _IptvGuideSheetState extends ConsumerState<IptvGuideSheet> {
     final accentColor = ref.watch(activeAccentColorProvider);
     final bottomPadding = MediaQuery.paddingOf(context).bottom;
     final steps = _selectedTab == 0 ? _playlistSteps : _streamSteps;
+    final sheetBg =
+        Theme.of(context).bottomNavigationBarTheme.backgroundColor ??
+            themeMode.bottomNavColor;
+    final recessedBg = Color.lerp(
+      sheetBg,
+      Colors.black,
+      themeMode.isDark ? 0.38 : 0.04,
+    )!;
 
     return Container(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.sizeOf(context).height * 0.86,
       ),
       decoration: BoxDecoration(
-        color: themeMode.surfaceContainerHigh,
+        color: sheetBg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       padding: EdgeInsets.fromLTRB(16, 10, 16, 18 + bottomPadding),
@@ -92,7 +100,7 @@ class _IptvGuideSheetState extends ConsumerState<IptvGuideSheet> {
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: themeMode.cardColor,
+              color: recessedBg,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: themeMode.dividerColor),
             ),
@@ -140,13 +148,14 @@ class _IptvGuideSheetState extends ConsumerState<IptvGuideSheet> {
                       stepNumber: i + 1,
                       title: steps[i].title,
                       body: steps[i].body,
+                      backgroundColor: recessedBg,
                     ),
                     const SizedBox(height: 10),
                   ],
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: themeMode.cardColor,
+                      color: recessedBg,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: themeMode.dividerColor),
                     ),
@@ -300,11 +309,13 @@ class _GuideStepTile extends ConsumerWidget {
   final int stepNumber;
   final String title;
   final String body;
+  final Color? backgroundColor;
 
   const _GuideStepTile({
     required this.stepNumber,
     required this.title,
     required this.body,
+    this.backgroundColor,
   });
 
   @override
@@ -315,7 +326,7 @@ class _GuideStepTile extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: themeMode.cardColor,
+        color: backgroundColor ?? themeMode.cardColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: themeMode.dividerColor),
       ),

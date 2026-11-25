@@ -31,10 +31,19 @@ class IptvAddMenuSheet extends ConsumerWidget {
     final themeMode = ref.watch(activeThemeModeProvider);
     final accentColor = ref.watch(activeAccentColorProvider);
     final bottomPadding = MediaQuery.paddingOf(context).bottom;
+    final sheetBg =
+        Theme.of(context).bottomNavigationBarTheme.backgroundColor ??
+            themeMode.bottomNavColor;
+
+    final tableBg = Color.lerp(
+      sheetBg,
+      Colors.black,
+      themeMode.isDark ? 0.38 : 0.04,
+    )!;
 
     return Container(
       decoration: BoxDecoration(
-        color: themeMode.surfaceContainerHigh,
+        color: sheetBg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       padding: EdgeInsets.fromLTRB(16, 10, 16, 20 + bottomPadding),
@@ -55,24 +64,44 @@ class IptvAddMenuSheet extends ConsumerWidget {
             ),
           ),
 
-          // Title: "Add New Content"
+          // Title: "Add New" + Guide info icon
           Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 16),
-            child: Text(
-              'Add New Content',
-              style: TextStyle(
-                fontFamily: GoPlayType.family,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: themeMode.onSurfaceColor,
-              ),
+            padding: const EdgeInsets.only(left: 4, bottom: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Add New',
+                    style: TextStyle(
+                      fontFamily: GoPlayType.family,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: themeMode.onSurfaceColor,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'IPTV Guide',
+                  icon: IptvSvgIcon(
+                    IptvSvgIcons.help,
+                    color: themeMode.onSurfaceMutedColor,
+                    size: 20,
+                  ),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    IptvGuideSheet.show(context);
+                  },
+                ),
+              ],
             ),
           ),
 
           // Menu Container with 6 APK options (including Add Teleguide EPG)
           Container(
             decoration: BoxDecoration(
-              color: themeMode.cardColor,
+              color: tableBg,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: themeMode.dividerColor, width: 1),
             ),

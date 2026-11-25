@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:io';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../core/typography.dart';
@@ -11,6 +13,7 @@ import '../../providers/iptv_providers.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/iptv_service.dart';
 import 'widgets/iptv_add_menu_sheet.dart';
+import 'widgets/iptv_animated_background.dart';
 import 'widgets/iptv_category_sheets.dart';
 import 'widgets/iptv_home_dialogs.dart';
 import 'widgets/iptv_playlist_card.dart';
@@ -411,180 +414,194 @@ class _IptvScreenState extends ConsumerState<IptvScreen> {
     final playlists = playlistsAsync.value ?? const <IptvPlaylist>[];
     final sortMode = ref.watch(iptvHomeSortModeProvider);
     final bottomPadding = MediaQuery.paddingOf(context).bottom;
+    final iptvSettings = ref.watch(iptvSettingsProvider);
+    final bgMode = iptvSettings.backgroundMode;
+    final bgImagePath = iptvSettings.backgroundImagePath;
 
-    return Scaffold(
-      backgroundColor: themeMode.surfaceColor,
-      body: SafeArea(
-        top: true,
-        bottom: false,
-        child: RefreshIndicator(
-          color: accentColor.color,
-          backgroundColor: themeMode.surfaceContainerHigh,
-          onRefresh: () async {
-            HapticFeedback.mediumImpact();
-            await ref.read(iptvPlaylistsProvider.notifier).syncAllPlaylists();
-          },
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(
-              parent: ClampingScrollPhysics(),
-            ),
-            slivers: [
-              // Top Bar: Compact spacing so "IPTV." never squeezes into "IP..."
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 6, 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _isSelectionMode
-                              ? '${_selectedIds.length} Selected'
-                              : 'IPTV.',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontFamily: GoPlayType.family,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: -0.3,
+    final theme = Theme.of(context);
+    final headerBg = theme.bottomNavigationBarTheme.backgroundColor ?? themeMode.bottomNavColor;
+    final overlayStyle = SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: themeMode.isDark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: themeMode.isDark ? Brightness.dark : Brightness.light,
+    );
+
+    // ── Build the scrollable body & FAB (shared across all bg modes) ──
+    final bodyColumn = Column(
+            children: [
+            // Pinned Solid Header matching Channels, Categories & Home
+            Container(
+              color: headerBg,
+              child: SafeArea(
+                bottom: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Top Bar: IPTV title + 6 header actions
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 10, 6, 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _isSelectionMode
+                                  ? '${_selectedIds.length} Selected'
+                                  : 'IPTV.',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontFamily: GoPlayType.family,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
 
-                      // 1. Search Icon
-                      _buildHeaderIcon(
-                        tooltip: _isSearching ? 'Close search' : 'Search playlists & channels',
-                        svgIcon: _isSearching
-                            ? IptvSvgIcons.close
-                            : IptvSvgIcons.search,
-                        onPressed: () {
-                          setState(() {
-                            _isSearching = !_isSearching;
-                            if (!_isSearching) {
-                              _searchController.clear();
-                              _filterQuery = '';
-                            }
-                          });
-                        },
-                      ),
-                      const SizedBox(width: 2),
-
-                      // 2. Help / Onboarding Guide (?)
-                      _buildHeaderIcon(
-                        tooltip: 'IPTV Guide',
-                        svgIcon: IptvSvgIcons.help,
-                        onPressed: () => IptvGuideSheet.show(context),
-                      ),
-                      const SizedBox(width: 2),
-
-                      // 3. Multi-Select Mode (APK selectModeImageViewPlaylist)
-                      _buildHeaderIcon(
-                        tooltip: _isSelectionMode
-                            ? 'Exit multi-select'
-                            : 'Select playlists',
-                        svgIcon: _isSelectionMode
-                            ? IptvSvgIcons.checkSquare
-                            : IptvSvgIcons.microchip,
-                        color: _isSelectionMode
-                            ? accentColor.color
-                            : Colors.white,
-                        onPressed: () =>
-                            _toggleSelectionMode(allPlaylists: playlists),
-                      ),
-                      const SizedBox(width: 2),
-
-                      // 4. Sort / Filter (APK filterImageViewPlaylist)
-                      _buildHeaderIcon(
-                        tooltip: 'Sort & Filter',
-                        svgIcon: IptvSvgIcons.sliders,
-                        onPressed: () => _showSortMenu(context),
-                      ),
-                      const SizedBox(width: 2),
-
-                      // 5. Manage TV Guide / EPG (APK epgImageViewPlaylist)
-                      _buildHeaderIcon(
-                        tooltip: 'Manage TV Guide',
-                        svgIcon: IptvSvgIcons.tv,
-                        onPressed: () => IptvManageEpgSheet.show(context),
-                      ),
-                      const SizedBox(width: 2),
-
-                      // 6. Settings Gear (APK moreImageViewPlaylist)
-                      _buildHeaderIcon(
-                        tooltip: 'IPTV Settings',
-                        svgIcon: IptvSvgIcons.settings,
-                        onPressed: () => _showSettingsSheet(context),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Expandable Search Bar (searches both playlists and channels across playlists)
-              if (_isSearching)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    child: TextField(
-                      controller: _searchController,
-                      autofocus: true,
-                      onChanged: (val) {
-                        setState(() => _filterQuery = val.trim().toLowerCase());
-                      },
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                      decoration: InputDecoration(
-                        hintText: 'Search playlists or channel names...',
-                        hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
-                        prefixIcon: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: IptvSvgIcon(
-                            IptvSvgIcons.search,
-                            size: 16,
-                            color: themeMode.onSurfaceMutedColor,
-                          ),
-                        ),
-                        suffixIcon: _filterQuery.isNotEmpty
-                            ? IconButton(
-                                tooltip: 'Clear filter',
-                                icon: IptvSvgIcon(
-                                  IptvSvgIcons.close,
-                                  size: 16,
-                                  color: themeMode.onSurfaceMutedColor,
-                                ),
-                                onPressed: () {
+                          // 1. Search Icon
+                          _buildHeaderIcon(
+                            tooltip: _isSearching ? 'Close search' : 'Search playlists & channels',
+                            svgIcon: _isSearching
+                                ? IptvSvgIcons.close
+                                : IptvSvgIcons.search,
+                            onPressed: () {
+                              setState(() {
+                                _isSearching = !_isSearching;
+                                if (!_isSearching) {
                                   _searchController.clear();
-                                  setState(() => _filterQuery = '');
-                                },
-                              )
-                            : null,
-                        filled: true,
-                        fillColor: themeMode.cardColor,
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: themeMode.dividerColor),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: accentColor.color,
-                            width: 1.5,
+                                  _filterQuery = '';
+                                }
+                              });
+                            },
                           ),
-                        ),
+                          const SizedBox(width: 2),
+
+                          // 2. Help / Onboarding Guide (?)
+                          _buildHeaderIcon(
+                            tooltip: 'IPTV Guide',
+                            svgIcon: IptvSvgIcons.help,
+                            onPressed: () => IptvGuideSheet.show(context),
+                          ),
+                          const SizedBox(width: 2),
+
+                          // 3. Multi-Select Mode (APK selectModeImageViewPlaylist)
+                          _buildHeaderIcon(
+                            tooltip: _isSelectionMode
+                                ? 'Exit multi-select'
+                                : 'Select playlists',
+                            svgIcon: _isSelectionMode
+                                ? IptvSvgIcons.checkSquare
+                                : IptvSvgIcons.microchip,
+                            color: _isSelectionMode
+                                ? accentColor.color
+                                : Colors.white,
+                            onPressed: () =>
+                                _toggleSelectionMode(allPlaylists: playlists),
+                          ),
+                          const SizedBox(width: 2),
+
+                          // 4. Sort / Filter (APK filterImageViewPlaylist)
+                          _buildHeaderIcon(
+                            tooltip: 'Sort & Filter',
+                            svgIcon: IptvSvgIcons.sliders,
+                            onPressed: () => _showSortMenu(context),
+                          ),
+                          const SizedBox(width: 2),
+
+                          // 5. Manage TV Guide / EPG (APK epgImageViewPlaylist)
+                          _buildHeaderIcon(
+                            tooltip: 'Manage TV Guide',
+                            svgIcon: IptvSvgIcons.tv,
+                            onPressed: () => IptvManageEpgSheet.show(context),
+                          ),
+                          const SizedBox(width: 2),
+
+                          // 6. Settings Gear (APK moreImageViewPlaylist)
+                          _buildHeaderIcon(
+                            tooltip: 'IPTV Settings',
+                            svgIcon: IptvSvgIcons.settings,
+                            onPressed: () => context.push('/settings/iptv'),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                ),
 
-              // Clickable Telegram Support Announcement Banner (matching APK sideNoteCardViewPlaylist)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+                    // Expandable Search Bar inside the Header
+                    if (_isSearching)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+                        child: TextField(
+                          controller: _searchController,
+                          autofocus: true,
+                          onChanged: (val) {
+                            setState(() => _filterQuery = val.trim().toLowerCase());
+                          },
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          decoration: InputDecoration(
+                            hintText: 'Search playlists or channel names...',
+                            hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+                            prefixIcon: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: IptvSvgIcon(
+                                IptvSvgIcons.search,
+                                size: 16,
+                                color: themeMode.onSurfaceMutedColor,
+                              ),
+                            ),
+                            suffixIcon: _filterQuery.isNotEmpty
+                                ? IconButton(
+                                    tooltip: 'Clear filter',
+                                    icon: IptvSvgIcon(
+                                      IptvSvgIcons.close,
+                                      size: 16,
+                                      color: themeMode.onSurfaceMutedColor,
+                                    ),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _filterQuery = '');
+                                    },
+                                  )
+                                : null,
+                            filled: true,
+                            fillColor: themeMode.cardColor,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Scrollable Body over Selected Background
+            Expanded(
+              child: RefreshIndicator(
+                color: accentColor.color,
+                backgroundColor: themeMode.surfaceContainerHigh,
+                onRefresh: () async {
+                  HapticFeedback.mediumImpact();
+                  await ref.read(iptvPlaylistsProvider.notifier).syncAllPlaylists();
+                },
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(
+                      parent: ClampingScrollPhysics(),
+                    ),
+                    slivers: [
+                        // Clickable Telegram Support Announcement Banner (matching APK sideNoteCardViewPlaylist)
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
                   child: Material(
                     color: Colors.transparent,
                     borderRadius: BorderRadius.circular(12),
@@ -760,6 +777,25 @@ class _IptvScreenState extends ConsumerState<IptvScreen> {
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                       sliver: SliverReorderableList(
                         itemCount: filtered.length,
+                        onReorderStart: (_) => HapticFeedback.mediumImpact(),
+                        onReorderEnd: (_) => HapticFeedback.lightImpact(),
+                        proxyDecorator: (child, index, animation) {
+                          return AnimatedBuilder(
+                            animation: animation,
+                            builder: (context, child) {
+                              final t = Curves.easeOutCubic.transform(animation.value);
+                              final scale = 1.0 + (0.025 * t);
+                              return Transform.scale(
+                                scale: scale,
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: child,
+                                ),
+                              );
+                            },
+                            child: child,
+                          );
+                        },
                         onReorder: (oldIndex, newIndex) {
                           HapticFeedback.lightImpact();
                           ref
@@ -901,84 +937,129 @@ class _IptvScreenState extends ConsumerState<IptvScreen> {
           ),
         ),
       ),
+    ),
+    ],
+    );
 
-      // Multi-select Delete/Export FABs or Normal (+) Squircle FAB
-      floatingActionButton: Padding(
-        padding: EdgeInsets.only(bottom: 16 + bottomPadding),
-        child: _isSelectionMode
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  FloatingActionButton.extended(
-                    heroTag: 'iptv_export_selected',
-                    onPressed: _selectedIds.isEmpty
-                        ? null
-                        : () => _exportSelectedPlaylists(context, playlists),
-                    backgroundColor: themeMode.surfaceContainerHigh,
-                    foregroundColor: accentColor.color,
-                    icon: IptvSvgIcon(IptvSvgIcons.share, size: 19, color: accentColor.color),
-                    label: Text(
-                      'EXPORT (${_selectedIds.length})',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                      ),
-                    ),
+    // Build the FAB
+    final fab = Padding(
+      padding: EdgeInsets.only(bottom: 16 + bottomPadding),
+      child: _isSelectionMode
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FloatingActionButton.extended(
+                  heroTag: 'iptv_export_selected',
+                  onPressed: _selectedIds.isEmpty
+                      ? null
+                      : () => _exportSelectedPlaylists(context, playlists),
+                  backgroundColor: themeMode.surfaceContainerHigh,
+                  foregroundColor: accentColor.color,
+                  icon: IptvSvgIcon(IptvSvgIcons.share, size: 19, color: accentColor.color),
+                  label: Text(
+                    'EXPORT (${_selectedIds.length})',
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
                   ),
-                  const SizedBox(width: 10),
-                  FloatingActionButton.extended(
-                    heroTag: 'iptv_delete_selected',
-                    onPressed: _selectedIds.isEmpty
-                        ? null
-                        : () => _deleteSelectedPlaylists(context),
-                    backgroundColor: _selectedIds.isEmpty
-                        ? themeMode.cardColor
-                        : GoPlayTheme.error,
-                    foregroundColor: Colors.white,
-                    icon: const IptvSvgIcon(IptvSvgIcons.delete, size: 19, color: Colors.white),
-                    label: Text(
-                      'DELETE (${_selectedIds.length})',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ],
-              )
-            : Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: accentColor.color,
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x33000000),
-                      blurRadius: 8,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
                 ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      IptvAddMenuSheet.show(context);
-                    },
-                    borderRadius: BorderRadius.circular(18),
-                    child: Center(
-                      child: IptvSvgIcon(
-                        IptvSvgIcons.plus,
-                        color: accentColor.onAccentColor,
-                        size: 28,
-                      ),
+                const SizedBox(width: 10),
+                FloatingActionButton.extended(
+                  heroTag: 'iptv_delete_selected',
+                  onPressed: _selectedIds.isEmpty
+                      ? null
+                      : () => _deleteSelectedPlaylists(context),
+                  backgroundColor: _selectedIds.isEmpty ? themeMode.cardColor : GoPlayTheme.error,
+                  foregroundColor: Colors.white,
+                  icon: const IptvSvgIcon(IptvSvgIcons.delete, size: 19, color: Colors.white),
+                  label: Text(
+                    'DELETE (${_selectedIds.length})',
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                  ),
+                ),
+              ],
+            )
+          : Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: accentColor.color,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: const [
+                  BoxShadow(color: Color(0x33000000), blurRadius: 8, offset: Offset(0, 4)),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    IptvAddMenuSheet.show(context);
+                  },
+                  borderRadius: BorderRadius.circular(18),
+                  child: Center(
+                    child: IptvSvgIcon(
+                      IptvSvgIcons.plus,
+                      color: accentColor.onAccentColor,
+                      size: 28,
                     ),
                   ),
                 ),
               ),
-      ),
+            ),
+    );
+
+    // ── Render with the correct background mode ──
+    Widget scaffold;
+    switch (bgMode) {
+      case IptvBackgroundMode.animated:
+        scaffold = Scaffold(
+          backgroundColor: Colors.transparent,
+          floatingActionButton: fab,
+          body: IptvAnimatedBackground(child: bodyColumn),
+        );
+        break;
+      case IptvBackgroundMode.customImage:
+        final file = bgImagePath != null ? File(bgImagePath) : null;
+        final hasValidFile = file != null && file.existsSync();
+        scaffold = Scaffold(
+          backgroundColor: theme.scaffoldBackgroundColor,
+          floatingActionButton: fab,
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (hasValidFile)
+                Positioned.fill(
+                  child: RepaintBoundary(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.file(
+                          file,
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                        ),
+                        // Dark overlay for text and card legibility
+                        const ColoredBox(color: Color(0x99000000)),
+                      ],
+                    ),
+                  ),
+                ),
+              bodyColumn,
+            ],
+          ),
+        );
+        break;
+      case IptvBackgroundMode.defaultTheme:
+        scaffold = Scaffold(
+          backgroundColor: theme.scaffoldBackgroundColor,
+          floatingActionButton: fab,
+          body: bodyColumn,
+        );
+        break;
+    }
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      child: scaffold,
     );
   }
 
@@ -1070,296 +1151,6 @@ class _IptvScreenState extends ConsumerState<IptvScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Future<void> _showImportBackupDialog(BuildContext context) async {
-    final raw = await showDialog<String>(
-      context: context,
-      builder: (_) => const _ImportBackupDialog(),
-    );
-
-    if (raw != null && raw.isNotEmpty && context.mounted) {
-      final count =
-          await ref.read(iptvPlaylistsProvider.notifier).importBackupJson(raw);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              count > 0
-                  ? 'Imported $count playlist(s) from backup'
-                  : 'No valid playlists found in JSON backup',
-            ),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
-  }
-
-  void _showSettingsSheet(BuildContext context) {
-    final themeMode = ref.read(activeThemeModeProvider);
-    final accentColor = ref.read(activeAccentColorProvider);
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: themeMode.surfaceContainerHigh,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => Consumer(
-        builder: (ctx, sheetRef, _) {
-          final settings = sheetRef.watch(iptvSettingsProvider);
-          final bookmarkCount = sheetRef.watch(iptvBookmarksProvider).length;
-          final epgCount = sheetRef.watch(iptvSavedEpgSourcesProvider).length;
-
-          return SafeArea(
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SwitchListTile(
-                    title: Text(
-                      'Sort Categories by Channel Count',
-                      style: TextStyle(color: themeMode.onSurfaceColor, fontSize: 14),
-                    ),
-                    subtitle: Text(
-                      'Orders group tabs largest-first after "All"',
-                      style: TextStyle(color: themeMode.onSurfaceMutedColor, fontSize: 12),
-                    ),
-                    value: settings.sortCategoriesByCount,
-                    activeThumbColor: accentColor.color,
-                    onChanged: (val) => ref
-                        .read(iptvSettingsProvider.notifier)
-                        .toggleSortCategoriesByCount(val),
-                  ),
-                  SwitchListTile(
-                    title: Text(
-                      'Hide "All" Category Tab',
-                      style: TextStyle(color: themeMode.onSurfaceColor, fontSize: 14),
-                    ),
-                    subtitle: Text(
-                      'Jump straight to the first group inside playlists',
-                      style: TextStyle(color: themeMode.onSurfaceMutedColor, fontSize: 12),
-                    ),
-                    value: settings.hideAllCategory,
-                    activeThumbColor: accentColor.color,
-                    onChanged: (val) => ref
-                        .read(iptvSettingsProvider.notifier)
-                        .toggleHideAllCategory(val),
-                  ),
-                  SwitchListTile(
-                    title: Text(
-                      '24-Hour Smart Playlist Cache',
-                      style: TextStyle(color: themeMode.onSurfaceColor, fontSize: 14),
-                    ),
-                    subtitle: Text(
-                      'Instant 0ms load when synced within the last 24h',
-                      style: TextStyle(color: themeMode.onSurfaceMutedColor, fontSize: 12),
-                    ),
-                    value: settings.cacheEnabled,
-                    activeThumbColor: accentColor.color,
-                    onChanged: (val) => ref
-                        .read(iptvSettingsProvider.notifier)
-                        .toggleCacheEnabled(val),
-                  ),
-                  Divider(color: themeMode.dividerColor, height: 1),
-                  ListTile(
-                    leading: Icon(
-                      Icons.bookmark_outline_rounded,
-                      color: accentColor.color,
-                    ),
-                    title: Text(
-                      'Saved Bookmarks ($bookmarkCount)',
-                      style: TextStyle(color: themeMode.onSurfaceColor),
-                    ),
-                    onTap: () {
-                      Navigator.of(ctx).pop();
-                      IptvBookmarksSheet.show(
-                        context,
-                        onPlayChannel: (ch, scope) => launchIptvChannelPlayback(
-                          context,
-                          ref,
-                          channel: ch,
-                          scopeChannels: scope,
-                        ),
-                      );
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(
-                      Icons.dvr_rounded,
-                      color: accentColor.color,
-                    ),
-                    title: Text(
-                      'Manage TV Guides ($epgCount)',
-                      style: TextStyle(color: themeMode.onSurfaceColor),
-                    ),
-                    onTap: () {
-                      Navigator.of(ctx).pop();
-                      IptvManageEpgSheet.show(context);
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.cleaning_services_outlined,
-                      color: Colors.white70,
-                    ),
-                    title: const Text(
-                      'Clear Cached EPG Guide Data',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    onTap: () {
-                      Navigator.of(ctx).pop();
-                      ref.read(iptvEpgProvider.notifier).clearAll();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Cleared cached EPG programme data'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.upload_file_rounded,
-                      color: Colors.white70,
-                    ),
-                    title: const Text(
-                      'Export Playlists Backup',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    onTap: () async {
-                      Navigator.of(ctx).pop();
-                      final jsonStr = ref
-                          .read(iptvPlaylistsProvider.notifier)
-                          .exportBackupJson();
-                      await Clipboard.setData(ClipboardData(text: jsonStr));
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Backup JSON copied to clipboard!'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.download_for_offline_rounded,
-                      color: Colors.white70,
-                    ),
-                    title: const Text(
-                      'Import JSON Backup',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    onTap: () {
-                      Navigator.of(ctx).pop();
-                      _showImportBackupDialog(context);
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.auto_awesome_rounded,
-                      color: Color(0xFFA8C7FA),
-                    ),
-                    title: const Text(
-                      'Load Free Demo Streams',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    onTap: () {
-                      Navigator.of(ctx).pop();
-                      ref
-                          .read(iptvPlaylistsProvider.notifier)
-                          .importSamplePlaylist();
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.delete_sweep_rounded,
-                      color: GoPlayTheme.error,
-                    ),
-                    title: const Text(
-                      'Clear All Playlists',
-                      style: TextStyle(color: GoPlayTheme.error),
-                    ),
-                    onTap: () async {
-                      Navigator.of(ctx).pop();
-                      await ref.read(iptvPlaylistsProvider.notifier).clearAll();
-                    },
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ImportBackupDialog extends StatefulWidget {
-  const _ImportBackupDialog();
-
-  @override
-  State<_ImportBackupDialog> createState() => _ImportBackupDialogState();
-}
-
-class _ImportBackupDialogState extends State<_ImportBackupDialog> {
-  final _controller = TextEditingController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: const Color(0xFF16171B),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFF282B36)),
-      ),
-      title: const Text(
-        'Import JSON Backup',
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-          fontSize: 16,
-        ),
-      ),
-      content: TextField(
-        controller: _controller,
-        maxLines: 6,
-        style: const TextStyle(color: Colors.white, fontSize: 12),
-        decoration: InputDecoration(
-          hintText: 'Paste exported IPTV backup JSON array...',
-          hintStyle: const TextStyle(color: Colors.white38),
-          filled: true,
-          fillColor: const Color(0xFF0C0D10),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Color(0xFF282B36)),
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(null),
-          child: const Text('CANCEL', style: TextStyle(color: Colors.white54)),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFA8C7FA),
-            foregroundColor: const Color(0xFF0A1C36),
-          ),
-          child: const Text('IMPORT'),
-        ),
-      ],
     );
   }
 }

@@ -345,6 +345,9 @@ https://cdn.example.com/sony/index.mpd
       addTearDown(container.dispose);
 
       await container.read(iptvSettingsProvider.notifier).toggleSortCategoriesByCount(true);
+      await container.read(iptvSettingsProvider.notifier).setBackgroundMode(
+            IptvBackgroundMode.animated,
+          );
       await container.read(iptvViewConfigsProvider.notifier).setConfig(
             'pl_1',
             const IptvViewConfig(mode: IptvDisplayMode.poster, spanCount: 3, posterRatioIndex: 7),
@@ -358,6 +361,7 @@ https://cdn.example.com/sony/index.mpd
 
       final freshService = IptvService();
       expect(freshService.loadGlobalSettings().sortCategoriesByCount, isTrue);
+      expect(freshService.loadGlobalSettings().backgroundMode, IptvBackgroundMode.animated);
       expect(freshService.loadViewConfigs()['pl_1']?.mode, IptvDisplayMode.poster);
       expect(freshService.loadViewConfigs()['pl_1']?.posterRatioIndex, 7);
       expect(freshService.loadBookmarks()['bm_1']?.channel.name, 'HBO HD');
@@ -690,6 +694,61 @@ https://cdn.example.com/sony/index.mpd
         await tester.pumpAndSettle();
         expect(find.text('Sports Hub'), findsNothing);
         expect(find.text('Toffee Live'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'IptvScreen renders clean borderless solid playlist cards without StretchingOverscrollIndicator during pull-to-refresh',
+      (tester) async {
+        tester.view.physicalSize = const Size(411, 891);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final memService = _MemoryIptvService([
+          IptvPlaylist(
+            id: 'pl_blur_1',
+            name: 'Solid Card 1',
+            sourceType: IptvSourceType.m3uUrl,
+            url: 'https://example.com/1.m3u',
+            addedAt: DateTime.now(),
+            lastSync: DateTime.now(),
+            channelCount: 12,
+          ),
+        ]);
+        await memService.saveGlobalSettings(
+          const IptvGlobalSettings(backgroundMode: IptvBackgroundMode.animated),
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              iptvServiceProvider.overrideWithValue(memService),
+            ],
+            child: const MaterialApp(
+              home: IptvScreen(),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(find.text('Solid Card 1'), findsOneWidget);
+        expect(find.byType(BackdropFilter), findsNothing);
+        expect(find.byType(StretchingOverscrollIndicator), findsNothing);
+        expect(find.byType(GlowingOverscrollIndicator), findsNothing);
+
+        // Simulate pulling down to arm RefreshIndicator
+        final gesture = await tester.startGesture(const Offset(200, 350));
+        await gesture.moveBy(const Offset(0, 220));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+
+        expect(find.byType(RefreshProgressIndicator), findsOneWidget);
+        expect(find.byType(StretchingOverscrollIndicator), findsNothing);
+
+        await gesture.up();
+        await tester.pumpAndSettle();
       },
     );
   });
