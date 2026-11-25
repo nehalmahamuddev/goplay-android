@@ -1,9 +1,12 @@
 package com.goplay.goplay
 
-import android.content.pm.PackageManager
+import android.app.Activity
 import android.app.PictureInPictureParams
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.OpenableColumns
 import android.util.Rational
 import android.view.KeyEvent
 import androidx.media3.common.util.UnstableApi
@@ -13,8 +16,15 @@ import io.flutter.plugin.common.MethodChannel
 
 @UnstableApi
 class MainActivity : FlutterActivity() {
+    companion object {
+        private const val REQUEST_PICK_PLAYLIST = 4109
+        private const val MAX_PLAYLIST_BYTES = 25L * 1024L * 1024L
+    }
+
     private var pipChannel: MethodChannel? = null
     private var playerKeysChannel: MethodChannel? = null
+    private var filePickerChannel: MethodChannel? = null
+    private var pendingFileResult: MethodChannel.Result? = null
     private var isPlayerActive = false
     private var isPlayerFullscreen = false
 
@@ -122,6 +132,103 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        filePickerChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.goplay/file_picker")
+        filePickerChannel?.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "pickPlaylistFile" -> {
+                    if (pendingFileResult != null) {
+                        result.error("ALREADY_ACTIVE", "File picker is already active", null)
+                        return@setMethodCallHandler
+                    }
+                    pendingFileResult = result
+                    try {
+                        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "*/*"
+                        }
+                        @Suppress("DEPRECATION")
+                        startActivityForResult(intent, REQUEST_PICK_PLAYLIST)
+                    } catch (e: Exception) {
+                        pendingFileResult = null
+                        result.error("PICKER_UNAVAILABLE", e.message, null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    @Deprecated("Required for FlutterActivity SAF file result forwarding")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == REQUEST_PICK_PLAYLIST) {
+            val callback = pendingFileResult
+            pendingFileResult = null
+            if (callback == null) {
+                @Suppress("DEPRECATION")
+                super.onActivityResult(requestCode, resultCode, data)
+                return
+            }
+            if (resultCode != Activity.RESULT_OK || data?.data == null) {
+                callback.success(null)
+                return
+            }
+            val uri = data.data!!
+            try {
+                var displayName: String? = null
+                var fileSize: Long = -1L
+                contentResolver.query(
+                    uri,
+                    arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
+                    null,
+                    null,
+                    null
+                )?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        if (nameIdx >= 0) {
+                            displayName = cursor.getString(nameIdx)
+                        }
+                        val sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE)
+                        if (sizeIdx >= 0 && !cursor.isNull(sizeIdx)) {
+                            fileSize = cursor.getLong(sizeIdx)
+                        }
+                    }
+                }
+                if (fileSize > MAX_PLAYLIST_BYTES) {
+                    callback.error("FILE_TOO_LARGE", "Selected file exceeds 25 MB limit", null)
+                    return
+                }
+                val content = contentResolver.openInputStream(uri)?.use { stream ->
+                    val out = java.io.ByteArrayOutputStream()
+                    val buf = ByteArray(8192)
+                    var total = 0L
+                    while (true) {
+                        val read = stream.read(buf)
+                        if (read <= 0) break
+                        total += read
+                        if (total > MAX_PLAYLIST_BYTES) {
+                            callback.error("FILE_TOO_LARGE", "Selected file exceeds 25 MB limit", null)
+                            return
+                        }
+                        out.write(buf, 0, read)
+                    }
+                    String(out.toByteArray(), Charsets.UTF_8)
+                } ?: ""
+                callback.success(
+                    mapOf(
+                        "name" to (displayName ?: uri.lastPathSegment ?: "playlist.m3u"),
+                        "content" to content,
+                        "uri" to uri.toString()
+                    )
+                )
+            } catch (e: Exception) {
+                callback.error("READ_FAILED", e.message, null)
+            }
+            return
+        }
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {

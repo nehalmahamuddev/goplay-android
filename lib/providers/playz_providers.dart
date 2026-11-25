@@ -153,8 +153,9 @@ final playzCategoryChannelsProvider =
   // 1. Supabase-first: check merged channels table
   try {
     final dbChannels = await supabase.getChannelsByCategory(category.id);
-    if (dbChannels.isNotEmpty) {
-      return dbChannels;
+    final activeDbChannels = dbChannels.where((c) => c.isLive).toList();
+    if (activeDbChannels.isNotEmpty) {
+      return activeDbChannels;
     }
   } catch (_) {}
 
@@ -164,17 +165,17 @@ final playzCategoryChannelsProvider =
       endpoint: category.playzEndpoint!,
       categoryId: category.id,
     );
-    if (direct.isNotEmpty) return direct;
+    if (direct.isNotEmpty) return direct.where((c) => c.isLive).toList();
   } else if (category.isM3u && category.m3uUrl != null && category.m3uUrl!.isNotEmpty) {
     final direct = await StreamDecryptor.fetchM3uChannels(
       m3uUrl: category.m3uUrl!,
       categoryId: category.id,
     );
-    if (direct.isNotEmpty) return direct;
+    if (direct.isNotEmpty) return direct.where((c) => c.isLive).toList();
   }
 
   // 3. Fallback to local cache if offline or direct fetch returns empty
   final cache = ref.watch(cacheServiceProvider);
   final local = cache.getLocalChannels();
-  return local.where((c) => c.category == category.id).toList();
+  return local.where((c) => c.category == category.id && c.isLive).toList();
 });

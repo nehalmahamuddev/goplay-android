@@ -29,11 +29,18 @@ class _FakeCache extends CacheService {
 }
 
 /// Logos are deliberately null so no network image is created in tests.
-Channel channel(String id, String name, String? category) => Channel(
+Channel channel(
+  String id,
+  String name,
+  String? category, {
+  bool isLive = true,
+}) =>
+    Channel(
       id: id,
       name: name,
       category: category,
       streamUrl: 'https://example.test/$id.m3u8',
+      isLive: isLive,
     );
 
 Category category(String id, String name, int sortOrder, {bool active = true}) =>
@@ -276,6 +283,55 @@ void main() {
       expect(find.text('Charlie Three'), findsOneWidget);
       expect(find.text('Delta Four'), findsNothing);
       expect(find.byType(ChannelCard), findsNWidgets(3));
+    });
+
+    testWidgets('inactive channels (isLive: false) do not show on All tab or category tabs',
+        (tester) async {
+      final cache = _FakeCache(
+        channels: [
+          channel('c1', 'Alpha One', 'sports', isLive: true),
+          channel('c2', 'Bravo Two', 'sports', isLive: false),
+          channel('c3', 'Charlie Three', 'news', isLive: true),
+        ],
+        categories: [
+          category('sports', 'Sports', 0, active: true),
+          category('news', 'News', 1, active: true),
+        ],
+      );
+
+      final container = ProviderContainer(
+        overrides: [cacheServiceProvider.overrideWithValue(cache)],
+      );
+      addTearDown(container.dispose);
+
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: ChannelsScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // On Sports tab, Bravo Two should NOT appear because isLive is false
+      await tester.tap(find.text('Sports'));
+      await tester.pumpAndSettle();
+      expect(find.text('Alpha One'), findsOneWidget);
+      expect(find.text('Bravo Two'), findsNothing);
+
+      // On All tab, Bravo Two should NOT appear either
+      await tester.tap(find.text('All'));
+      await tester.pumpAndSettle();
+      expect(find.text('Alpha One'), findsOneWidget);
+      expect(find.text('Bravo Two'), findsNothing);
+      expect(find.text('Charlie Three'), findsOneWidget);
+      expect(find.byType(ChannelCard), findsNWidgets(2));
     });
 
     testWidgets('bookmarked channel belonging to inactive category still appears in Favorite tab',

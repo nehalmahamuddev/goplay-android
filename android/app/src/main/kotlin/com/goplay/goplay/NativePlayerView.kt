@@ -443,11 +443,33 @@ class NativePlayerView(
         val uri = Uri.parse(url)
         val mediaItemBuilder = MediaItem.Builder().setUri(uri)
 
-        // Auto-detect MIME type from URL
+        // Auto-detect MIME type from URL or explicit manifest hint
         val urlLower = url.lowercase()
+        val manifestHint = (config["drm_manifest_type"] as? String)?.lowercase()
         when {
-            urlLower.contains(".mpd") -> mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_MPD)
-            urlLower.contains(".m3u8") -> mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
+            urlLower.contains(".mpd") || manifestHint == "mpd" || manifestHint == "dash" ->
+                mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_MPD)
+            urlLower.contains(".m3u8") || manifestHint == "hls" || manifestHint == "m3u8" ->
+                mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
+            manifestHint == "ss" || manifestHint == "smoothstreaming" ->
+                mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_SS)
+        }
+
+        // Attach external subtitle track if provided
+        val subtitleUrl = (config["subtitle_url"] as? String)?.trim()
+        if (!subtitleUrl.isNullOrEmpty()) {
+            val subLower = subtitleUrl.lowercase()
+            val subMime = when {
+                subLower.contains(".vtt") -> MimeTypes.TEXT_VTT
+                subLower.contains(".ttml") || subLower.contains(".dfxp") -> MimeTypes.APPLICATION_TTML
+                else -> MimeTypes.APPLICATION_SUBRIP
+            }
+            val subConfig = MediaItem.SubtitleConfiguration.Builder(Uri.parse(subtitleUrl))
+                .setMimeType(subMime)
+                .setLanguage("en")
+                .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                .build()
+            mediaItemBuilder.setSubtitleConfigurations(listOf(subConfig))
         }
 
         // Configure DRM on the MediaItem if needed

@@ -294,7 +294,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void initState() {
     super.initState();
     _currentChannelId = widget.channelId;
-    if (widget.dynamicChannels != null && widget.dynamicChannels!.isNotEmpty) {
+    final hasDistinctPlaylistChannels = widget.dynamicChannels != null &&
+        widget.dynamicChannels!.isNotEmpty &&
+        widget.eventChannels != null &&
+        widget.dynamicChannels!
+            .any((c) => c.id == widget.channelId && !c.id.contains('_server_'));
+    if (widget.dynamicChannels != null &&
+        widget.dynamicChannels!.isNotEmpty &&
+        !hasDistinctPlaylistChannels) {
       _currentChannelServers = List<Channel>.from(widget.dynamicChannels!);
       _activeServerIndex = 0;
     } else if (widget.sportEvent != null) {

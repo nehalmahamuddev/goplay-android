@@ -239,6 +239,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                      key == LogicalKeyboardKey.numpad4) {
             _goBranch(3);
             return KeyEventResult.handled;
+          } else if (key == LogicalKeyboardKey.digit5 ||
+                     key == LogicalKeyboardKey.numpad5) {
+            _goBranch(5);
+            return KeyEventResult.handled;
           }
 
           // TV Remote D-Pad LEFT: Move left on page first.

@@ -25,6 +25,8 @@ class Channel {
   final List<String> linkNames;
   final bool hasVpnDetection;
   final List<StreamServer> streamServers;
+  final String? tvgId;
+  final String? tvgUrl;
 
   /// Whether the channel uses any form of DRM protection.
   bool get hasDrm => drm != null;
@@ -91,6 +93,8 @@ class Channel {
     this.linkNames = const [],
     this.hasVpnDetection = false,
     this.streamServers = const [],
+    this.tvgId,
+    this.tvgUrl,
   });
 
   factory Channel.fromJson(Map<String, dynamic> json) {
@@ -150,6 +154,8 @@ class Channel {
       linkNames: parsedLinkNames,
       hasVpnDetection: json['has_vpn_detection'] as bool? ?? false,
       streamServers: parsedServers,
+      tvgId: (json['tvg_id'] ?? json['tvgId'])?.toString(),
+      tvgUrl: (json['tvg_url'] ?? json['tvgUrl'])?.toString(),
     );
   }
 
@@ -174,5 +180,7 @@ class Channel {
         'link_names': linkNames,
         'has_vpn_detection': hasVpnDetection,
         'stream_servers': streamServers.map((s) => s.toJson()).toList(),
+        if (tvgId != null) 'tvg_id': tvgId,
+        if (tvgUrl != null) 'tvg_url': tvgUrl,
       };
 }

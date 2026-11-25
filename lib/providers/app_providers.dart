@@ -82,7 +82,7 @@ final rawChannelsProvider = FutureProvider<List<Channel>>((ref) async {
   return localChannels;
 });
 
-// ─── Channels (Filtered by active categories) ─────────────────
+// ─── Channels (Filtered by active status and active categories) ──
 final channelsProvider = FutureProvider<List<Channel>>((ref) async {
   final rawChannels = await ref.watch(rawChannelsProvider.future);
   final categories = await ref.watch(categoriesProvider.future);
@@ -90,8 +90,9 @@ final channelsProvider = FutureProvider<List<Channel>>((ref) async {
   final activeCategoryIds =
       categories.where((c) => c.active).map((c) => c.id).toSet();
 
-  // Strict mode: Only show channels belonging to an explicitly active category
+  // Strict mode: Only show active channels belonging to an explicitly active category
   return rawChannels.where((ch) {
+    if (!ch.isLive) return false;
     final cat = ch.category;
     return cat != null && cat.isNotEmpty && activeCategoryIds.contains(cat);
   }).toList();
@@ -105,13 +106,16 @@ final trendingChannelsProvider = FutureProvider<List<Channel>>((ref) async {
     final trending = await supabase.getTrendingChannels(limit: 20);
     if (trending.isNotEmpty) {
       final channelMap = {for (final ch in channels) ch.id: ch};
-      return trending.map((t) => channelMap[t.id] ?? t).toList();
+      return trending
+          .where((t) => t.isLive && channelMap.containsKey(t.id))
+          .map((t) => channelMap[t.id]!)
+          .toList();
     }
   } catch (e) {
     debugPrint('Error loading dynamic trending channels: $e');
   }
 
-  return channels.where((ch) => ch.isTrending).toList();
+  return channels.where((ch) => ch.isTrending && ch.isLive).toList();
 });
 
 /// Single O(n) grouping pass over the channel list.

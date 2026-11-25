@@ -34,8 +34,8 @@ class SupabaseService {
 
 
 
-  /// Fetches ALL channels using pagination to bypass the 1000-row PostgREST limit.
-  Future<List<Channel>> getChannels() async {
+  /// Fetches ALL active channels using pagination to bypass the 1000-row PostgREST limit.
+  Future<List<Channel>> getChannels({bool onlyLive = true}) async {
     final client = _client;
     if (client == null) return const [];
     const int batchSize = 1000;
@@ -43,9 +43,15 @@ class SupabaseService {
     final List<Channel> allChannels = [];
 
     while (true) {
-      final response = await client
+      var query = client
           .from('channels')
-          .select('*, stream_servers(*)')
+          .select('*, stream_servers(*)');
+
+      if (onlyLive) {
+        query = query.eq('is_live', true);
+      }
+
+      final response = await query
           .order('sort_order', ascending: true)
           .range(offset, offset + batchSize - 1);
 
@@ -59,7 +65,7 @@ class SupabaseService {
     return allChannels;
   }
 
-  Future<List<Channel>> getTrendingChannels({int limit = 20}) async {
+  Future<List<Channel>> getTrendingChannels({int limit = 20, bool onlyLive = true}) async {
     final client = _client;
     if (client == null) return const [];
     // 1. Try real-time RPC for dynamic trending (Admin pins + 24-48h top plays)
@@ -71,6 +77,7 @@ class SupabaseService {
       if (response is List && response.isNotEmpty) {
         return response
             .map((e) => Channel.fromJson(Map<String, dynamic>.from(e as Map)))
+            .where((ch) => !onlyLive || ch.isLive)
             .toList();
       }
     } catch (e) {
@@ -83,10 +90,16 @@ class SupabaseService {
     final List<Channel> allChannels = [];
 
     while (true) {
-      final response = await client
+      var query = client
           .from('channels')
           .select('*, stream_servers(*)')
-          .eq('is_trending', true)
+          .eq('is_trending', true);
+
+      if (onlyLive) {
+        query = query.eq('is_live', true);
+      }
+
+      final response = await query
           .order('sort_order', ascending: true)
           .range(offset, offset + batchSize - 1);
 
@@ -100,7 +113,7 @@ class SupabaseService {
     return allChannels;
   }
 
-  Future<List<Channel>> getChannelsByCategory(String categoryId) async {
+  Future<List<Channel>> getChannelsByCategory(String categoryId, {bool onlyLive = true}) async {
     final client = _client;
     if (client == null) return const [];
     const int batchSize = 1000;
@@ -108,10 +121,16 @@ class SupabaseService {
     final List<Channel> allChannels = [];
 
     while (true) {
-      final response = await client
+      var query = client
           .from('channels')
           .select('*, stream_servers(*)')
-          .eq('category', categoryId)
+          .eq('category', categoryId);
+
+      if (onlyLive) {
+        query = query.eq('is_live', true);
+      }
+
+      final response = await query
           .order('sort_order', ascending: true)
           .range(offset, offset + batchSize - 1);
 

@@ -13,6 +13,8 @@ enum NavDestination {
   categories(
     id: 'categories',
     label: 'Categories',
+    svgAsset: 'assets/images/categories.svg',
+    selectedSvgAsset: 'assets/images/categories_filled.svg',
     icon: Icons.grid_view_outlined,
     selectedIcon: Icons.grid_view_rounded,
     branchIndex: 1,
@@ -41,6 +43,16 @@ enum NavDestination {
     selectedSvgAsset: 'assets/images/events_filled.svg',
     branchIndex: 3,
     route: '/upcoming',
+  ),
+  iptv(
+    id: 'iptv',
+    label: 'IPTV',
+    svgAsset: 'assets/images/iptv.svg',
+    selectedSvgAsset: 'assets/images/iptv_filled.svg',
+    icon: Icons.live_tv_outlined,
+    selectedIcon: Icons.live_tv_rounded,
+    branchIndex: 5,
+    route: '/iptv',
   ),
   settings(
     id: 'settings',
@@ -83,6 +95,7 @@ enum NavDestination {
     NavDestination.categories,
     NavDestination.channels,
     NavDestination.events,
+    NavDestination.iptv,
   ];
 
   static const List<String> defaultTabIds = [
@@ -90,5 +103,6 @@ enum NavDestination {
     'categories',
     'channels',
     'events',
+    'iptv',
   ];
 }

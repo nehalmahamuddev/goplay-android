@@ -21,6 +21,7 @@ import '../screens/settings/subpages/navigation_tabs_settings_screen.dart';
 import '../screens/settings/subpages/primary_color_settings_screen.dart';
 import '../screens/settings/subpages/app_theme_settings_screen.dart';
 import '../screens/settings/subpages/launch_screen_settings_screen.dart';
+import '../screens/iptv/iptv_screen.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 final shellNavigatorKey = GlobalKey<NavigatorState>();
@@ -124,6 +125,14 @@ final appRouter = GoRouter(
                   builder: (context, state) => const AccountSettingsScreen(),
                 ),
               ],
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/iptv',
+              builder: (context, state) => const IptvScreen(),
             ),
           ],
         ),

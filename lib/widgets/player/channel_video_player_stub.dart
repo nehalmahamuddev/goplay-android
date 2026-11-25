@@ -484,6 +484,23 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
       (key, value) => MapEntry(key, value.toString()),
     );
 
+    String? subtitleUrl;
+    String? headerManifestType;
+    final removeKeys = <String>[];
+    for (final entry in headers.entries) {
+      final lower = entry.key.toLowerCase();
+      if (lower == 'x-subtitle-url') {
+        subtitleUrl = entry.value.trim();
+        removeKeys.add(entry.key);
+      } else if (lower == 'x-manifest-type') {
+        headerManifestType = entry.value.trim();
+        removeKeys.add(entry.key);
+      }
+    }
+    for (final k in removeKeys) {
+      headers.remove(k);
+    }
+
     // Bypass local proxy — ExoPlayer's DefaultHttpDataSource.Factory
     // already propagates custom headers to all sub-requests (manifests,
     // segments, keys) natively.  Routing segments through the Dart heap
@@ -503,9 +520,19 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
       'initial_quality': initialQuality,
     };
 
+    if (subtitleUrl != null && subtitleUrl.isNotEmpty) {
+      params['subtitle_url'] = subtitleUrl;
+    }
+    if (headerManifestType != null && headerManifestType.isNotEmpty && headerManifestType != 'auto') {
+      params['drm_manifest_type'] = headerManifestType;
+    }
+
     if (widget.channel.hasDrm) {
       final drm = widget.channel.drm!;
       params['drm_type'] = drm.type.name;
+      if (drm.manifestType != null && drm.manifestType!.isNotEmpty) {
+        params['drm_manifest_type'] = drm.manifestType;
+      }
 
       if (drm.isClearKey) {
         if (drm.kid != null) params['drm_kid'] = drm.kid;

@@ -23,23 +23,26 @@ void main() {
   });
 
   group('Navigation Destination Model Tests', () {
-    test('All 6 destinations have valid IDs and branch mappings', () {
-      expect(NavDestination.values.length, 6);
+    test('All 7 destinations have valid IDs and branch mappings', () {
+      expect(NavDestination.values.length, 7);
       expect(NavDestination.home.branchIndex, 0);
       expect(NavDestination.categories.branchIndex, 1);
       expect(NavDestination.channels.branchIndex, 2);
       expect(NavDestination.favorites.branchIndex, 2);
       expect(NavDestination.events.branchIndex, 3);
       expect(NavDestination.settings.branchIndex, 4);
+      expect(NavDestination.iptv.branchIndex, 5);
       expect(NavDestination.settings.route, '/settings');
+      expect(NavDestination.iptv.route, '/iptv');
 
       expect(NavDestination.fromId('favorites'), NavDestination.favorites);
+      expect(NavDestination.fromId('iptv'), NavDestination.iptv);
       expect(NavDestination.fromId('unknown'), NavDestination.home);
     });
 
-    test('Default tabs contains exactly 4 standard destinations', () {
-      expect(NavDestination.defaultTabs.length, 4);
-      expect(NavDestination.defaultTabIds, ['home', 'categories', 'channels', 'events']);
+    test('Default tabs contains standard destinations including IPTV', () {
+      expect(NavDestination.defaultTabs.length, 5);
+      expect(NavDestination.defaultTabIds, ['home', 'categories', 'channels', 'events', 'iptv']);
     });
   });
 
