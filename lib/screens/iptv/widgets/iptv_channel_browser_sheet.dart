@@ -315,8 +315,11 @@ class _IptvChannelBrowserSheetState
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final themeMode = ref.watch(activeThemeModeProvider);
     final accentColor = ref.watch(activeAccentColorProvider);
+    final headerBg =
+        theme.bottomNavigationBarTheme.backgroundColor ?? themeMode.bottomNavColor;
     final selectedFromState = ref.watch(selectedIptvPlaylistProvider);
     final activePlaylist =
         (selectedFromState != null && selectedFromState.id == widget.playlist.id)
@@ -368,199 +371,241 @@ class _IptvChannelBrowserSheetState
       },
       child: Scaffold(
         backgroundColor: themeMode.surfaceColor,
-        appBar: AppBar(
-          backgroundColor: themeMode.surfaceColor,
-          surfaceTintColor: Colors.transparent,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          titleSpacing: 0,
-          leading: IconButton(
-            icon: IptvSvgIcon(IptvSvgIcons.arrowLeft, color: themeMode.onSurfaceColor, size: 20),
-            onPressed: () {
-              if (_isSearching) {
-                _searchDebounce?.cancel();
-                _searchController.clear();
-                ref.read(iptvSearchQueryProvider.notifier).setQuery('');
-                setState(() => _isSearching = false);
-              } else {
-                Navigator.of(context).pop();
-              }
-            },
-          ),
-          title: _isSearching
-              ? TextField(
-                  controller: _searchController,
-                  focusNode: _searchFocus,
-                  autofocus: true,
-                  style: TextStyle(
-                    fontFamily: GoPlayType.family,
-                    color: themeMode.onSurfaceColor,
-                    fontSize: 16,
-                  ),
-                  cursorColor: accentColor.color,
-                  decoration: InputDecoration(
-                    hintText: 'Search channels...',
-                    hintStyle: TextStyle(
-                      fontFamily: GoPlayType.family,
-                      color: themeMode.onSurfaceMutedColor,
-                      fontSize: 15,
-                    ),
-                    border: InputBorder.none,
-                    isDense: true,
-                  ),
-                  onChanged: _onSearchChanged,
-                )
-              : Text(
-                  activePlaylist.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: GoPlayType.family,
-                    color: themeMode.onSurfaceColor,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                  ),
+        body: NestedScrollView(
+          floatHeaderSlivers: true,
+          headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) {
+            final hasTabs = groups.isNotEmpty && tc != null;
+            return <Widget>[
+              SliverAppBar(
+                backgroundColor: headerBg,
+                surfaceTintColor: Colors.transparent,
+                elevation: 0,
+                scrolledUnderElevation: 0,
+                titleSpacing: 0,
+                floating: !_isSearching,
+                snap: !_isSearching,
+                pinned: hasTabs,
+                systemOverlayStyle: SystemUiOverlayStyle(
+                  statusBarColor: Colors.transparent,
+                  statusBarIconBrightness:
+                      themeMode.isDark ? Brightness.light : Brightness.dark,
+                  statusBarBrightness:
+                      themeMode.isDark ? Brightness.dark : Brightness.light,
                 ),
-          actions: _isSearching
-              ? [
-                  IconButton(
-                    icon: IptvSvgIcon(IptvSvgIcons.close, color: themeMode.onSurfaceColor, size: 20),
-                    tooltip: 'Clear search',
-                    onPressed: () {
+                leading: IconButton(
+                  icon: IptvSvgIcon(
+                    IptvSvgIcons.arrowLeft,
+                    color: themeMode.onSurfaceColor,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    if (_isSearching) {
                       _searchDebounce?.cancel();
                       _searchController.clear();
                       ref.read(iptvSearchQueryProvider.notifier).setQuery('');
                       setState(() => _isSearching = false);
-                    },
-                  ),
-                ]
-              : [
-                  IconButton(
-                    icon: IptvSvgIcon(IptvSvgIcons.search, color: themeMode.onSurfaceColor, size: 20),
-                    tooltip: 'Search channels',
-                    onPressed: () {
-                      setState(() => _isSearching = true);
-                    },
-                  ),
-                  IconButton(
-                    icon: _isRefreshing
-                        ? SizedBox(
-                            width: 19,
-                            height: 19,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: accentColor.color,
+                    } else {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                ),
+                title: _isSearching
+                    ? TextField(
+                        controller: _searchController,
+                        focusNode: _searchFocus,
+                        autofocus: true,
+                        style: TextStyle(
+                          fontFamily: GoPlayType.family,
+                          color: themeMode.onSurfaceColor,
+                          fontSize: 16,
+                        ),
+                        cursorColor: accentColor.color,
+                        decoration: InputDecoration(
+                          hintText: 'Search channels...',
+                          hintStyle: TextStyle(
+                            fontFamily: GoPlayType.family,
+                            color: themeMode.onSurfaceMutedColor,
+                            fontSize: 15,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                        ),
+                        onChanged: _onSearchChanged,
+                      )
+                    : Text(
+                        activePlaylist.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: GoPlayType.family,
+                          color: themeMode.onSurfaceColor,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                actions: _isSearching
+                    ? [
+                        IconButton(
+                          icon: IptvSvgIcon(
+                            IptvSvgIcons.close,
+                            color: themeMode.onSurfaceColor,
+                            size: 20,
+                          ),
+                          tooltip: 'Clear search',
+                          onPressed: () {
+                            _searchDebounce?.cancel();
+                            _searchController.clear();
+                            ref
+                                .read(iptvSearchQueryProvider.notifier)
+                                .setQuery('');
+                            setState(() => _isSearching = false);
+                          },
+                        ),
+                      ]
+                    : [
+                        IconButton(
+                          icon: IptvSvgIcon(
+                            IptvSvgIcons.search,
+                            color: themeMode.onSurfaceColor,
+                            size: 20,
+                          ),
+                          tooltip: 'Search channels',
+                          onPressed: () {
+                            setState(() => _isSearching = true);
+                          },
+                        ),
+                        IconButton(
+                          icon: IptvSvgIcon(
+                            IptvSvgIcons.layoutGrid,
+                            color: themeMode.onSurfaceColor,
+                            size: 20,
+                          ),
+                          tooltip: 'View settings',
+                          onPressed: () => IptvViewSettingsSheet.show(
+                            context,
+                            activePlaylist.id,
+                          ),
+                        ),
+                        IconButton(
+                          icon: IptvSvgIcon(
+                            IptvSvgIcons.layoutList,
+                            color: themeMode.onSurfaceColor,
+                            size: 20,
+                          ),
+                          tooltip: 'Category tabs',
+                          onPressed: groups.isEmpty
+                              ? null
+                              : () {
+                                  IptvTabJumpSheet.show(
+                                    context,
+                                    categories: groups,
+                                    activeCategoryTitle: activeTitle,
+                                    onSelectTabIndex: (idx) {
+                                      final controller = _tabController;
+                                      if (controller != null &&
+                                          idx >= 0 &&
+                                          idx < groups.length) {
+                                        controller.animateTo(idx);
+                                      }
+                                    },
+                                  );
+                                },
+                        ),
+                        const SizedBox(width: 2),
+                      ],
+                bottom: hasTabs
+                    ? PreferredSize(
+                        preferredSize: Size.fromHeight(
+                          44.0 + (_isRefreshing ? 2.5 : 0.0),
+                        ),
+                        child: Container(
+                          color: headerBg,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                height: 44,
+                                child: TabBar(
+                                  controller: tc,
+                                  isScrollable: true,
+                                  tabAlignment: TabAlignment.start,
+                                  indicatorColor: accentColor.color,
+                                  indicatorWeight: 2.5,
+                                  indicatorSize: TabBarIndicatorSize.label,
+                                  dividerColor: Colors.transparent,
+                                  labelColor: accentColor.color,
+                                  unselectedLabelColor:
+                                      themeMode.onSurfaceMutedColor,
+                                  labelPadding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                  ),
+                                  labelStyle: const TextStyle(
+                                    fontFamily: GoPlayType.family,
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  unselectedLabelStyle: const TextStyle(
+                                    fontFamily: GoPlayType.family,
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  tabs: [
+                                    for (final g in groups)
+                                      Tab(height: 42, text: g.tabLabel),
+                                  ],
+                                ),
+                              ),
+                              if (_isRefreshing)
+                                LinearProgressIndicator(
+                                  value: _syncProgress > 0 && _syncProgress < 1
+                                      ? _syncProgress
+                                      : null,
+                                  minHeight: 2.5,
+                                  backgroundColor:
+                                      themeMode.surfaceContainerHigh,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    accentColor.color,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : (_isRefreshing
+                        ? PreferredSize(
+                            preferredSize: const Size.fromHeight(2.5),
+                            child: LinearProgressIndicator(
+                              value: _syncProgress > 0 && _syncProgress < 1
+                                  ? _syncProgress
+                                  : null,
+                              minHeight: 2.5,
+                              backgroundColor: themeMode.surfaceContainerHigh,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                accentColor.color,
+                              ),
                             ),
                           )
-                        : IptvSvgIcon(IptvSvgIcons.refresh, color: themeMode.onSurfaceColor, size: 19),
-                    tooltip: 'Sync playlist & TV guide',
-                    onPressed:
-                        _isRefreshing ? null : () => _refreshPlaylist(),
-                  ),
-                  IconButton(
-                    icon: IptvSvgIcon(
-                      IptvSvgIcons.layoutGrid,
-                      color: themeMode.onSurfaceColor,
-                      size: 20,
-                    ),
-                    tooltip: 'View settings',
-                    onPressed: () =>
-                        IptvViewSettingsSheet.show(context, activePlaylist.id),
-                  ),
-                  IconButton(
-                    icon: IptvSvgIcon(
-                      IptvSvgIcons.layoutList,
-                      color: themeMode.onSurfaceColor,
-                      size: 20,
-                    ),
-                    tooltip: 'Category tabs',
-                    onPressed: groups.isEmpty
-                        ? null
-                        : () {
-                            IptvTabJumpSheet.show(
-                              context,
-                              categories: groups,
-                              activeCategoryTitle: activeTitle,
-                              onSelectTabIndex: (idx) {
-                                final controller = _tabController;
-                                if (controller != null &&
-                                    idx >= 0 &&
-                                    idx < groups.length) {
-                                  controller.animateTo(idx);
-                                }
-                              },
-                            );
-                          },
-                  ),
-                  const SizedBox(width: 2),
-                ],
-        ),
-        body: Column(
-          children: [
-            if (groups.isNotEmpty && tc != null)
-              Container(
-                decoration: BoxDecoration(
-                  color: themeMode.surfaceColor,
-                  border: Border(
-                    bottom: BorderSide(color: themeMode.dividerColor, width: 1),
-                  ),
-                ),
-                child: TabBar(
+                        : null),
+              ),
+            ];
+          },
+          body: groups.isEmpty || tc == null
+              ? _buildEmptyState(hasSearch: false)
+              : TabBarView(
                   controller: tc,
-                  isScrollable: true,
-                  tabAlignment: TabAlignment.start,
-                  indicatorColor: accentColor.color,
-                  indicatorWeight: 2.5,
-                  indicatorSize: TabBarIndicatorSize.label,
-                  dividerColor: Colors.transparent,
-                  labelColor: accentColor.color,
-                  unselectedLabelColor: themeMode.onSurfaceMutedColor,
-                  labelPadding: const EdgeInsets.symmetric(horizontal: 14),
-                  labelStyle: const TextStyle(
-                    fontFamily: GoPlayType.family,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  unselectedLabelStyle: const TextStyle(
-                    fontFamily: GoPlayType.family,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  tabs: [
-                    for (final g in groups) Tab(height: 42, text: g.tabLabel),
+                  children: [
+                    for (final group in groups)
+                      _buildTabContent(
+                        group: group,
+                        activePlaylist: activePlaylist,
+                        searchQuery: searchQuery,
+                        viewConfig: viewConfig,
+                        bookmarks: bookmarks,
+                        epgMap: epgMap,
+                        now: now,
+                      ),
                   ],
                 ),
-              ),
-            if (_isRefreshing)
-              LinearProgressIndicator(
-                value: _syncProgress > 0 && _syncProgress < 1
-                    ? _syncProgress
-                    : null,
-                minHeight: 2.5,
-                backgroundColor: themeMode.surfaceContainerHigh,
-                valueColor:
-                    AlwaysStoppedAnimation<Color>(accentColor.color),
-              ),
-            Expanded(
-              child: groups.isEmpty || tc == null
-                  ? _buildEmptyState(hasSearch: false)
-                  : TabBarView(
-                      controller: tc,
-                      children: [
-                        for (final group in groups)
-                          _buildTabContent(
-                            group: group,
-                            activePlaylist: activePlaylist,
-                            searchQuery: searchQuery,
-                            viewConfig: viewConfig,
-                            bookmarks: bookmarks,
-                            epgMap: epgMap,
-                            now: now,
-                          ),
-                      ],
-                    ),
-            ),
-          ],
         ),
       ),
     );
@@ -580,9 +625,10 @@ class _IptvChannelBrowserSheetState
       return _buildEmptyState(hasSearch: searchQuery.trim().isNotEmpty);
     }
 
+    final Widget content;
     switch (viewConfig.mode) {
       case IptvDisplayMode.list:
-        return ListView.separated(
+        content = ListView.separated(
           padding: const EdgeInsets.fromLTRB(10, 10, 10, 24),
           itemCount: channels.length,
           separatorBuilder: (_, _) => const SizedBox(height: 8),
@@ -598,12 +644,13 @@ class _IptvChannelBrowserSheetState
             );
           },
         );
+        break;
 
       case IptvDisplayMode.poster:
         final cols = viewConfig.spanCount.clamp(1, 12);
         final ratio =
             IptvPosterRatioPreset.byIndex(viewConfig.posterRatioIndex).aspectRatio;
-        return GridView.builder(
+        content = GridView.builder(
           padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: cols,
@@ -624,10 +671,11 @@ class _IptvChannelBrowserSheetState
             );
           },
         );
+        break;
 
       case IptvDisplayMode.square:
         final cols = viewConfig.spanCount.clamp(1, 12);
-        return GridView.builder(
+        content = GridView.builder(
           padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: cols,
@@ -648,10 +696,11 @@ class _IptvChannelBrowserSheetState
             );
           },
         );
+        break;
 
       case IptvDisplayMode.grid:
         final cols = viewConfig.spanCount.clamp(1, 12);
-        return GridView.builder(
+        content = GridView.builder(
           padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: cols,
@@ -672,7 +721,15 @@ class _IptvChannelBrowserSheetState
             );
           },
         );
+        break;
     }
+
+    final accentColor = ref.watch(activeAccentColorProvider);
+    return RefreshIndicator(
+      onRefresh: () => _refreshPlaylist(),
+      color: accentColor.color,
+      child: content,
+    );
   }
 
   List<IptvEpgProgramme> _programmesFor(

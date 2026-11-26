@@ -535,6 +535,71 @@ https://cdn.example.com/sony/index.mpd
     });
 
     testWidgets(
+      'IptvChannelBrowserSheet collapses top toolbar into pinned tab bar upon scrolling down and re-expands on scroll up',
+      (tester) async {
+        tester.view.physicalSize = const Size(411, 891);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final memService = _MemoryIptvService();
+        final playlist = IptvPlaylist(
+          id: 'scroll_pl',
+          name: 'Scroll Test Playlist',
+          sourceType: IptvSourceType.m3uUrl,
+          url: 'https://example.com/playlist.m3u',
+          addedAt: DateTime.now(),
+          lastSync: DateTime.now(),
+          channelCount: 30,
+          channels: List.generate(
+            30,
+            (i) => Channel(
+              id: 'ch_$i',
+              name: 'Channel $i',
+              streamUrl: 'https://ex/$i.m3u8',
+              category: i < 15 ? 'News' : 'Entertainment',
+            ),
+          ),
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              iptvServiceProvider.overrideWithValue(memService),
+            ],
+            child: MaterialApp(
+              home: IptvChannelBrowserSheet(playlist: playlist),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(find.byType(NestedScrollView), findsOneWidget);
+        expect(find.text('Scroll Test Playlist'), findsOneWidget);
+        expect(find.text('All (30)'), findsOneWidget);
+
+        // Verify NestedScrollView header contains floating/snap/pinned SliverAppBar
+        final sliverAppBar = tester.widget<SliverAppBar>(find.byType(SliverAppBar));
+        expect(sliverAppBar.floating, isTrue);
+        expect(sliverAppBar.snap, isTrue);
+        expect(sliverAppBar.pinned, isTrue);
+
+        // Scroll down by 300px
+        await tester.drag(find.text('Channel 1'), const Offset(0, -300));
+        await tester.pumpAndSettle();
+
+        // Pinned tab bar remains visible
+        expect(find.text('All (30)'), findsOneWidget);
+
+        // Scroll up by 150px to trigger float/snap re-entry
+        await tester.drag(find.byType(NestedScrollView), const Offset(0, 150));
+        await tester.pumpAndSettle();
+        expect(find.text('Scroll Test Playlist'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
       'IptvScreen renders empty state on narrow 320px/360px widths with zero overflow',
       (tester) async {
         tester.view.devicePixelRatio = 1.0;
