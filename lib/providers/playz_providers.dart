@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/channel.dart';
 import '../models/category.dart';
@@ -144,10 +145,37 @@ class PlayzSelectedCategoryNotifier extends Notifier<Category?> {
   void select(Category? category) => state = category;
 }
 
-/// Fetches channels for a selected Category (Supabase-first + PlayZ fallback)
+/// Fetches channels for a selected Category.
+///
+/// For categories with an `m3uUrl`, serves locally cached M3U channels
+/// immediately via [channelsProvider] and refreshes directly from the saved
+/// M3U URL in the background via [SyncService] (throttled per category/URL).
 final playzCategoryChannelsProvider =
     FutureProvider.family<List<Channel>, Category>((ref, category) async {
   if (!category.active) return const [];
+
+  if (category.hasM3uUrl) {
+    final cache = ref.read(cacheServiceProvider);
+    final syncService = ref.read(syncServiceProvider);
+    final allChannels = await ref.watch(channelsProvider.future);
+    final existing =
+        allChannels.where((c) => c.category == category.id && c.isLive).toList();
+
+    if (existing.isEmpty && cache.getCategoryM3uMeta(category.id) == null) {
+      await syncService.refreshM3uCategoryIfDue(category, force: true);
+      return cache
+          .getCategoryM3uChannels(category.id)
+          .where((c) => c.isLive)
+          .toList();
+    }
+
+    unawaited(
+      syncService.refreshM3uCategoryIfDue(category).catchError((_) => false),
+    );
+
+    return existing;
+  }
+
   final supabase = ref.watch(supabaseServiceProvider);
 
   // 1. Supabase-first: check merged channels table
@@ -159,16 +187,12 @@ final playzCategoryChannelsProvider =
     }
   } catch (_) {}
 
-  // 2. PlayZ API / M3U fallback for direct categories
-  if (category.isCustom && category.playzEndpoint != null && category.playzEndpoint!.isNotEmpty) {
+  // 2. PlayZ API fallback for custom direct categories
+  if (category.isCustom &&
+      category.playzEndpoint != null &&
+      category.playzEndpoint!.isNotEmpty) {
     final direct = await StreamDecryptor.fetchCategoryChannels(
       endpoint: category.playzEndpoint!,
-      categoryId: category.id,
-    );
-    if (direct.isNotEmpty) return direct.where((c) => c.isLive).toList();
-  } else if (category.isM3u && category.m3uUrl != null && category.m3uUrl!.isNotEmpty) {
-    final direct = await StreamDecryptor.fetchM3uChannels(
-      m3uUrl: category.m3uUrl!,
       categoryId: category.id,
     );
     if (direct.isNotEmpty) return direct.where((c) => c.isLive).toList();

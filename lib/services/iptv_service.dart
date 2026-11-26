@@ -1707,12 +1707,14 @@ DrmConfig? _buildDrmFromKodiProps({
     headers.addAll(unusedParams);
   }
 
-  final overrideDrm = _buildDrmFromKodiProps(
-    licenseType: licenseType ?? drm?.type.name,
-    licenseKey: licenseKey ?? drm?.licenseUrl,
-    manifestType: manifestType,
-    headers: headers,
-  );
+  final DrmConfig? overrideDrm = (licenseType != null || licenseKey != null)
+      ? _buildDrmFromKodiProps(
+          licenseType: licenseType ?? drm?.type.name,
+          licenseKey: licenseKey ?? drm?.licenseUrl,
+          manifestType: manifestType,
+          headers: headers,
+        )
+      : null;
 
   if (overrideDrm != null) {
     drm = overrideDrm;

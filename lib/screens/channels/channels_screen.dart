@@ -233,9 +233,26 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
     // tab strip.
     _publishCoordinator(index);
     _schedulePrefetch();
+    _triggerM3uRefreshForTab(id);
 
     if (ref.read(selectedCategoryProvider) != id) {
       ref.read(selectedCategoryProvider.notifier).select(id);
+    }
+  }
+
+  void _triggerM3uRefreshForTab(String categoryId) {
+    if (categoryId == 'all' || categoryId == 'trending' || categoryId == 'favorite') {
+      return;
+    }
+    final cats = ref.read(categoriesProvider).value;
+    if (cats == null) return;
+    for (final cat in cats) {
+      if (cat.id == categoryId && cat.active && cat.hasM3uUrl) {
+        unawaited(
+          ref.read(syncServiceProvider).refreshM3uCategoryIfDue(cat),
+        );
+        break;
+      }
     }
   }
 
@@ -1624,24 +1641,44 @@ class _CategoryPageContentState extends ConsumerState<_CategoryPageContent>
     return channelsAsync.when(
       data: (channels) {
         _staggeredPrecache(channels);
-        return CustomScrollView(
-          key: PageStorageKey<String>(widget.categoryId),
-          controller: widget.scrollController,
-          cacheExtent: 400,
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            _ResponsiveGrid(
-              channels: channels,
-              categoryId: widget.categoryId,
-              pageIndex: widget.pageIndex,
-              coordinator: widget.coordinator,
-              searchQueryNotifier: widget.searchQueryNotifier,
-              sortNotifier: widget.sortNotifier,
-              onClearSearch: () => widget.searchQueryNotifier.value = '',
-              onViewAll: () =>
-                  ref.read(selectedCategoryProvider.notifier).select('all'),
-            ),
-          ],
+        return RefreshIndicator(
+          color: Theme.of(context).colorScheme.primary,
+          onRefresh: () async {
+            HapticFeedback.mediumImpact();
+            final syncService = ref.read(syncServiceProvider);
+            final cats = ref.read(categoriesProvider).value ?? const [];
+            Category? matched;
+            for (final c in cats) {
+              if (c.id == widget.categoryId) {
+                matched = c;
+                break;
+              }
+            }
+            if (matched != null && matched.hasM3uUrl) {
+              await syncService.refreshM3uCategoryIfDue(matched, force: true);
+            } else {
+              await syncService.refreshM3uDirectly(force: true);
+            }
+          },
+          child: CustomScrollView(
+            key: PageStorageKey<String>(widget.categoryId),
+            controller: widget.scrollController,
+            cacheExtent: 400,
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              _ResponsiveGrid(
+                channels: channels,
+                categoryId: widget.categoryId,
+                pageIndex: widget.pageIndex,
+                coordinator: widget.coordinator,
+                searchQueryNotifier: widget.searchQueryNotifier,
+                sortNotifier: widget.sortNotifier,
+                onClearSearch: () => widget.searchQueryNotifier.value = '',
+                onViewAll: () =>
+                    ref.read(selectedCategoryProvider.notifier).select('all'),
+              ),
+            ],
+          ),
         );
       },
       loading: () => const _SkeletonGrid(itemCount: 12, scrollable: false),

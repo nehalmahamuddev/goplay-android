@@ -231,6 +231,7 @@ class _UpdatesSettingsScreenState extends ConsumerState<UpdatesSettingsScreen> {
                 subtitle: 'Free storage by clearing temporary channel lists and logos',
                 onTap: () async {
                   await ref.read(cacheServiceProvider).clearAllCache();
+                  ref.read(syncServiceProvider).invalidateChannelProviders();
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(

@@ -12,6 +12,43 @@ import '../models/hero_banner_item.dart';
 import '../models/app_ui_config.dart';
 import '../models/nav_destination.dart';
 
+/// Persisted sync metadata for a category's direct M3U playlist.
+class CategoryM3uMeta {
+  final String m3uUrl;
+  final String? etag;
+  final String? lastModified;
+  final String? contentHash;
+  final DateTime? lastSyncedAt;
+
+  const CategoryM3uMeta({
+    required this.m3uUrl,
+    this.etag,
+    this.lastModified,
+    this.contentHash,
+    this.lastSyncedAt,
+  });
+
+  factory CategoryM3uMeta.fromJson(Map<String, dynamic> json) {
+    return CategoryM3uMeta(
+      m3uUrl: (json['m3u_url'] as String? ?? '').trim(),
+      etag: json['etag'] as String?,
+      lastModified: json['last_modified'] as String?,
+      contentHash: json['content_hash'] as String?,
+      lastSyncedAt: json['last_synced_at'] != null
+          ? DateTime.tryParse(json['last_synced_at'] as String)
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'm3u_url': m3uUrl,
+        if (etag != null) 'etag': etag,
+        if (lastModified != null) 'last_modified': lastModified,
+        if (contentHash != null) 'content_hash': contentHash,
+        if (lastSyncedAt != null) 'last_synced_at': lastSyncedAt!.toIso8601String(),
+      };
+}
+
 /// Service for managing local Hive cache operations for channels, categories,
 /// events, favorites and sync versions.
 ///
@@ -28,9 +65,14 @@ class CacheService {
   List<HeroBannerItem>? _heroBannersMemo;
   Set<String>? _favoritesMemo;
   Map<String, List<Channel>>? _directCategoryChannelsMemo;
+  Map<String, List<Channel>>? _m3uChannelsMemo;
+  Map<String, CategoryM3uMeta?>? _m3uMetaMemo;
   AppUiConfig? _uiConfigMemo;
+  int? _channelsVersionMemo;
 
   static const List<String> directCategoryIds = [];
+  static const String _m3uChannelsPrefix = 'm3u_channels_';
+  static const String _m3uMetaPrefix = 'm3u_meta_';
 
   /// Drops every memoized decode. Used after a cache wipe.
   void invalidateMemo() {
@@ -41,7 +83,10 @@ class CacheService {
     _heroBannersMemo = null;
     _favoritesMemo = null;
     _directCategoryChannelsMemo = null;
+    _m3uChannelsMemo = null;
+    _m3uMetaMemo = null;
     _uiConfigMemo = null;
+    _channelsVersionMemo = null;
   }
 
   /// Reads a Hive box without throwing when the box failed to open at startup.
@@ -125,6 +170,110 @@ class CacheService {
       list.addAll(getDirectCategoryChannels(catId));
     }
     return list;
+  }
+
+  // ─── Category M3U Channels & Sync Metadata ──────────────────
+  List<Channel> getCategoryM3uChannels(String categoryId) {
+    _m3uChannelsMemo ??= {};
+    if (_m3uChannelsMemo!.containsKey(categoryId)) {
+      return _m3uChannelsMemo![categoryId]!;
+    }
+    final channels = _decodeList(
+      AppConstants.channelsBox,
+      '$_m3uChannelsPrefix$categoryId',
+      Channel.fromJson,
+    );
+    _m3uChannelsMemo![categoryId] = List<Channel>.unmodifiable(channels);
+    return _m3uChannelsMemo![categoryId]!;
+  }
+
+  Future<void> saveCategoryM3uChannels(
+    String categoryId,
+    List<Channel> channels,
+  ) async {
+    _m3uChannelsMemo ??= {};
+    _m3uChannelsMemo![categoryId] = List<Channel>.unmodifiable(channels);
+    final box = _boxOrNull(AppConstants.channelsBox);
+    if (box == null) return;
+    await box.put(
+      '$_m3uChannelsPrefix$categoryId',
+      channels.map((c) => c.toJson()).toList(),
+    );
+  }
+
+  CategoryM3uMeta? getCategoryM3uMeta(String categoryId) {
+    _m3uMetaMemo ??= {};
+    if (_m3uMetaMemo!.containsKey(categoryId)) {
+      return _m3uMetaMemo![categoryId];
+    }
+    final raw = _boxOrNull(AppConstants.settingsBox)?.get('$_m3uMetaPrefix$categoryId');
+    CategoryM3uMeta? meta;
+    if (raw is Map) {
+      try {
+        meta = CategoryM3uMeta.fromJson(Map<String, dynamic>.from(raw));
+      } catch (e) {
+        debugPrint('CacheService: skipping malformed m3u meta for $categoryId: $e');
+      }
+    }
+    _m3uMetaMemo![categoryId] = meta;
+    return meta;
+  }
+
+  Future<void> saveCategoryM3uMeta(
+    String categoryId,
+    CategoryM3uMeta meta,
+  ) async {
+    _m3uMetaMemo ??= {};
+    _m3uMetaMemo![categoryId] = meta;
+    final box = _boxOrNull(AppConstants.settingsBox);
+    if (box == null) return;
+    await box.put('$_m3uMetaPrefix$categoryId', meta.toJson());
+  }
+
+  Future<void> clearCategoryM3uData(String categoryId) async {
+    _m3uChannelsMemo?.remove(categoryId);
+    _m3uMetaMemo?.remove(categoryId);
+    await _boxOrNull(AppConstants.channelsBox)?.delete('$_m3uChannelsPrefix$categoryId');
+    await _boxOrNull(AppConstants.settingsBox)?.delete('$_m3uMetaPrefix$categoryId');
+  }
+
+  Set<String> getCachedM3uCategoryIds() {
+    final ids = <String>{};
+    if (_m3uChannelsMemo != null) {
+      ids.addAll(_m3uChannelsMemo!.keys);
+    }
+    if (_m3uMetaMemo != null) {
+      ids.addAll(_m3uMetaMemo!.keys);
+    }
+    final channelsBox = _boxOrNull(AppConstants.channelsBox);
+    if (channelsBox != null) {
+      for (final key in channelsBox.keys) {
+        if (key is String && key.startsWith(_m3uChannelsPrefix)) {
+          ids.add(key.substring(_m3uChannelsPrefix.length));
+        }
+      }
+    }
+    final settingsBox = _boxOrNull(AppConstants.settingsBox);
+    if (settingsBox != null) {
+      for (final key in settingsBox.keys) {
+        if (key is String && key.startsWith(_m3uMetaPrefix)) {
+          ids.add(key.substring(_m3uMetaPrefix.length));
+        }
+      }
+    }
+    return ids;
+  }
+
+  /// True if either standard DB channels or any active M3U category's cached
+  /// channels are available locally.
+  bool hasAnyLocalChannelData() {
+    if (getLocalChannels().isNotEmpty) return true;
+    for (final cat in getLocalCategories()) {
+      if (cat.active && cat.hasM3uUrl && getCategoryM3uChannels(cat.id).isNotEmpty) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // ─── Events ─────────────────────────────────────────────────
@@ -272,10 +421,11 @@ class CacheService {
   }
 
   // ─── Sync Versions ──────────────────────────────────────────
-  int? getLocalChannelsVersion() =>
+  int? getLocalChannelsVersion() => _channelsVersionMemo ??=
       _boxOrNull(AppConstants.settingsBox)?.get('channels_version') as int?;
 
   Future<void> saveLocalChannelsVersion(int version) async {
+    _channelsVersionMemo = version;
     await _boxOrNull(AppConstants.settingsBox)?.put('channels_version', version);
   }
 
@@ -298,6 +448,15 @@ class CacheService {
     await settingsBox?.delete('events_version');
     await settingsBox?.delete('ui_config');
     await settingsBox?.delete('ui_config_version');
+    if (settingsBox != null) {
+      final m3uMetaKeys = settingsBox.keys
+          .whereType<String>()
+          .where((k) => k.startsWith(_m3uMetaPrefix))
+          .toList(growable: false);
+      for (final key in m3uMetaKeys) {
+        await settingsBox.delete(key);
+      }
+    }
   }
 
   Future<void> resetLocalUiConfigToDefaults() async {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -108,6 +109,23 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
       _channelSort = ChannelSortOption.defaultOrder;
     });
     ref.read(playzSelectedCategoryProvider.notifier).select(category);
+  }
+
+  void _refreshCategoryChannels(Category category) {
+    if (category.hasM3uUrl) {
+      unawaited(
+        ref
+            .read(syncServiceProvider)
+            .refreshM3uCategoryIfDue(category, force: true)
+            .whenComplete(() {
+          if (mounted) {
+            ref.invalidate(playzCategoryChannelsProvider(category));
+          }
+        }),
+      );
+    } else {
+      ref.invalidate(playzCategoryChannelsProvider(category));
+    }
   }
 
   void _goBackToCategories() {
@@ -367,31 +385,39 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
               }
 
               final columns = _calculateCategoryColumns(context);
-              return GridView.builder(
-                key: const PageStorageKey('categories_grid_page_storage'),
-                controller: _categoryScrollController,
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 88),
-                cacheExtent: 500.0,
-                physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columns,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                  childAspectRatio: _calculateCategoryAspectRatio(columns),
-                ),
-                itemCount: displayList.length,
-                itemBuilder: (context, index) {
-                  final category = displayList[index];
-                  final count = channelsMap?[category.id]?.length ??
-                      channelsMap?[category.name]?.length ??
-                      channelsMap?[category.id.toLowerCase()]?.length;
-                  return _CategoryPillCard(
-                    category: category,
-                    channelCount: count,
-                    focusNode: _getFocusNodeForCategory(category.id),
-                    onTap: () => _onCategoryTapped(category),
-                  );
+              return RefreshIndicator(
+                color: Theme.of(context).colorScheme.primary,
+                onRefresh: () async {
+                  HapticFeedback.mediumImpact();
+                  await ref.read(syncServiceProvider).refreshM3uDirectly(force: true);
+                  ref.invalidate(playzCategoriesProvider);
                 },
+                child: GridView.builder(
+                  key: const PageStorageKey('categories_grid_page_storage'),
+                  controller: _categoryScrollController,
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 88),
+                  cacheExtent: 500.0,
+                  physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                    childAspectRatio: _calculateCategoryAspectRatio(columns),
+                  ),
+                  itemCount: displayList.length,
+                  itemBuilder: (context, index) {
+                    final category = displayList[index];
+                    final count = channelsMap?[category.id]?.length ??
+                        channelsMap?[category.name]?.length ??
+                        channelsMap?[category.id.toLowerCase()]?.length;
+                    return _CategoryPillCard(
+                      category: category,
+                      channelCount: count,
+                      focusNode: _getFocusNodeForCategory(category.id),
+                      onTap: () => _onCategoryTapped(category),
+                    );
+                  },
+                ),
               );
             },
             loading: () => _buildCategoriesSkeleton(context),
@@ -564,7 +590,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                     } else if (_filterFavoriteChannels) {
                       setState(() => _filterFavoriteChannels = false);
                     } else {
-                      ref.invalidate(playzCategoryChannelsProvider(category));
+                      _refreshCategoryChannels(category);
                     }
                   },
                 );
@@ -575,24 +601,36 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                   final availableWidth = constraints.maxWidth - (_kGridEdgeInset * 2);
                   final gridDelegate = _buildChannelGridDelegate(context, availableWidth);
 
-                  return GridView.builder(
-                    key: PageStorageKey('category_channels_${category.id}'),
-                    controller: _channelScrollController,
-                    padding: const EdgeInsets.fromLTRB(_kGridEdgeInset, 8, _kGridEdgeInset, 88),
-                    cacheExtent: 500.0,
-                    physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                    gridDelegate: gridDelegate,
-                    itemCount: displayList.length,
-                    itemBuilder: (context, index) {
-                      final ch = displayList[index];
-                      return RepaintBoundary(
-                        child: ChannelCard(
-                          key: ValueKey(ch.id),
-                          channel: ch,
-                          scope: displayList,
-                        ),
-                      );
+                  return RefreshIndicator(
+                    color: cs.primary,
+                    onRefresh: () async {
+                      HapticFeedback.mediumImpact();
+                      if (category.hasM3uUrl) {
+                        await ref
+                            .read(syncServiceProvider)
+                            .refreshM3uCategoryIfDue(category, force: true);
+                      }
+                      ref.invalidate(playzCategoryChannelsProvider(category));
                     },
+                    child: GridView.builder(
+                      key: PageStorageKey('category_channels_${category.id}'),
+                      controller: _channelScrollController,
+                      padding: const EdgeInsets.fromLTRB(_kGridEdgeInset, 8, _kGridEdgeInset, 88),
+                      cacheExtent: 500.0,
+                      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                      gridDelegate: gridDelegate,
+                      itemCount: displayList.length,
+                      itemBuilder: (context, index) {
+                        final ch = displayList[index];
+                        return RepaintBoundary(
+                          child: ChannelCard(
+                            key: ValueKey(ch.id),
+                            channel: ch,
+                            scope: displayList,
+                          ),
+                        );
+                      },
+                    ),
                   );
                 },
               );
@@ -600,7 +638,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
             loading: () => _buildChannelsSkeleton(context),
             error: (err, _) => _buildErrorState(
               'Failed to load channels for ${category.name}',
-              () => ref.invalidate(playzCategoryChannelsProvider(category)),
+              () => _refreshCategoryChannels(category),
             ),
           ),
         ),
@@ -1055,7 +1093,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                             onTap: () {
                               Navigator.pop(bottomSheetContext);
                               HapticFeedback.mediumImpact();
-                              ref.invalidate(playzCategoryChannelsProvider(category));
+                              _refreshCategoryChannels(category);
                             },
                           ),
                         ),

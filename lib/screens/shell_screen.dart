@@ -9,6 +9,7 @@ import '../core/theme.dart';
 import '../core/typography.dart';
 import '../widgets/tv_focus_wrapper.dart';
 import '../widgets/main_bottom_nav_bar.dart';
+import '../widgets/category_m3u_auto_sync_observer.dart';
 
 /// Main shell screen with bottom navigation bar.
 ///
@@ -266,7 +267,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         }
         return KeyEventResult.ignored;
       },
-        child: content,
+        child: CategoryM3uAutoSyncObserver(child: content),
       ),
     );
   }

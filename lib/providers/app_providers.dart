@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/supabase_service.dart';
 import '../services/cache_service.dart';
+import '../services/category_m3u_service.dart';
 import '../services/sync_service.dart';
 import '../services/analytics_service.dart';
 import '../models/channel.dart';
@@ -26,6 +27,11 @@ final supabaseServiceProvider = Provider<SupabaseService>((ref) {
 
 final cacheServiceProvider = Provider<CacheService>((ref) {
   return CacheService();
+});
+
+final categoryM3uSyncServiceProvider = Provider<CategoryM3uSyncService>((ref) {
+  final cache = ref.watch(cacheServiceProvider);
+  return CategoryM3uSyncService(cache: cache);
 });
 
 final syncServiceProvider = Provider<SyncService>((ref) {
@@ -57,30 +63,74 @@ final appThemeProvider = Provider<ThemeData>((ref) {
   return ref.watch(activeAppThemeProvider);
 });
 
-// ─── Raw Channels (unfiltered) ──────────────────────────────
+// ─── Raw Channels (unfiltered, unified DB + Category M3U) ──────
 final rawChannelsProvider = FutureProvider<List<Channel>>((ref) async {
   final cache = ref.watch(cacheServiceProvider);
-  final localChannels = cache.getLocalChannels();
+  var localCategories = cache.getLocalCategories();
+  var localChannels = cache.getLocalChannels();
 
-  // 1. Instant 0ms startup: Return local cache immediately if available
-  if (localChannels.isNotEmpty) {
-    return localChannels;
-  }
+  final hadEmptyCategories = localCategories.isEmpty;
+  final needsDbChannels = localChannels.isEmpty &&
+      (hadEmptyCategories ||
+          !localCategories.any((c) => c.active && c.hasM3uUrl));
 
-  // 2. Cold initial download if cache is completely empty (first install)
-  final supabase = ref.watch(supabaseServiceProvider);
-  try {
-    final remoteChannels = await supabase.getChannels();
-    if (remoteChannels.isNotEmpty) {
-      await cache.saveLocalChannels(remoteChannels);
-      return remoteChannels;
+  // Cold initial download if cache is empty (first install / tests)
+  if (hadEmptyCategories || needsDbChannels) {
+    final supabase = ref.watch(supabaseServiceProvider);
+    try {
+      if (hadEmptyCategories) {
+        final fetchedCategories = await supabase.getCategories();
+        if (fetchedCategories.isNotEmpty) {
+          await cache.saveLocalCategories(fetchedCategories);
+          localCategories = fetchedCategories;
+        }
+      }
+      if (needsDbChannels) {
+        final remoteChannels = await supabase.getChannels();
+        if (remoteChannels.isNotEmpty) {
+          await cache.saveLocalChannels(remoteChannels);
+          localChannels = remoteChannels;
+        }
+      }
+      if (hadEmptyCategories &&
+          localCategories.any((c) => c.active && c.hasM3uUrl)) {
+        await ref
+            .read(categoryM3uSyncServiceProvider)
+            .reconcileCategories(localCategories);
+      }
+    } catch (e) {
+      debugPrint('Supabase channels fetch non-fatal error: $e');
     }
-  } catch (e) {
-    debugPrint('Supabase channels fetch non-fatal error: $e');
   }
 
-  return localChannels;
+  return _mergeDbAndCategoryM3uChannels(
+    dbChannels: localChannels,
+    categories: localCategories,
+    cache: cache,
+  );
 });
+
+List<Channel> _mergeDbAndCategoryM3uChannels({
+  required List<Channel> dbChannels,
+  required List<Category> categories,
+  required CacheService cache,
+}) {
+  final m3uCategories =
+      categories.where((c) => c.active && c.hasM3uUrl).toList(growable: false);
+  if (m3uCategories.isEmpty) {
+    return dbChannels;
+  }
+
+  final m3uCategoryIds = m3uCategories.map((c) => c.id).toSet();
+  final merged = <Channel>[
+    for (final ch in dbChannels)
+      if (!m3uCategoryIds.contains(ch.category)) ch,
+  ];
+  for (final cat in m3uCategories) {
+    merged.addAll(cache.getCategoryM3uChannels(cat.id));
+  }
+  return merged;
+}
 
 // ─── Channels (Filtered by active status and active categories) ──
 final channelsProvider = FutureProvider<List<Channel>>((ref) async {

@@ -30,9 +30,10 @@ class Category {
 
   bool get isM3u => type == 'm3u';
   bool get isCustom => type == 'custom';
+  bool get hasM3uUrl => m3uUrl != null && m3uUrl!.trim().isNotEmpty;
+  String? get effectiveM3uUrl => hasM3uUrl ? m3uUrl!.trim() : null;
   bool get isPlayzDirect =>
-      (playzEndpoint != null && playzEndpoint!.isNotEmpty) ||
-      (m3uUrl != null && m3uUrl!.isNotEmpty);
+      (playzEndpoint != null && playzEndpoint!.isNotEmpty) || hasM3uUrl;
 
   factory Category.fromJson(Map<String, dynamic> json) {
     return Category(

@@ -53,9 +53,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _animController.forward();
 
-    // Check if we have cached channels on disk
+    // Check if we have cached channels (DB or M3U) on disk
     final cache = ref.read(cacheServiceProvider);
-    final hasInitialData = cache.getLocalChannels().isNotEmpty;
+    final hasInitialData = cache.hasAnyLocalChannelData();
 
     final List<Future<dynamic>> waitList = [
       appInitFuture.catchError((e) {
