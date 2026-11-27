@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/theme.dart';
 import '../../../core/typography.dart';
 import '../../../providers/app_providers.dart';
+import '../../../services/channel_stream_launcher.dart';
 import '../../../widgets/section_header.dart';
 import 'home_trending_channels.dart';
 
@@ -25,8 +25,6 @@ class HomeRecentlyWatched extends ConsumerWidget {
 
     if (history.isEmpty) return const SizedBox.shrink();
 
-    final railIds = history.map((c) => c.id).toList(growable: false);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -45,10 +43,7 @@ class HomeRecentlyWatched extends ConsumerWidget {
                 channel: ch,
                 nameStyle: _historyNameStyle,
                 showBorder: false,
-                onTap: () => context.push(
-                  '/player/${ch.id}',
-                  extra: {'eventChannels': railIds},
-                ),
+                onTap: () => ChannelStreamLauncher.launch(context, ch, scope: history),
               );
             },
           ),

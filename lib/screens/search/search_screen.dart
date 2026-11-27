@@ -1,26 +1,19 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme.dart';
 import '../../core/typography.dart';
 import '../../providers/app_providers.dart';
 import '../../models/channel.dart';
 import '../../models/event.dart';
+import '../../services/channel_stream_launcher.dart';
 import '../../services/event_stream_launcher.dart';
 import '../../widgets/cards/modern_event_card.dart';
 
 /// Opens [ch] in the player scoped to [scope] — the list the user tapped it in.
 void _openPlayer(BuildContext context, Channel ch, List<Channel> scope) {
-  if (scope.length < 2) {
-    context.push('/player/${ch.id}');
-    return;
-  }
-  context.push(
-    '/player/${ch.id}',
-    extra: {'eventChannels': scope.map((c) => c.id).toList(growable: false)},
-  );
+  ChannelStreamLauncher.launch(context, ch, scope: scope);
 }
 
 class SearchScreen extends ConsumerStatefulWidget {

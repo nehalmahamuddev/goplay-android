@@ -59,7 +59,8 @@ class _UpdateHandlerState extends ConsumerState<UpdateHandler> with WidgetsBindi
       // If the app is currently on the splash screen ('/'), wait until it navigates away
       // to avoid showing/dismissing the dialog during the initial route transition.
       int waitedMs = 0;
-      while (appRouter.routerDelegate.currentConfiguration.uri.path == '/' && waitedMs < 10000) {
+      final router = ref.read(routerProvider);
+      while (router.routerDelegate.currentConfiguration.uri.path == '/' && waitedMs < 10000) {
         await Future.delayed(const Duration(milliseconds: 200));
         waitedMs += 200;
       }

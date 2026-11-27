@@ -384,18 +384,31 @@ final iptvEpgClockProvider = StreamProvider<DateTime>((ref) {
   );
 });
 
-/// Currently opened playlist state
-final selectedIptvPlaylistProvider =
-    NotifierProvider<SelectedIptvPlaylistNotifier, IptvPlaylist?>(
-  SelectedIptvPlaylistNotifier.new,
+/// ID of the currently opened playlist; [selectedIptvPlaylistProvider] derives
+/// the live [IptvPlaylist] from [iptvPlaylistsProvider] without manual mirroring.
+final selectedIptvPlaylistIdProvider =
+    NotifierProvider<SelectedIptvPlaylistIdNotifier, String?>(
+  SelectedIptvPlaylistIdNotifier.new,
 );
 
-class SelectedIptvPlaylistNotifier extends Notifier<IptvPlaylist?> {
+class SelectedIptvPlaylistIdNotifier extends Notifier<String?> {
   @override
-  IptvPlaylist? build() => null;
+  String? build() => null;
 
-  void select(IptvPlaylist? playlist) => state = playlist;
+  void select(String? playlistId) => state = playlistId;
 }
+
+/// Currently opened playlist derived cleanly from [iptvPlaylistsProvider].
+final selectedIptvPlaylistProvider = Provider<IptvPlaylist?>((ref) {
+  final selectedId = ref.watch(selectedIptvPlaylistIdProvider);
+  if (selectedId == null) return null;
+  final playlists = ref.watch(iptvPlaylistsProvider).value;
+  if (playlists == null) return null;
+  for (final p in playlists) {
+    if (p.id == selectedId) return p;
+  }
+  return null;
+});
 
 /// Active search query in opened playlist
 final iptvSearchQueryProvider =
@@ -464,10 +477,6 @@ class IptvPlaylistsNotifier extends AsyncNotifier<List<IptvPlaylist>> {
       state = AsyncData(list);
     }
 
-    final selected = ref.read(selectedIptvPlaylistProvider);
-    if (selected != null && selected.id == effective.id) {
-      ref.read(selectedIptvPlaylistProvider.notifier).select(effective);
-    }
     return effective;
   }
 
@@ -486,11 +495,6 @@ class IptvPlaylistsNotifier extends AsyncNotifier<List<IptvPlaylist>> {
     final updated = List<IptvPlaylist>.from(current);
     updated[index] = refreshed;
     state = AsyncData(updated);
-
-    final selected = ref.read(selectedIptvPlaylistProvider);
-    if (selected != null && selected.id == id) {
-      ref.read(selectedIptvPlaylistProvider.notifier).select(refreshed);
-    }
 
     if (refreshed.epgUrl != null && refreshed.epgUrl!.isNotEmpty) {
       await ref
@@ -523,11 +527,6 @@ class IptvPlaylistsNotifier extends AsyncNotifier<List<IptvPlaylist>> {
 
     final current = state.value ?? [];
     state = AsyncData(current.where((p) => p.id != id).toList());
-
-    final selected = ref.read(selectedIptvPlaylistProvider);
-    if (selected != null && selected.id == id) {
-      ref.read(selectedIptvPlaylistProvider.notifier).select(null);
-    }
   }
 
   Future<void> deletePlaylists(Iterable<String> ids) async {
@@ -539,10 +538,6 @@ class IptvPlaylistsNotifier extends AsyncNotifier<List<IptvPlaylist>> {
     }
     final current = state.value ?? [];
     state = AsyncData(current.where((p) => !idSet.contains(p.id)).toList());
-    final selected = ref.read(selectedIptvPlaylistProvider);
-    if (selected != null && idSet.contains(selected.id)) {
-      ref.read(selectedIptvPlaylistProvider.notifier).select(null);
-    }
   }
 
   Future<void> syncAllPlaylists() async {
@@ -561,7 +556,6 @@ class IptvPlaylistsNotifier extends AsyncNotifier<List<IptvPlaylist>> {
       await service.deletePlaylist(p.id);
     }
     state = const AsyncData([]);
-    ref.read(selectedIptvPlaylistProvider.notifier).select(null);
   }
 
   Future<IptvPlaylist> importSamplePlaylist() async {

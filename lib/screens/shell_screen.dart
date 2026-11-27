@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/app_providers.dart';
 import '../models/nav_destination.dart';
+import '../core/navigation_coordinator.dart';
 import '../core/theme.dart';
 import '../core/typography.dart';
 import '../widgets/tv_focus_wrapper.dart';
@@ -55,34 +56,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 
   void _handleDestinationTap(NavDestination dest) {
-    if (dest == NavDestination.favorites) {
-      ref.read(selectedCategoryProvider.notifier).select('favorite');
-    } else if (dest == NavDestination.channels) {
-      if (ref.read(selectedCategoryProvider) == 'favorite') {
-        ref.read(selectedCategoryProvider.notifier).select('all');
-      }
-    }
-    ref.read(lastActiveNavTabProvider.notifier).setActiveTab(dest.id);
-    ref.read(analyticsServiceProvider).trackScreenView(dest.id);
+    applyDestinationState(ref, dest);
     _goBranch(dest.branchIndex);
-  }
-
-  bool _isDestinationSelected(
-    NavDestination destination,
-    int currentIndex,
-    String selectedCategory,
-    bool hasFavoritesTab,
-  ) {
-    if (destination == NavDestination.favorites) {
-      return currentIndex == 2 && selectedCategory == 'favorite';
-    }
-    if (destination == NavDestination.channels) {
-      if (hasFavoritesTab) {
-        return currentIndex == 2 && selectedCategory != 'favorite';
-      }
-      return currentIndex == 2;
-    }
-    return currentIndex == destination.branchIndex;
   }
 
   @override
@@ -135,11 +110,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                           icon: tabs[i].icon,
                           selectedIcon: tabs[i].selectedIcon,
                           label: tabs[i].label,
-                          isSelected: _isDestinationSelected(
+                          isSelected: isNavDestinationSelected(
                             tabs[i],
-                            index,
-                            selectedCategory,
-                            hasFavoritesTab,
+                            currentIndex: index,
+                            selectedCategory: selectedCategory,
+                            hasFavoritesTab: hasFavoritesTab,
                           ),
                           onTap: () => _handleDestinationTap(tabs[i]),
                         ),
@@ -228,23 +203,23 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           final key = event.logicalKey;
           if (key == LogicalKeyboardKey.digit1 ||
               key == LogicalKeyboardKey.numpad1) {
-            _goBranch(0);
+            _handleDestinationTap(NavDestination.home);
             return KeyEventResult.handled;
           } else if (key == LogicalKeyboardKey.digit2 ||
                      key == LogicalKeyboardKey.numpad2) {
-            _goBranch(1);
+            _handleDestinationTap(NavDestination.categories);
             return KeyEventResult.handled;
           } else if (key == LogicalKeyboardKey.digit3 ||
                      key == LogicalKeyboardKey.numpad3) {
-            _goBranch(2);
+            _handleDestinationTap(NavDestination.channels);
             return KeyEventResult.handled;
           } else if (key == LogicalKeyboardKey.digit4 ||
                      key == LogicalKeyboardKey.numpad4) {
-            _goBranch(3);
+            _handleDestinationTap(NavDestination.events);
             return KeyEventResult.handled;
           } else if (key == LogicalKeyboardKey.digit5 ||
                      key == LogicalKeyboardKey.numpad5) {
-            _goBranch(5);
+            _handleDestinationTap(NavDestination.iptv);
             return KeyEventResult.handled;
           }
 

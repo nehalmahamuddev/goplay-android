@@ -179,8 +179,7 @@ class LayoutSettingsScreen extends ConsumerWidget {
                   final updated = uiConfig.copyWith(
                     channelsTab: tabConfig.copyWith(showTabCounts: val),
                   );
-                  await ref.read(cacheServiceProvider).saveLocalUiConfig(updated);
-                  ref.invalidate(uiConfigProvider);
+                  await ref.read(catalogRepositoryProvider).saveUiConfig(updated);
                 },
               ),
               SettingSwitchTile(
@@ -192,8 +191,7 @@ class LayoutSettingsScreen extends ConsumerWidget {
                   final updated = uiConfig.copyWith(
                     channelsTab: tabConfig.copyWith(showTabIcons: val),
                   );
-                  await ref.read(cacheServiceProvider).saveLocalUiConfig(updated);
-                  ref.invalidate(uiConfigProvider);
+                  await ref.read(catalogRepositoryProvider).saveUiConfig(updated);
                 },
               ),
               SettingSwitchTile(
@@ -205,8 +203,7 @@ class LayoutSettingsScreen extends ConsumerWidget {
                   final updated = uiConfig.copyWith(
                     channelsTab: tabConfig.copyWith(showQualityBadge: val),
                   );
-                  await ref.read(cacheServiceProvider).saveLocalUiConfig(updated);
-                  ref.invalidate(uiConfigProvider);
+                  await ref.read(catalogRepositoryProvider).saveUiConfig(updated);
                 },
               ),
               const SizedBox(height: 40),

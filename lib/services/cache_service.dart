@@ -11,70 +11,37 @@ import '../models/announcement.dart';
 import '../models/hero_banner_item.dart';
 import '../models/app_ui_config.dart';
 import '../models/nav_destination.dart';
+import 'catalog/catalog_store.dart';
+import 'catalog/preferences_store.dart';
 
-/// Persisted sync metadata for a category's direct M3U playlist.
-class CategoryM3uMeta {
-  final String m3uUrl;
-  final String? etag;
-  final String? lastModified;
-  final String? contentHash;
-  final DateTime? lastSyncedAt;
+export 'catalog/catalog_store.dart' show CatalogStore, CategoryM3uMeta;
+export 'catalog/preferences_store.dart' show PreferencesStore;
 
-  const CategoryM3uMeta({
-    required this.m3uUrl,
-    this.etag,
-    this.lastModified,
-    this.contentHash,
-    this.lastSyncedAt,
-  });
-
-  factory CategoryM3uMeta.fromJson(Map<String, dynamic> json) {
-    return CategoryM3uMeta(
-      m3uUrl: (json['m3u_url'] as String? ?? '').trim(),
-      etag: json['etag'] as String?,
-      lastModified: json['last_modified'] as String?,
-      contentHash: json['content_hash'] as String?,
-      lastSyncedAt: json['last_synced_at'] != null
-          ? DateTime.tryParse(json['last_synced_at'] as String)
-          : null,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'm3u_url': m3uUrl,
-        if (etag != null) 'etag': etag,
-        if (lastModified != null) 'last_modified': lastModified,
-        if (contentHash != null) 'content_hash': contentHash,
-        if (lastSyncedAt != null) 'last_synced_at': lastSyncedAt!.toIso8601String(),
-      };
-}
-
-/// Service for managing local Hive cache operations for channels, categories,
-/// events, favorites and sync versions.
+/// Hive-backed local store implementing both [CatalogStore] and
+/// [PreferencesStore] with in-memory decode memoization.
 ///
 /// Every `getLocal*` call used to re-decode the whole Hive payload into model
 /// objects on the UI isolate. For a multi-thousand channel list that is a
 /// visible frame drop, and it ran again on every `ref.invalidate`. Decoded
 /// results are now memoized in memory and only dropped when the corresponding
 /// `saveLocal*` writes new data.
-class CacheService {
+class CacheService implements CatalogStore, PreferencesStore {
   List<Channel>? _channelsMemo;
   List<Category>? _categoriesMemo;
   List<SportEvent>? _eventsMemo;
   List<Announcement>? _announcementsMemo;
   List<HeroBannerItem>? _heroBannersMemo;
   Set<String>? _favoritesMemo;
-  Map<String, List<Channel>>? _directCategoryChannelsMemo;
   Map<String, List<Channel>>? _m3uChannelsMemo;
   Map<String, CategoryM3uMeta?>? _m3uMetaMemo;
   AppUiConfig? _uiConfigMemo;
   int? _channelsVersionMemo;
 
-  static const List<String> directCategoryIds = [];
   static const String _m3uChannelsPrefix = 'm3u_channels_';
   static const String _m3uMetaPrefix = 'm3u_meta_';
 
   /// Drops every memoized decode. Used after a cache wipe.
+  @override
   void invalidateMemo() {
     _channelsMemo = null;
     _categoriesMemo = null;
@@ -82,7 +49,6 @@ class CacheService {
     _announcementsMemo = null;
     _heroBannersMemo = null;
     _favoritesMemo = null;
-    _directCategoryChannelsMemo = null;
     _m3uChannelsMemo = null;
     _m3uMetaMemo = null;
     _uiConfigMemo = null;
@@ -122,6 +88,7 @@ class CacheService {
   }
 
   // ─── Channels ───────────────────────────────────────────────
+  @override
   List<Channel> getLocalChannels() {
     return _channelsMemo ??= _decodeList(
       AppConstants.channelsBox,
@@ -130,6 +97,7 @@ class CacheService {
     );
   }
 
+  @override
   Future<void> saveLocalChannels(List<Channel> channels) async {
     // Prime rather than clear. SyncService already holds these objects freshly
     // parsed from Supabase, then invalidates `channelsProvider` — which used to
@@ -141,38 +109,8 @@ class CacheService {
     await box.put('channels', channels.map((c) => c.toJson()).toList());
   }
 
-  // ─── Direct Category Channels (Bangla, India, Kids) ──────────
-  List<Channel> getDirectCategoryChannels(String categoryId) {
-    _directCategoryChannelsMemo ??= {};
-    if (_directCategoryChannelsMemo!.containsKey(categoryId)) {
-      return _directCategoryChannelsMemo![categoryId]!;
-    }
-    final channels = _decodeList(
-      AppConstants.channelsBox,
-      'direct_channels_$categoryId',
-      Channel.fromJson,
-    );
-    _directCategoryChannelsMemo![categoryId] = channels;
-    return channels;
-  }
-
-  Future<void> saveDirectCategoryChannels(String categoryId, List<Channel> channels) async {
-    _directCategoryChannelsMemo ??= {};
-    _directCategoryChannelsMemo![categoryId] = List<Channel>.unmodifiable(channels);
-    final box = _boxOrNull(AppConstants.channelsBox);
-    if (box == null) return;
-    await box.put('direct_channels_$categoryId', channels.map((c) => c.toJson()).toList());
-  }
-
-  List<Channel> getAllDirectChannels() {
-    final list = <Channel>[];
-    for (final catId in directCategoryIds) {
-      list.addAll(getDirectCategoryChannels(catId));
-    }
-    return list;
-  }
-
   // ─── Category M3U Channels & Sync Metadata ──────────────────
+  @override
   List<Channel> getCategoryM3uChannels(String categoryId) {
     _m3uChannelsMemo ??= {};
     if (_m3uChannelsMemo!.containsKey(categoryId)) {
@@ -187,6 +125,7 @@ class CacheService {
     return _m3uChannelsMemo![categoryId]!;
   }
 
+  @override
   Future<void> saveCategoryM3uChannels(
     String categoryId,
     List<Channel> channels,
@@ -201,6 +140,7 @@ class CacheService {
     );
   }
 
+  @override
   CategoryM3uMeta? getCategoryM3uMeta(String categoryId) {
     _m3uMetaMemo ??= {};
     if (_m3uMetaMemo!.containsKey(categoryId)) {
@@ -219,6 +159,7 @@ class CacheService {
     return meta;
   }
 
+  @override
   Future<void> saveCategoryM3uMeta(
     String categoryId,
     CategoryM3uMeta meta,
@@ -230,6 +171,7 @@ class CacheService {
     await box.put('$_m3uMetaPrefix$categoryId', meta.toJson());
   }
 
+  @override
   Future<void> clearCategoryM3uData(String categoryId) async {
     _m3uChannelsMemo?.remove(categoryId);
     _m3uMetaMemo?.remove(categoryId);
@@ -237,6 +179,7 @@ class CacheService {
     await _boxOrNull(AppConstants.settingsBox)?.delete('$_m3uMetaPrefix$categoryId');
   }
 
+  @override
   Set<String> getCachedM3uCategoryIds() {
     final ids = <String>{};
     if (_m3uChannelsMemo != null) {
@@ -266,6 +209,7 @@ class CacheService {
 
   /// True if either standard DB channels or any active M3U category's cached
   /// channels are available locally.
+  @override
   bool hasAnyLocalChannelData() {
     if (getLocalChannels().isNotEmpty) return true;
     for (final cat in getLocalCategories()) {
@@ -277,6 +221,7 @@ class CacheService {
   }
 
   // ─── Events ─────────────────────────────────────────────────
+  @override
   List<SportEvent> getLocalEvents() {
     return _eventsMemo ??= () {
       final events = _decodeList(
@@ -289,18 +234,20 @@ class CacheService {
     }();
   }
 
+  @override
   Future<void> saveLocalEvents(List<SportEvent> events) async {
-    // Primed, matching saveLocalChannels. Sorted here so the memo and a later
-    // cold decode agree on ordering.
+    // Primed, matching saveLocalChannels. Persist the sorted list so Hive
+    // storage and the in-memory memo never diverge on event ordering.
     final sorted = events.toList()
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     _eventsMemo = List<SportEvent>.unmodifiable(sorted);
     final box = _boxOrNull(AppConstants.eventsBox);
     if (box == null) return;
-    await box.put('events', events.map((e) => e.toJson()).toList());
+    await box.put('events', sorted.map((e) => e.toJson()).toList());
   }
 
   // ─── Categories ─────────────────────────────────────────────
+  @override
   List<Category> getLocalCategories() {
     return _categoriesMemo ??= _decodeList(
       AppConstants.categoriesBox,
@@ -309,6 +256,7 @@ class CacheService {
     );
   }
 
+  @override
   Future<void> saveLocalCategories(List<Category> categories) async {
     _categoriesMemo = List<Category>.unmodifiable(categories);
     final box = _boxOrNull(AppConstants.categoriesBox);
@@ -317,6 +265,7 @@ class CacheService {
   }
 
   // ─── Favorites ──────────────────────────────────────────────
+  @override
   Set<String> getFavoriteChannelIds() {
     return _favoritesMemo ??= () {
       final box = _boxOrNull(AppConstants.favoritesBox);
@@ -326,6 +275,7 @@ class CacheService {
     }();
   }
 
+  @override
   Future<void> saveFavoriteChannelIds(Set<String> ids) async {
     _favoritesMemo = Set<String>.unmodifiable(ids);
     final box = _boxOrNull(AppConstants.favoritesBox);
@@ -334,11 +284,13 @@ class CacheService {
   }
 
   // ─── User Preference: Show Trending Tab ─────────────────────
+  @override
   bool getShowTrendingTabUserPref() {
     final box = _boxOrNull(AppConstants.settingsBox);
     return box?.get('user_show_trending_tab') as bool? ?? true;
   }
 
+  @override
   Future<void> saveShowTrendingTabUserPref(bool enabled) async {
     final box = _boxOrNull(AppConstants.settingsBox);
     if (box == null) return;
@@ -346,11 +298,13 @@ class CacheService {
   }
 
   // ─── User Preference: Show Live Tab Counter ──────────────────
+  @override
   bool getShowLiveTabCounterUserPref() {
     final box = _boxOrNull(AppConstants.settingsBox);
     return box?.get('user_show_live_tab_counter') as bool? ?? false;
   }
 
+  @override
   Future<void> saveShowLiveTabCounterUserPref(bool enabled) async {
     final box = _boxOrNull(AppConstants.settingsBox);
     if (box == null) return;
@@ -358,11 +312,13 @@ class CacheService {
   }
 
   // ─── User Preference: Show Sport Category Icons ──────────────
+  @override
   bool getShowSportCategoryIconsUserPref() {
     final box = _boxOrNull(AppConstants.settingsBox);
     return box?.get('user_show_sport_category_icons') as bool? ?? true;
   }
 
+  @override
   Future<void> saveShowSportCategoryIconsUserPref(bool enabled) async {
     final box = _boxOrNull(AppConstants.settingsBox);
     if (box == null) return;
@@ -370,6 +326,7 @@ class CacheService {
   }
 
   // ─── User Preference: Navigation Tabs & Launch Screen ────────
+  @override
   List<String> getCustomNavTabsUserPref() {
     final box = _boxOrNull(AppConstants.settingsBox);
     final raw = box?.get(AppConstants.customNavTabsKey);
@@ -384,12 +341,14 @@ class CacheService {
     return List<String>.from(NavDestination.defaultTabIds);
   }
 
+  @override
   Future<void> saveCustomNavTabsUserPref(List<String> tabs) async {
     final box = _boxOrNull(AppConstants.settingsBox);
     if (box == null) return;
     await box.put(AppConstants.customNavTabsKey, tabs);
   }
 
+  @override
   String getDefaultLaunchPageUserPref() {
     final box = _boxOrNull(AppConstants.settingsBox);
     final raw = box?.get(AppConstants.defaultLaunchPageKey) as String?;
@@ -399,12 +358,14 @@ class CacheService {
     return 'home';
   }
 
+  @override
   Future<void> saveDefaultLaunchPageUserPref(String page) async {
     final box = _boxOrNull(AppConstants.settingsBox);
     if (box == null) return;
     await box.put(AppConstants.defaultLaunchPageKey, page);
   }
 
+  @override
   String getLastActiveNavTabUserPref() {
     final box = _boxOrNull(AppConstants.settingsBox);
     final raw = box?.get(AppConstants.lastActiveNavTabKey) as String?;
@@ -414,6 +375,7 @@ class CacheService {
     return 'home';
   }
 
+  @override
   Future<void> saveLastActiveNavTabUserPref(String tab) async {
     final box = _boxOrNull(AppConstants.settingsBox);
     if (box == null) return;
@@ -421,21 +383,26 @@ class CacheService {
   }
 
   // ─── Sync Versions ──────────────────────────────────────────
+  @override
   int? getLocalChannelsVersion() => _channelsVersionMemo ??=
       _boxOrNull(AppConstants.settingsBox)?.get('channels_version') as int?;
 
+  @override
   Future<void> saveLocalChannelsVersion(int version) async {
     _channelsVersionMemo = version;
     await _boxOrNull(AppConstants.settingsBox)?.put('channels_version', version);
   }
 
+  @override
   int? getLocalEventsVersion() =>
       _boxOrNull(AppConstants.settingsBox)?.get('events_version') as int?;
 
+  @override
   Future<void> saveLocalEventsVersion(int version) async {
     await _boxOrNull(AppConstants.settingsBox)?.put('events_version', version);
   }
 
+  @override
   Future<void> clearAllCache() async {
     invalidateMemo();
     _uiConfigMemo = null;
@@ -447,6 +414,7 @@ class CacheService {
     await settingsBox?.delete('channels_version');
     await settingsBox?.delete('events_version');
     await settingsBox?.delete('ui_config');
+    await settingsBox?.delete('ui_config_json');
     await settingsBox?.delete('ui_config_version');
     if (settingsBox != null) {
       final m3uMetaKeys = settingsBox.keys
@@ -459,14 +427,17 @@ class CacheService {
     }
   }
 
+  @override
   Future<void> resetLocalUiConfigToDefaults() async {
     _uiConfigMemo = AppUiConfig.defaults();
     final box = _boxOrNull(AppConstants.settingsBox);
     await box?.delete('ui_config');
+    await box?.delete('ui_config_json');
     await box?.delete('ui_config_version');
   }
 
   // ─── Announcements ──────────────────────────────────────────
+  @override
   List<Announcement> getLocalAnnouncements() {
     return _announcementsMemo ??= _decodeList(
       AppConstants.announcementsBox,
@@ -475,6 +446,7 @@ class CacheService {
     );
   }
 
+  @override
   Future<void> saveLocalAnnouncements(List<Announcement> announcements) async {
     _announcementsMemo = List<Announcement>.unmodifiable(announcements);
     final box = _boxOrNull(AppConstants.announcementsBox);
@@ -483,6 +455,7 @@ class CacheService {
   }
 
   // ─── Hero Banners ───────────────────────────────────────────
+  @override
   List<HeroBannerItem> getLocalHeroBanners() {
     return _heroBannersMemo ??= _decodeList(
       AppConstants.heroBannersBox,
@@ -491,6 +464,7 @@ class CacheService {
     );
   }
 
+  @override
   Future<void> saveLocalHeroBanners(List<HeroBannerItem> banners) async {
     _heroBannersMemo = List<HeroBannerItem>.unmodifiable(banners);
     final box = _boxOrNull(AppConstants.heroBannersBox);
@@ -499,6 +473,7 @@ class CacheService {
   }
 
   // ─── App UI Configuration ────────────────────────────────────
+  @override
   bool hasLocalUiConfig() {
     final box = _boxOrNull(AppConstants.settingsBox);
     if (box == null) return false;
@@ -508,6 +483,7 @@ class CacheService {
     return raw != null;
   }
 
+  @override
   AppUiConfig getLocalUiConfig() {
     if (_uiConfigMemo != null) return _uiConfigMemo!;
     final box = _boxOrNull(AppConstants.settingsBox);
@@ -545,6 +521,7 @@ class CacheService {
     return _uiConfigMemo = AppUiConfig.defaults();
   }
 
+  @override
   Future<void> saveLocalUiConfig(AppUiConfig config) async {
     _uiConfigMemo = config;
     final box = _boxOrNull(AppConstants.settingsBox);
@@ -558,11 +535,13 @@ class CacheService {
     await box.put('ui_config', config.toJson());
   }
 
+  @override
   int? getLocalUiConfigVersion() {
     final box = _boxOrNull(AppConstants.settingsBox);
     return box?.get('ui_config_version') as int?;
   }
 
+  @override
   Future<void> saveLocalUiConfigVersion(int version) async {
     final box = _boxOrNull(AppConstants.settingsBox);
     if (box == null) return;

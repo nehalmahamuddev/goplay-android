@@ -390,8 +390,9 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                 color: Theme.of(context).colorScheme.primary,
                 onRefresh: () async {
                   HapticFeedback.mediumImpact();
-                  await ref.read(syncServiceProvider).refreshM3uDirectly(force: true);
-                  ref.invalidate(playzCategoriesProvider);
+                  await ref
+                      .read(catalogRepositoryProvider)
+                      .refreshM3uDirectly(force: true);
                 },
                 child: GridView.builder(
                   key: const PageStorageKey('categories_grid_page_storage'),
@@ -608,10 +609,11 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                       HapticFeedback.mediumImpact();
                       if (category.hasM3uUrl) {
                         await ref
-                            .read(syncServiceProvider)
+                            .read(catalogRepositoryProvider)
                             .refreshM3uCategoryIfDue(category, force: true);
+                      } else {
+                        ref.invalidate(playzCategoryChannelsProvider(category));
                       }
-                      ref.invalidate(playzCategoryChannelsProvider(category));
                     },
                     child: GridView.builder(
                       key: PageStorageKey('category_channels_${category.id}'),

@@ -9,6 +9,7 @@ import '../../../models/channel.dart';
 import '../../../models/iptv_playlist.dart';
 import '../../../providers/iptv_providers.dart';
 import '../../../providers/theme_provider.dart';
+import '../../../services/playback/playback_session.dart';
 
 /// Quick 3-column category jump bottom sheet replicating `action_tab` (`res/F4.xml`, `context.md` §7.2).
 class IptvTabJumpSheet extends ConsumerWidget {
@@ -1260,40 +1261,22 @@ Future<void> launchIptvChannelPlayback(
   HapticFeedback.selectionClick();
   final service = ref.read(iptvServiceProvider);
 
-  final needsResolution = channel.streamUrl.contains('action=create_link') ||
-      (channel.drm?.isClearKey == true &&
-          (channel.drm?.clearKeys?.isEmpty ?? true) &&
-          channel.drm?.licenseUrl != null);
-
-  Channel resolved = channel;
-  if (needsResolution) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Connecting to "${channel.name}"...'),
-          duration: const Duration(milliseconds: 900),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-    resolved = await service.resolveChannelForPlayback(channel);
+  if (PlaybackSessionCoordinator.needsIptvResolution(channel) && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Connecting to "${channel.name}"...'),
+        duration: const Duration(milliseconds: 900),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
+  final args = await const PlaybackSessionCoordinator().prepareIptvLaunch(
+    channel,
+    scopeChannels: scopeChannels,
+    iptvService: service,
+  );
   if (!context.mounted) return;
 
-  final updatedScope = [
-    for (final c in scopeChannels) (c.id == resolved.id) ? resolved : c,
-  ];
-  if (!updatedScope.any((c) => c.id == resolved.id)) {
-    updatedScope.insert(0, resolved);
-  }
-
-  await context.push(
-    '/player/${Uri.encodeComponent(resolved.id)}',
-    extra: {
-      'eventChannels': updatedScope.map((c) => c.id).toList(growable: false),
-      'dynamicChannels': updatedScope,
-      'forceFullscreen': true,
-    },
-  );
+  await context.push(args.routeLocation, extra: args.toExtra());
 }

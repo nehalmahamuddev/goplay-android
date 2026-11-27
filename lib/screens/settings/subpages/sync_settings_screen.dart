@@ -24,9 +24,7 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
     setState(() => _isSyncing = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await ref.read(syncServiceProvider).sync(forceM3uRefresh: true);
-      ref.read(syncServiceProvider).invalidateChannelProviders();
-      ref.invalidate(eventsProvider);
+      await ref.read(catalogRepositoryProvider).sync(forceM3uRefresh: true);
 
       if (mounted) {
         messenger.showSnackBar(
@@ -179,8 +177,7 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
                 title: 'Clear Cache',
                 subtitle: 'Purge locally cached playlists, channel icons, and logos',
                 onTap: () async {
-                  await ref.read(cacheServiceProvider).clearAllCache();
-                  ref.read(syncServiceProvider).invalidateChannelProviders();
+                  await ref.read(catalogRepositoryProvider).clearAllCache();
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -225,8 +222,7 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
                     ),
                   );
                   if (confirm == true) {
-                    await ref.read(cacheServiceProvider).resetLocalUiConfigToDefaults();
-                    ref.invalidate(uiConfigProvider);
+                    await ref.read(catalogRepositoryProvider).resetUiConfigToDefaults();
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(

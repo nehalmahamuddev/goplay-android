@@ -2,9 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:go_router/go_router.dart';
+import '../../core/navigation_coordinator.dart';
 import '../../core/typography.dart';
 import '../../main.dart' show appInitFuture;
+import '../../models/nav_destination.dart';
 import '../../providers/app_providers.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -54,8 +55,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     _animController.forward();
 
     // Check if we have cached channels (DB or M3U) on disk
-    final cache = ref.read(cacheServiceProvider);
-    final hasInitialData = cache.hasAnyLocalChannelData();
+    final catalog = ref.read(catalogRepositoryProvider);
+    final hasInitialData = catalog.hasAnyLocalChannelData();
 
     final List<Future<dynamic>> waitList = [
       appInitFuture.catchError((e) {
@@ -67,7 +68,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     // First install: download initial database while splash animates so Home is never empty
     if (!hasInitialData) {
       waitList.add(
-        ref.read(syncServiceProvider).sync().catchError((e) {
+        catalog.sync().catchError((e) {
           debugPrint('Initial sync in splash error: $e');
         }),
       );
@@ -76,11 +77,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     Future.wait(waitList).then((_) {
       if (!mounted) return;
 
-      ref.invalidate(uiConfigProvider);
-
       // Returning user: trigger silent background sync without blocking Home
       if (hasInitialData) {
-        unawaited(ref.read(syncServiceProvider).sync().catchError((e) {
+        unawaited(catalog.sync().catchError((e) {
           debugPrint('Silent background sync error: $e');
         }));
       }
@@ -108,31 +107,24 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     switch (target) {
       case 'channels':
-        ref.read(selectedCategoryProvider.notifier).select('all');
-        context.go('/channels');
+        navigateToDestination(context, ref, NavDestination.channels);
         break;
       case 'favorites':
-        ref.read(selectedCategoryProvider.notifier).select('favorite');
-        context.go('/channels');
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            ref.read(analyticsServiceProvider).trackScreenView('favorites');
-          }
-        });
+        navigateToDestination(context, ref, NavDestination.favorites);
         break;
       case 'categories':
-        context.go('/categories');
+        navigateToDestination(context, ref, NavDestination.categories);
         break;
       case 'events':
       case 'upcoming':
-        context.go('/upcoming');
+        navigateToDestination(context, ref, NavDestination.events);
         break;
       case 'settings':
-        context.go('/settings');
+        navigateToDestination(context, ref, NavDestination.settings);
         break;
       case 'home':
       default:
-        context.go('/home');
+        navigateToDestination(context, ref, NavDestination.home);
         break;
     }
   }

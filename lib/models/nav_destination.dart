@@ -46,7 +46,7 @@ enum NavDestination {
   ),
   iptv(
     id: 'iptv',
-    label: 'IPTV',
+    label: 'Playlists',
     svgAsset: 'assets/images/iptv.svg',
     selectedSvgAsset: 'assets/images/iptv_filled.svg',
     icon: Icons.live_tv_outlined,

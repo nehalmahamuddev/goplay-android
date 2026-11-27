@@ -1,29 +1,39 @@
-# IPTV Integration Domain
+# GoPlay Domain Glossary
 
-This context defines the user-managed IPTV playlist subsystem integrated into GoPlay, enabling users to import, manage, and play external IPTV playlists, streams, and portals alongside curated events.
+Domain vocabulary for GoPlay live TV, sports events, IPTV playlists, playback, and monitoring.
 
-## Language
+## Catalog & Media
+
+**Channel**:
+A playable live stream entry identified by a deterministic ID, carrying a display name, category, optional stream servers, and optional DRM settings.
+_Avoid_: Station, feed item
+
+**Stream Server**:
+One selectable backup source attached to a Channel so viewers or failover recovery can switch endpoints without leaving the channel.
+_Avoid_: Link, mirror, source slot
+
+**Live Event**:
+A scheduled or ongoing sports match linking teams, league metadata, start window, and temporary encrypted or channel-mapped broadcast streams.
+_Avoid_: Match card, game item
+
+**Category Playlist**:
+A live TV category backed by a remote M3U playlist synced directly by client devices without storing per-channel rows in Supabase.
+_Avoid_: Direct category, remote group
 
 **IPTV Playlist**:
-A user-imported structured collection of streaming channels, live broadcasts, or video-on-demand items.
-_Avoid_: Channel list, subscription, cable feed.
+A user-imported M3U, Xtream Codes, Stalker portal, or direct network stream playlist stored locally on the device.
+_Avoid_: Local list, user source
 
-**Playlist Source**:
-The origin and ingestion protocol used to load an IPTV Playlist (M3U Remote URL, Local M3U File, Xtream Codes, Stalker/MAC Portal, or Direct Stream).
-_Avoid_: Provider, link, host.
+**Catalog**:
+The synchronized application snapshot combining database Channels, Category Playlists, Live Events, Announcements, hero banners, and remote UI configuration—persisted separately from local user preferences (favorites, tab layout).
+_Avoid_: Sync cache, mixed app cache
 
-**Xtream Codes**:
-An IPTV API standard authenticating via host URL, username, and password to retrieve live streams, VOD, series, and EPG categories.
-_Avoid_: XC, Xtream server.
+## Playback & Navigation
 
-**Stalker Portal**:
-An IPTV middleware architecture that authenticates client playback using a device MAC address and portal URL.
-_Avoid_: MAG portal, STB server.
+**Playback Session**:
+A resolved viewing context containing the target channel or Live Event, its expanded Stream Servers, its adjacent channel scope, and any active loading or failure state.
+_Avoid_: Player launch map, playback context
 
-**Direct Network Stream**:
-A standalone media streaming URL (HLS, DASH, MP4, TS) paired with optional ClearKey or Widevine DRM license configurations.
-_Avoid_: Single link, video URL.
-
-**EPG (Electronic Program Guide)**:
-Standardized XMLTV metadata providing broadcast schedules and program details mapped to channel identifiers.
-_Avoid_: Teleguide, TV schedule.
+**Nav Destination**:
+A top-level shell destination that maps both a route branch and any coupled filter state (such as selecting the Favorites category on Channels).
+_Avoid_: Tab target, menu route

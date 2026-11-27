@@ -7,6 +7,8 @@ import '../models/channel.dart';
 import '../models/category.dart';
 import '../models/drm_config.dart';
 import '../models/event.dart';
+import 'iptv/playlist_parser.dart';
+import 'iptv/stream_url_parser.dart';
 
 /// Stream Decryptor & Parser for Live Events
 ///
@@ -126,30 +128,7 @@ class StreamDecryptor {
   /// Matches Section 7.1 specification.
   static ({String url, Map<String, String> headers}) parseStreamUrl(
       String rawUrl) {
-    try {
-      final decoded = Uri.decodeFull(rawUrl);
-      if (!decoded.contains('|')) {
-        return (url: decoded.trim(), headers: const <String, String>{});
-      }
-
-      final parts = decoded.split('|');
-      final streamUrl = parts[0].trim();
-      final headers = <String, String>{};
-
-      if (parts.length > 1) {
-        final queryParams = parts[1].split('&');
-        for (final param in queryParams) {
-          final kv = param.split('=');
-          if (kv.length >= 2) {
-            headers[kv[0].trim()] = kv.sublist(1).join('=').trim();
-          }
-        }
-      }
-
-      return (url: streamUrl, headers: headers);
-    } catch (_) {
-      return (url: rawUrl, headers: const <String, String>{});
-    }
+    return StreamUrlParser.parsePipeHeaders(rawUrl);
   }
 
   /// Converts hex "kid:key" to W3C ClearKey JSON Web Key (JWK) format.
@@ -688,50 +667,22 @@ class StreamDecryptor {
       final raw = response.data ?? '';
       if (raw.isEmpty) return const [];
 
-      final lines = raw.split(RegExp(r'\r?\n'));
-      final channels = <Channel>[];
-      String? currentName;
-      String? currentLogo;
-
-      for (int i = 0; i < lines.length; i++) {
-        final line = lines[i].trim();
-        if (line.isEmpty) continue;
-
-        if (line.startsWith('#EXTINF:')) {
-          final logoMatch = RegExp(r'tvg-logo="([^"]+)"', caseSensitive: false).firstMatch(line);
-          currentLogo = logoMatch?.group(1);
-
-          final commaIdx = line.indexOf(',');
-          if (commaIdx != -1 && commaIdx < line.length - 1) {
-            currentName = line.substring(commaIdx + 1).trim();
-          } else {
-            currentName = 'Channel ${channels.length + 1}';
-          }
-        } else if (!line.startsWith('#') && (line.startsWith('http://') || line.startsWith('https://'))) {
-          final streamUrl = line;
-          final name = currentName ?? 'Channel ${channels.length + 1}';
-          final safeId = 'm3u_${categoryId}_${channels.length}';
-
-          final parsed = parseStreamUrl(streamUrl);
-
-          channels.add(Channel(
-            id: safeId,
-            name: name,
-            logo: currentLogo,
+      final parsed = parseM3uOrJsonContent(raw, 'm3u_$categoryId');
+      return [
+        for (var i = 0; i < parsed.channels.length; i++)
+          Channel(
+            id: 'm3u_${categoryId}_$i',
+            name: parsed.channels[i].name,
+            logo: parsed.channels[i].logo,
             category: categoryId,
-            streamUrl: parsed.url,
-            headers: parsed.headers,
+            streamUrl: parsed.channels[i].streamUrl,
+            headers: parsed.channels[i].headers,
+            drm: parsed.channels[i].drm,
             isLive: true,
             quality: 'HD',
-            sortOrder: channels.length,
-          ));
-
-          currentName = null;
-          currentLogo = null;
-        }
-      }
-
-      return channels;
+            sortOrder: i,
+          ),
+      ];
     } catch (_) {
       return const [];
     }

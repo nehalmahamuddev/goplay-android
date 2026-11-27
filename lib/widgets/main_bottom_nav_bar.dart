@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../core/navigation_coordinator.dart';
 import '../core/typography.dart';
 import '../models/nav_destination.dart';
 import '../providers/app_providers.dart';
@@ -21,24 +22,6 @@ class MainBottomNavBar extends ConsumerWidget {
     this.onDestinationTap,
     this.focusNodes,
   });
-
-  bool _isDestinationSelected(
-    NavDestination destination,
-    int currentIndex,
-    String selectedCategory,
-    bool hasFavoritesTab,
-  ) {
-    if (destination == NavDestination.favorites) {
-      return currentIndex == 2 && selectedCategory == 'favorite';
-    }
-    if (destination == NavDestination.channels) {
-      if (hasFavoritesTab) {
-        return currentIndex == 2 && selectedCategory != 'favorite';
-      }
-      return currentIndex == 2;
-    }
-    return currentIndex == destination.branchIndex;
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -68,25 +51,17 @@ class MainBottomNavBar extends ConsumerWidget {
                 icon: tabs[i].icon,
                 selectedIcon: tabs[i].selectedIcon,
                 label: tabs[i].label,
-                isSelected: _isDestinationSelected(
+                isSelected: isNavDestinationSelected(
                   tabs[i],
-                  currentIndex,
-                  selectedCategory,
-                  hasFavoritesTab,
+                  currentIndex: currentIndex,
+                  selectedCategory: selectedCategory,
+                  hasFavoritesTab: hasFavoritesTab,
                 ),
                 onTap: () {
-                  if (tabs[i] == NavDestination.favorites) {
-                    ref.read(selectedCategoryProvider.notifier).select('favorite');
-                  } else if (tabs[i] == NavDestination.channels) {
-                    if (ref.read(selectedCategoryProvider) == 'favorite') {
-                      ref.read(selectedCategoryProvider.notifier).select('all');
-                    }
-                  }
-                  ref.read(lastActiveNavTabProvider.notifier).setActiveTab(tabs[i].id);
-
                   if (onDestinationTap != null) {
                     onDestinationTap!(tabs[i]);
                   } else {
+                    applyDestinationState(ref, tabs[i]);
                     onTap(tabs[i].branchIndex);
                   }
                 },

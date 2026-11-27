@@ -1,26 +1,22 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../providers/app_providers.dart';
 
-/// Coordinates automatic direct M3U syncing and minimal-DB admin change
-/// detection while the main app shell is alive:
-///
-/// 1. Periodically refreshes locally saved category `m3u_url`s every 15 minutes
-///    with zero Supabase DB queries.
-/// 2. On app resume, refreshes saved M3U links directly and checks the single
-///    `app_settings.channels_version` field (debounced) to catch admin edits.
-/// 3. Listens to Supabase Realtime updates on `public.app_settings` (`id = 1`)
-///    so mid-session admin `m3u_url` changes propagate immediately.
+/// Listens for live playlist & category updates via [CatalogRepository] without
+/// reaching into Supabase Realtime directly from UI widgets.
 class CategoryM3uAutoSyncObserver extends ConsumerStatefulWidget {
   final Widget child;
   final Duration pollInterval;
+  final Duration resumeVersionCooldown;
 
   const CategoryM3uAutoSyncObserver({
     super.key,
     required this.child,
     this.pollInterval = const Duration(minutes: 15),
+    this.resumeVersionCooldown = const Duration(minutes: 2),
   });
 
   @override
@@ -31,99 +27,78 @@ class CategoryM3uAutoSyncObserver extends ConsumerStatefulWidget {
 class _CategoryM3uAutoSyncObserverState
     extends ConsumerState<CategoryM3uAutoSyncObserver>
     with WidgetsBindingObserver {
-  Timer? _periodicTimer;
-  RealtimeChannel? _realtimeChannel;
+  Timer? _timer;
+  StreamSubscription<void>? _remoteSub;
+  bool _inFlight = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _startPeriodicM3uSync();
-    _subscribeToAppSettingsRealtime();
+    _timer = Timer.periodic(widget.pollInterval, (_) => _pollM3u());
+    _subscribeRemoteChanges();
+  }
+
+  void _subscribeRemoteChanges() {
+    _remoteSub = ref
+        .read(catalogRepositoryProvider)
+        .watchRemoteCatalogChanges()
+        .listen(
+      (_) => _checkCategoryVersions(forceM3uIfUnchanged: true),
+      onError: (Object e) {
+        debugPrint('CategoryM3uAutoSyncObserver: realtime stream error: $e');
+      },
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_onAppResumed());
+    }
+  }
+
+  Future<void> _onAppResumed() async {
+    await _pollM3u();
+    await _checkCategoryVersions(cooldown: widget.resumeVersionCooldown);
+  }
+
+  Future<void> _pollM3u() async {
+    if (_inFlight || !mounted) return;
+    _inFlight = true;
+    try {
+      await ref.read(catalogRepositoryProvider).refreshM3uDirectly(
+            minInterval: const Duration(seconds: 15),
+          );
+    } catch (e) {
+      debugPrint('CategoryM3uAutoSyncObserver: poll failed: $e');
+    } finally {
+      _inFlight = false;
+    }
+  }
+
+  Future<void> _checkCategoryVersions({
+    Duration cooldown = Duration.zero,
+    bool forceM3uIfUnchanged = false,
+  }) async {
+    if (!mounted) return;
+    try {
+      final repo = ref.read(catalogRepositoryProvider);
+      if (forceM3uIfUnchanged) {
+        await repo.refreshM3uDirectly(force: true);
+      }
+      await repo.checkForCategoryChangesIfDue(cooldown: cooldown);
+    } catch (e) {
+      debugPrint('CategoryM3uAutoSyncObserver: version check failed: $e');
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _periodicTimer?.cancel();
-    _unsubscribeRealtime();
+    _timer?.cancel();
+    unawaited(_remoteSub?.cancel());
     super.dispose();
-  }
-
-  void _startPeriodicM3uSync() {
-    _periodicTimer?.cancel();
-    _periodicTimer = Timer.periodic(widget.pollInterval, (_) {
-      if (!mounted) return;
-      unawaited(
-        ref
-            .read(syncServiceProvider)
-            .refreshM3uDirectly()
-            .catchError((_) => false),
-      );
-    });
-  }
-
-  void _subscribeToAppSettingsRealtime() {
-    try {
-      final client = Supabase.instance.client;
-      final channel = client.channel('public:app_settings:m3u_sync');
-      channel
-          .onPostgresChanges(
-            event: PostgresChangeEvent.update,
-            schema: 'public',
-            table: 'app_settings',
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'id',
-              value: 1,
-            ),
-            callback: (payload) {
-              if (!mounted) return;
-              final newVersion = payload.newRecord['channels_version'] as int?;
-              unawaited(
-                ref
-                    .read(syncServiceProvider)
-                    .syncIfRemoteVersionNewer(newVersion)
-                    .catchError((_) => false),
-              );
-            },
-          )
-          .subscribe();
-      _realtimeChannel = channel;
-    } catch (_) {
-      // Supabase may be uninitialized in tests or offline environments.
-    }
-  }
-
-  void _unsubscribeRealtime() {
-    final channel = _realtimeChannel;
-    _realtimeChannel = null;
-    if (channel != null) {
-      try {
-        Supabase.instance.client.removeChannel(channel);
-      } catch (_) {}
-    }
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && mounted) {
-      unawaited(_handleResume());
-    }
-  }
-
-  Future<void> _handleResume() async {
-    final syncService = ref.read(syncServiceProvider);
-    try {
-      // Check for admin category/m3u_url changes first so a direct M3U refresh
-      // never races with an updated or cleared URL.
-      final didFullSync = await syncService.checkForCategoryChangesIfDue();
-      if (!didFullSync && mounted) {
-        await syncService.refreshM3uDirectly(
-          minInterval: const Duration(seconds: 15),
-        );
-      }
-    } catch (_) {}
   }
 
   @override

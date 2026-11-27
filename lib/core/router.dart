@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../models/channel.dart';
-import '../models/event.dart';
+import '../providers/app_providers.dart';
 import '../services/analytics_service.dart';
+import '../services/playback/playback_session.dart';
 import '../screens/shell_screen.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/categories/categories_screen.dart';
@@ -31,17 +30,15 @@ final rootNavigatorKey = GlobalKey<NavigatorState>();
 final shellNavigatorKey = GlobalKey<NavigatorState>();
 
 class _SafeFirebaseScreenObserver extends NavigatorObserver {
+  final AnalyticsService? _analytics;
+
+  _SafeFirebaseScreenObserver({AnalyticsService? analytics}) : _analytics = analytics;
+
   void _track(Route<dynamic>? route) {
     if (route == null) return;
     final name = route.settings.name;
     if (name == null || name.isEmpty) return;
-
-    final instance = AnalyticsService.activeInstance;
-    if (instance != null) {
-      instance.trackScreenView(name);
-    } else if (Firebase.apps.isNotEmpty) {
-      FirebaseAnalytics.instance.logScreenView(screenName: name).catchError((_) {});
-    }
+    _analytics?.trackScreenView(name);
   }
 
   @override
@@ -63,10 +60,15 @@ class _SafeFirebaseScreenObserver extends NavigatorObserver {
   }
 }
 
-final appRouter = GoRouter(
+final routerProvider = Provider<GoRouter>((ref) {
+  final analytics = ref.read(analyticsServiceProvider);
+  return createAppRouter(analyticsService: analytics);
+});
+
+GoRouter createAppRouter({AnalyticsService? analyticsService}) => GoRouter(
   navigatorKey: rootNavigatorKey,
   initialLocation: '/',
-  observers: [_SafeFirebaseScreenObserver()],
+  observers: [_SafeFirebaseScreenObserver(analytics: analyticsService)],
   routes: [
     GoRoute(
       path: '/',
@@ -205,25 +207,14 @@ final appRouter = GoRouter(
       builder: (context, state) {
         final rawId = state.pathParameters['channelId'] ?? '';
         final channelId = Uri.decodeComponent(rawId);
-        List<String>? eventChannels;
-        List<Channel>? dynamicChannels;
-        SportEvent? sportEvent;
-        bool forceFullscreen = false;
-
-        if (state.extra is Map<String, dynamic>) {
-          final extra = state.extra as Map<String, dynamic>;
-          eventChannels = extra['eventChannels'] as List<String>?;
-          dynamicChannels = extra['dynamicChannels'] as List<Channel>?;
-          sportEvent = extra['sportEvent'] as SportEvent?;
-          forceFullscreen = extra['forceFullscreen'] as bool? ?? false;
-        }
+        final args = PlaybackLaunchArgs.fromExtra(state.extra, channelId);
 
         return PlayerScreen(
-          channelId: channelId,
-          eventChannels: eventChannels,
-          dynamicChannels: dynamicChannels,
-          sportEvent: sportEvent,
-          forceFullscreen: forceFullscreen,
+          channelId: args.channelId,
+          eventChannels: args.eventChannels,
+          dynamicChannels: args.dynamicChannels,
+          sportEvent: args.sportEvent,
+          forceFullscreen: args.forceFullscreen,
         );
       },
     ),

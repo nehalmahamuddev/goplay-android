@@ -3,8 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../core/constants.dart';
+import '../core/navigation_coordinator.dart';
 import '../core/typography.dart';
-import '../providers/app_providers.dart';
+import '../models/nav_destination.dart';
 import 'tv_focus_wrapper.dart';
 
 /// Telegram-style sleek top-right popup dropdown menu.
@@ -27,8 +28,7 @@ class AppOverflowMenu extends ConsumerWidget {
         targetRect: buttonRect,
         child: _TelegramDropdownCard(
           onFavoritesSelected: () {
-            ref.read(selectedCategoryProvider.notifier).select('favorite');
-            context.go('/channels');
+            navigateToDestination(context, ref, NavDestination.favorites);
           },
           onSettingsSelected: () {
             context.push('/settings');

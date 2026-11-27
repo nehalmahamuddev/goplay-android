@@ -5,8 +5,8 @@ import '../models/channel.dart';
 import '../models/drm_config.dart';
 import '../models/stream_server.dart';
 import '../utils/channel_name.dart';
-import 'cache_service.dart';
-import 'iptv_service.dart';
+import 'catalog/catalog_store.dart';
+import 'iptv/playlist_parser.dart';
 
 /// Result of a conditional HTTP fetch for a category's M3U playlist.
 class CategoryM3uHttpResponse {
@@ -33,13 +33,13 @@ typedef CategoryM3uFetcher = Future<CategoryM3uHttpResponse> Function(
 /// `m3u_url` using conditional HTTP headers (`ETag` / `Last-Modified`) and
 /// content-hash diffing, without requiring Supabase database queries.
 class CategoryM3uSyncService {
-  final CacheService _cache;
+  final CatalogStore _cache;
   final CategoryM3uFetcher _fetcher;
   final DateTime Function() _now;
   final Map<(String, String), Future<bool>> _inFlight = {};
 
   CategoryM3uSyncService({
-    required CacheService cache,
+    required CatalogStore cache,
     Dio? dio,
     CategoryM3uFetcher? fetcher,
     DateTime Function()? now,

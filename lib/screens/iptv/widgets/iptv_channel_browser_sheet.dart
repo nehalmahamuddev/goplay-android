@@ -56,7 +56,7 @@ class _IptvChannelBrowserSheetState
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(selectedIptvPlaylistProvider.notifier).select(widget.playlist);
+      ref.read(selectedIptvPlaylistIdProvider.notifier).select(widget.playlist.id);
       ref.read(iptvSearchQueryProvider.notifier).setQuery('');
       ref.read(iptvSelectedCategoryProvider.notifier).select('All');
       _initCacheAndEpg();

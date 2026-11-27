@@ -110,6 +110,7 @@ class PlaybackStateMachine extends ChangeNotifier {
     _relatedChannels = relatedChannels;
     _playbackStartTime = DateTime.now();
 
+    _state = _state.copyWith(channelId: channel.id);
     _transition(PlaybackPhase.preparing, clearError: true);
   }
 

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/supabase_service.dart';
 import '../services/cache_service.dart';
+import '../services/catalog/catalog_repository.dart';
+import '../services/catalog/remote_catalog_adapter.dart';
 import '../services/category_m3u_service.dart';
 import '../services/sync_service.dart';
 import '../services/analytics_service.dart';
@@ -11,12 +13,60 @@ import '../models/event.dart';
 import '../models/category.dart';
 import '../models/announcement.dart';
 import '../models/hero_banner_item.dart';
-import '../services/stream_decryptor.dart';
 import '../models/app_ui_config.dart';
 import '../models/nav_destination.dart';
 import 'theme_provider.dart';
 
-// ─── Core Service Providers ───────────────────────────────────
+class CatalogRevisions {
+  final int channels;
+  final int categories;
+  final int events;
+  final int announcements;
+  final int heroBanners;
+  final int uiConfig;
+
+  const CatalogRevisions({
+    this.channels = 0,
+    this.categories = 0,
+    this.events = 0,
+    this.announcements = 0,
+    this.heroBanners = 0,
+    this.uiConfig = 0,
+  });
+
+  CatalogRevisions bump(Set<CatalogSection> sections) {
+    return CatalogRevisions(
+      channels: sections.contains(CatalogSection.channels)
+          ? channels + 1
+          : channels,
+      categories: sections.contains(CatalogSection.categories)
+          ? categories + 1
+          : categories,
+      events: sections.contains(CatalogSection.events) ? events + 1 : events,
+      announcements: sections.contains(CatalogSection.announcements)
+          ? announcements + 1
+          : announcements,
+      heroBanners: sections.contains(CatalogSection.heroBanners)
+          ? heroBanners + 1
+          : heroBanners,
+      uiConfig: sections.contains(CatalogSection.uiConfig)
+          ? uiConfig + 1
+          : uiConfig,
+    );
+  }
+}
+
+class CatalogRevisionsNotifier extends Notifier<CatalogRevisions> {
+  @override
+  CatalogRevisions build() => const CatalogRevisions();
+
+  void bump(Set<CatalogSection> sections) {
+    if (sections.isEmpty) return;
+    state = state.bump(sections);
+  }
+}
+
+// ─── Core Service & Repository Providers ─────────────────────
 final supabaseServiceProvider = Provider<SupabaseService>((ref) {
   try {
     return SupabaseService(Supabase.instance.client);
@@ -29,13 +79,51 @@ final cacheServiceProvider = Provider<CacheService>((ref) {
   return CacheService();
 });
 
+final catalogStoreProvider = Provider<CatalogStore>((ref) {
+  return ref.watch(cacheServiceProvider);
+});
+
+final preferencesStoreProvider = Provider<PreferencesStore>((ref) {
+  return ref.watch(cacheServiceProvider);
+});
+
+final remoteCatalogAdapterProvider = Provider<RemoteCatalogAdapter>((ref) {
+  return SupabaseRemoteCatalogAdapter(
+    supabase: ref.watch(supabaseServiceProvider),
+  );
+});
+
 final categoryM3uSyncServiceProvider = Provider<CategoryM3uSyncService>((ref) {
-  final cache = ref.watch(cacheServiceProvider);
-  return CategoryM3uSyncService(cache: cache);
+  final store = ref.watch(catalogStoreProvider);
+  return CategoryM3uSyncService(cache: store);
+});
+
+final catalogRevisionsProvider =
+    NotifierProvider<CatalogRevisionsNotifier, CatalogRevisions>(
+  CatalogRevisionsNotifier.new,
+);
+
+final catalogRepositoryProvider = Provider<CatalogRepository>((ref) {
+  return CatalogRepository(
+    store: ref.watch(catalogStoreProvider),
+    remote: ref.watch(remoteCatalogAdapterProvider),
+    m3uSync: ref.watch(categoryM3uSyncServiceProvider),
+    onSectionsChanged: (sections) {
+      ref.read(catalogRevisionsProvider.notifier).bump(sections);
+    },
+  );
 });
 
 final syncServiceProvider = Provider<SyncService>((ref) {
-  return SyncService(ref);
+  return SyncService(
+    ref.watch(catalogRepositoryProvider),
+    onInvalidateChannels: () {
+      ref.read(catalogRevisionsProvider.notifier).bump({
+        CatalogSection.channels,
+        CatalogSection.categories,
+      });
+    },
+  );
 });
 
 final analyticsServiceProvider = Provider<AnalyticsService>((ref) {
@@ -46,16 +134,15 @@ final analyticsServiceProvider = Provider<AnalyticsService>((ref) {
   return service;
 });
 
-/// Startup provider to trigger the background synchronization process
+/// Startup provider to trigger the background synchronization process.
 final appSyncProvider = FutureProvider<void>((ref) async {
-  final syncService = ref.watch(syncServiceProvider);
-  await syncService.sync();
+  await ref.watch(catalogRepositoryProvider).sync();
 });
 
-/// Dynamic App UI Configuration Provider (cache-first, instant 0ms startup)
+/// Dynamic App UI Configuration Provider (cache-first, reactive on sync/reset).
 final uiConfigProvider = Provider<AppUiConfig>((ref) {
-  final cache = ref.watch(cacheServiceProvider);
-  return cache.getLocalUiConfig();
+  ref.watch(catalogRevisionsProvider.select((r) => r.uiConfig));
+  return ref.watch(catalogRepositoryProvider).loadUiConfig();
 });
 
 /// Reactive Theme Provider that responds instantly to user selections or cloud updates
@@ -65,72 +152,9 @@ final appThemeProvider = Provider<ThemeData>((ref) {
 
 // ─── Raw Channels (unfiltered, unified DB + Category M3U) ──────
 final rawChannelsProvider = FutureProvider<List<Channel>>((ref) async {
-  final cache = ref.watch(cacheServiceProvider);
-  var localCategories = cache.getLocalCategories();
-  var localChannels = cache.getLocalChannels();
-
-  final hadEmptyCategories = localCategories.isEmpty;
-  final needsDbChannels = localChannels.isEmpty &&
-      (hadEmptyCategories ||
-          !localCategories.any((c) => c.active && c.hasM3uUrl));
-
-  // Cold initial download if cache is empty (first install / tests)
-  if (hadEmptyCategories || needsDbChannels) {
-    final supabase = ref.watch(supabaseServiceProvider);
-    try {
-      if (hadEmptyCategories) {
-        final fetchedCategories = await supabase.getCategories();
-        if (fetchedCategories.isNotEmpty) {
-          await cache.saveLocalCategories(fetchedCategories);
-          localCategories = fetchedCategories;
-        }
-      }
-      if (needsDbChannels) {
-        final remoteChannels = await supabase.getChannels();
-        if (remoteChannels.isNotEmpty) {
-          await cache.saveLocalChannels(remoteChannels);
-          localChannels = remoteChannels;
-        }
-      }
-      if (hadEmptyCategories &&
-          localCategories.any((c) => c.active && c.hasM3uUrl)) {
-        await ref
-            .read(categoryM3uSyncServiceProvider)
-            .reconcileCategories(localCategories);
-      }
-    } catch (e) {
-      debugPrint('Supabase channels fetch non-fatal error: $e');
-    }
-  }
-
-  return _mergeDbAndCategoryM3uChannels(
-    dbChannels: localChannels,
-    categories: localCategories,
-    cache: cache,
-  );
+  ref.watch(catalogRevisionsProvider.select((r) => r.channels));
+  return ref.watch(catalogRepositoryProvider).loadChannels();
 });
-
-List<Channel> _mergeDbAndCategoryM3uChannels({
-  required List<Channel> dbChannels,
-  required List<Category> categories,
-  required CacheService cache,
-}) {
-  final m3uCategories =
-      categories.where((c) => c.active && c.hasM3uUrl).toList(growable: false);
-  if (m3uCategories.isEmpty) {
-    return dbChannels;
-  }
-
-  final m3uCategoryIds = m3uCategories.map((c) => c.id).toSet();
-  final merged = <Channel>[
-    for (final ch in dbChannels)
-      if (!m3uCategoryIds.contains(ch.category)) ch,
-  ];
-  for (final cat in m3uCategories) {
-    merged.addAll(cache.getCategoryM3uChannels(cat.id));
-  }
-  return merged;
-}
 
 // ─── Channels (Filtered by active status and active categories) ──
 final channelsProvider = FutureProvider<List<Channel>>((ref) async {
@@ -150,46 +174,18 @@ final channelsProvider = FutureProvider<List<Channel>>((ref) async {
 
 final trendingChannelsProvider = FutureProvider<List<Channel>>((ref) async {
   final channels = await ref.watch(channelsProvider.future);
-  final supabase = ref.watch(supabaseServiceProvider);
-
-  try {
-    final trending = await supabase.getTrendingChannels(limit: 20);
-    if (trending.isNotEmpty) {
-      final channelMap = {for (final ch in channels) ch.id: ch};
-      return trending
-          .where((t) => t.isLive && channelMap.containsKey(t.id))
-          .map((t) => channelMap[t.id]!)
-          .toList();
-    }
-  } catch (e) {
-    debugPrint('Error loading dynamic trending channels: $e');
-  }
-
-  return channels.where((ch) => ch.isTrending && ch.isLive).toList();
+  return ref
+      .watch(catalogRepositoryProvider)
+      .loadTrendingChannels(liveCatalog: channels);
 });
 
 /// Single O(n) grouping pass over the channel list.
-///
-/// Previously `channelsByCategoryProvider` was a non-disposing `Provider.family`
-/// that ran a full `.where()` scan per category, so one channel-list change cost
-/// O(categories x channels) and every filtered list stayed alive for the app
-/// lifetime. `activeCategoriesWithCountsProvider` then walked the list a third
-/// time just to build counts. Both now read this one map.
 final channelsByCategoryMapProvider =
     Provider<AsyncValue<Map<String, List<Channel>>>>((ref) {
-  return ref.watch(channelsProvider).whenData((channels) {
-    final grouped = <String, List<Channel>>{};
-    for (final ch in channels) {
-      final key = (ch.category == null || ch.category!.isEmpty)
-          ? _uncategorizedKey
-          : ch.category!;
-      (grouped[key] ??= <Channel>[]).add(ch);
-    }
-    return grouped;
-  });
+  return ref
+      .watch(channelsProvider)
+      .whenData(CatalogRepository.groupChannelsByCategory);
 });
-
-const String _uncategorizedKey = 'uncategorized';
 
 /// Channels for one tab.
 /// Supports 'trending', 'favorite', 'all', and specific category IDs.
@@ -218,30 +214,14 @@ final channelProvider =
   }
 });
 
-// ─── Events (Direct API from https://pabbdyzone.shop) ──────────
+// ─── Events (Direct API via CatalogRepository) ─────────────────
 final eventCategoriesProvider = FutureProvider<Map<String, String>>((ref) async {
-  return StreamDecryptor.fetchEventCategories();
+  return ref.watch(catalogRepositoryProvider).loadEventCategories();
 });
 
 final eventsProvider = FutureProvider<List<SportEvent>>((ref) async {
-  final cache = ref.watch(cacheServiceProvider);
-  final localEvents = cache.getLocalEvents();
-
-  // 1. Instant 0ms startup: Return cached fixtures immediately
-  if (localEvents.isNotEmpty) {
-    return localEvents;
-  }
-
-  // 2. Cold initial fetch if cache is completely empty
-  try {
-    final directEvents = await StreamDecryptor.fetchLiveEvents();
-    if (directEvents.isNotEmpty) {
-      await cache.saveLocalEvents(directEvents);
-      return directEvents;
-    }
-  } catch (_) {}
-
-  return localEvents;
+  ref.watch(catalogRevisionsProvider.select((r) => r.events));
+  return ref.watch(catalogRepositoryProvider).loadEvents();
 });
 
 // ─── Real-Time Clock Ticker (Drives 0ms Lifecycle Transitions) ──
@@ -438,27 +418,8 @@ final filteredEndedEventsProvider =
 
 // ─── Categories ───────────────────────────────────────────────
 final categoriesProvider = FutureProvider<List<Category>>((ref) async {
-  final cache = ref.watch(cacheServiceProvider);
-  final localCategories = cache.getLocalCategories();
-
-  // 1. Instant 0ms startup: Return cached categories immediately
-  if (localCategories.isNotEmpty) {
-    return localCategories;
-  }
-
-  // 2. Cold initial fetch if cache is completely empty
-  final supabase = ref.watch(supabaseServiceProvider);
-  try {
-    final remoteCategories = await supabase.getCategories();
-    if (remoteCategories.isNotEmpty) {
-      await cache.saveLocalCategories(remoteCategories);
-      return remoteCategories;
-    }
-  } catch (e) {
-    debugPrint('Supabase categories fetch non-fatal error: $e');
-  }
-
-  return localCategories;
+  ref.watch(catalogRevisionsProvider.select((r) => r.categories));
+  return ref.watch(catalogRepositoryProvider).loadCategories();
 });
 
 final activeCategoriesWithCountsProvider = Provider<AsyncValue<List<(Category, int)>>>((ref) {
@@ -497,33 +458,15 @@ final activeCategoriesWithCountsProvider = Provider<AsyncValue<List<(Category, i
   return AsyncValue.data(list);
 });
 
-// ─── Announcements (cache-first, background refresh) ─────────
-// ─── Announcements (cache-first, background refresh) ─────────
+// ─── Announcements & Hero Banners ─────────────────────────────
 final announcementsProvider = FutureProvider<List<Announcement>>((ref) async {
-  final cache = ref.read(cacheServiceProvider);
-  final local = cache.getLocalAnnouncements();
-  if (local.isNotEmpty) return local;
-  try {
-    final remote = await ref.read(supabaseServiceProvider).getAnnouncements();
-    await cache.saveLocalAnnouncements(remote);
-    return remote;
-  } catch (_) {
-    return local;
-  }
+  ref.watch(catalogRevisionsProvider.select((r) => r.announcements));
+  return ref.watch(catalogRepositoryProvider).loadAnnouncements();
 });
 
-// ─── Hero Banners (cache-first, background refresh) ───────────
 final heroBannersProvider = FutureProvider<List<HeroBannerItem>>((ref) async {
-  final cache = ref.read(cacheServiceProvider);
-  final local = cache.getLocalHeroBanners();
-  if (local.isNotEmpty) return local;
-  try {
-    final remote = await ref.read(supabaseServiceProvider).getHeroBanners();
-    await cache.saveLocalHeroBanners(remote);
-    return remote;
-  } catch (_) {
-    return local;
-  }
+  ref.watch(catalogRevisionsProvider.select((r) => r.heroBanners));
+  return ref.watch(catalogRepositoryProvider).loadHeroBanners();
 });
 
 // ─── Search ───────────────────────────────────────────────────
@@ -583,12 +526,12 @@ final showTrendingTabProvider =
 class ShowTrendingTabNotifier extends Notifier<bool> {
   @override
   bool build() {
-    return ref.read(cacheServiceProvider).getShowTrendingTabUserPref();
+    return ref.read(preferencesStoreProvider).getShowTrendingTabUserPref();
   }
 
   Future<void> toggle(bool enabled) async {
     state = enabled;
-    await ref.read(cacheServiceProvider).saveShowTrendingTabUserPref(enabled);
+    await ref.read(preferencesStoreProvider).saveShowTrendingTabUserPref(enabled);
   }
 }
 
@@ -601,12 +544,12 @@ final showLiveTabCounterProvider =
 class ShowLiveTabCounterNotifier extends Notifier<bool> {
   @override
   bool build() {
-    return ref.read(cacheServiceProvider).getShowLiveTabCounterUserPref();
+    return ref.read(preferencesStoreProvider).getShowLiveTabCounterUserPref();
   }
 
   Future<void> toggle(bool enabled) async {
     state = enabled;
-    await ref.read(cacheServiceProvider).saveShowLiveTabCounterUserPref(enabled);
+    await ref.read(preferencesStoreProvider).saveShowLiveTabCounterUserPref(enabled);
   }
 }
 
@@ -619,12 +562,12 @@ final showSportCategoryIconsProvider =
 class ShowSportCategoryIconsNotifier extends Notifier<bool> {
   @override
   bool build() {
-    return ref.read(cacheServiceProvider).getShowSportCategoryIconsUserPref();
+    return ref.read(preferencesStoreProvider).getShowSportCategoryIconsUserPref();
   }
 
   Future<void> toggle(bool enabled) async {
     state = enabled;
-    await ref.read(cacheServiceProvider).saveShowSportCategoryIconsUserPref(enabled);
+    await ref.read(preferencesStoreProvider).saveShowSportCategoryIconsUserPref(enabled);
   }
 }
 
@@ -637,14 +580,14 @@ final customNavTabsProvider =
 class CustomNavTabsNotifier extends Notifier<List<NavDestination>> {
   @override
   List<NavDestination> build() {
-    final ids = ref.read(cacheServiceProvider).getCustomNavTabsUserPref();
+    final ids = ref.read(preferencesStoreProvider).getCustomNavTabsUserPref();
     return ids.map(NavDestination.fromId).toList();
   }
 
   Future<bool> setTabs(List<NavDestination> tabs) async {
     if (tabs.length < 3 || tabs.length > 5) return false;
     state = List<NavDestination>.unmodifiable(tabs);
-    await ref.read(cacheServiceProvider).saveCustomNavTabsUserPref(
+    await ref.read(preferencesStoreProvider).saveCustomNavTabsUserPref(
       tabs.map((t) => t.id).toList(),
     );
     return true;
@@ -652,7 +595,7 @@ class CustomNavTabsNotifier extends Notifier<List<NavDestination>> {
 
   Future<void> resetToDefault() async {
     state = List<NavDestination>.unmodifiable(NavDestination.defaultTabs);
-    await ref.read(cacheServiceProvider).saveCustomNavTabsUserPref(
+    await ref.read(preferencesStoreProvider).saveCustomNavTabsUserPref(
       NavDestination.defaultTabIds,
     );
   }
@@ -667,12 +610,12 @@ final defaultLaunchPageProvider =
 class DefaultLaunchPageNotifier extends Notifier<String> {
   @override
   String build() {
-    return ref.read(cacheServiceProvider).getDefaultLaunchPageUserPref();
+    return ref.read(preferencesStoreProvider).getDefaultLaunchPageUserPref();
   }
 
   Future<void> setLaunchPage(String page) async {
     state = page;
-    await ref.read(cacheServiceProvider).saveDefaultLaunchPageUserPref(page);
+    await ref.read(preferencesStoreProvider).saveDefaultLaunchPageUserPref(page);
   }
 }
 
@@ -685,13 +628,13 @@ final lastActiveNavTabProvider =
 class LastActiveNavTabNotifier extends Notifier<String> {
   @override
   String build() {
-    return ref.read(cacheServiceProvider).getLastActiveNavTabUserPref();
+    return ref.read(preferencesStoreProvider).getLastActiveNavTabUserPref();
   }
 
   Future<void> setActiveTab(String tab) async {
     if (state == tab) return;
     state = tab;
-    await ref.read(cacheServiceProvider).saveLastActiveNavTabUserPref(tab);
+    await ref.read(preferencesStoreProvider).saveLastActiveNavTabUserPref(tab);
   }
 }
 
@@ -734,7 +677,7 @@ final favoriteChannelIdsProvider =
 
 class FavoriteNotifier extends Notifier<Set<String>> {
   @override
-  Set<String> build() => ref.read(cacheServiceProvider).getFavoriteChannelIds();
+  Set<String> build() => ref.read(preferencesStoreProvider).getFavoriteChannelIds();
 
   void toggle(String channelId) {
     final next = <String>{...state};
@@ -742,7 +685,7 @@ class FavoriteNotifier extends Notifier<Set<String>> {
     state = next;
     // Fire-and-forget write; the in-memory memo is updated synchronously so a
     // failed disk write never desyncs the UI within the session.
-    ref.read(cacheServiceProvider).saveFavoriteChannelIds(next);
+    ref.read(preferencesStoreProvider).saveFavoriteChannelIds(next);
   }
 
   bool isFavorite(String channelId) => state.contains(channelId);

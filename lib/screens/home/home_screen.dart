@@ -132,14 +132,10 @@ class HomeScreen extends ConsumerWidget {
             final minDelay = Future.delayed(const Duration(milliseconds: 600));
 
             try {
-              await ref.read(syncServiceProvider).sync(forceM3uRefresh: true);
+              await ref
+                  .read(catalogRepositoryProvider)
+                  .sync(forceM3uRefresh: true);
             } catch (_) {}
-
-            ref.invalidate(eventsProvider);
-            ref.invalidate(channelsProvider);
-            ref.invalidate(heroBannersProvider);
-            ref.invalidate(announcementsProvider);
-            ref.invalidate(trendingChannelsProvider);
 
             try {
               await Future.wait([

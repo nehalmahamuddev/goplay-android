@@ -162,6 +162,7 @@ class GoPlayApp extends ConsumerWidget {
       });
     }
     final dynamicTheme = ref.watch(appThemeProvider);
+    final router = ref.watch(routerProvider);
 
     return AppBroadcastWrapper(
       child: MaterialApp.router(
@@ -170,7 +171,7 @@ class GoPlayApp extends ConsumerWidget {
         theme: dynamicTheme,
         darkTheme: dynamicTheme,
         themeMode: ThemeMode.dark,
-        routerConfig: appRouter,
+        routerConfig: router,
         builder: (context, child) {
           // Bound the system font scale. Unclamped accessibility scaling
           // overflowed fixed-height layouts such as the channel grid cards.

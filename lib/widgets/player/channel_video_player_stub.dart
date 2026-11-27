@@ -2,14 +2,16 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive/hive.dart';
 import '../../core/constants.dart';
 import '../../core/typography.dart';
 import '../../models/channel.dart';
-import '../../services/local_proxy.dart';
+import '../../providers/app_providers.dart';
+import '../../services/analytics_service.dart';
+import '../../services/playback/playback_engine.dart';
 import '../../services/playback/playback_state.dart';
 import '../../services/playback/playback_state_machine.dart';
-import '../../services/playback/connectivity_service.dart';
 import '../../services/playback/playback_telemetry.dart';
 import '../tv_focus_wrapper.dart';
 import 'channel_video_player.dart';
@@ -417,10 +419,6 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
   bool _isDetectingQualities = true;
   double _playbackSpeed = 1.0;
   final List<double> _speeds = [0.5, 1.0, 1.25, 1.5, 2.0];
-  int _consecutiveStalls = 0;
-  DateTime? _lastStallTime;
-  Timer? _stallTimer;
-  bool _hasPlayedInitially = false;
   StateSetter? _settingsModalSetState;
 
   int _aspectRatioIndex = 0;
@@ -433,10 +431,9 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
 
   static const _pipChannel = MethodChannel('com.goplay/pip');
 
-  // ─── Playback State Machine ────────────────────────────────────
+  // ─── Playback Engine ───────────────────────────────────────────
 
-  late final PlaybackStateMachine _stateMachine;
-  late final ConnectivityService _connectivityService;
+  late final PlaybackEngine _engine;
 
   // ─── Pre-cached gradient decorations — allocated once, not per build() ──
 
@@ -552,10 +549,8 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
   void _onPlatformViewCreated(int id) {
     _methodChannel = MethodChannel('com.goplay/native_player_$id');
     _methodChannel!.setMethodCallHandler(_handleMethodCall);
-
-    if (widget.channel.streamUrl.contains('otte.cache.aiv-cdn.net')) {
-      LocalProxy.startKkx4Auth();
-    }
+    _engine.nativePort.setChannel(_methodChannel);
+    _engine.keepAlive.syncForUrl(widget.channel.streamUrl);
     _fetchInitialPlayerState();
   }
 
@@ -572,13 +567,8 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         final nowBuffering = state == 'buffering';
         final isReady = state == 'ready' || state == 'playing';
 
-        // Delegate to state machine for recovery logic
-        _stateMachine.handleNativeStateEvent(args);
-
-        final wasBuffering = _isBuffering;
-        if (isReady) {
-          _hasPlayedInitially = true;
-        }
+        // Delegate recovery, buffering monitor, and stall-to-Auto downgrade to engine
+        _engine.handleNativeStateEvent(args);
 
         // Update local UI state for controls rendering
         if (_isPlaying != isPlaying || _isBuffering != nowBuffering ||
@@ -591,31 +581,6 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
               _errorMessage = null;
             }
           });
-        }
-
-        // Smart Stall Detection: only trigger after initial playback has started and transitioning into buffer
-        if (!wasBuffering && nowBuffering && _hasPlayedInitially && _currentQuality != 'Auto') {
-          final now = DateTime.now();
-          if (_lastStallTime != null && now.difference(_lastStallTime!).inSeconds <= 30) {
-            _consecutiveStalls++;
-          } else {
-            _consecutiveStalls = 1;
-          }
-          _lastStallTime = now;
-
-          _stallTimer?.cancel();
-          _stallTimer = Timer(const Duration(seconds: 10), () {
-            if (mounted && _isBuffering && _hasPlayedInitially && _currentQuality != 'Auto') {
-              _triggerStallRecovery();
-            }
-          });
-
-          if (_consecutiveStalls >= 3) {
-            _triggerStallRecovery();
-          }
-        } else if (!nowBuffering) {
-          _stallTimer?.cancel();
-          _stallTimer = null;
         }
 
         if (isPlaying) {
@@ -673,19 +638,19 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         debugPrint('NativePlayer error: $message');
         _stopProgressTimer();
 
-        // Delegate to state machine — it will classify, retry, or skip
-        _stateMachine.handleError(args);
+        // Delegate to engine — handles classification, retry, failover, or skip
+        _engine.handleNativeError(args);
         break;
     }
   }
 
-  // ─── State Machine Listener ──────────────────────────────────────
+  // ─── Playback Engine Listener ────────────────────────────────────
 
-  void _onStateMachineChanged() {
+  void _onEngineChanged() {
     if (!mounted) return;
-    final smState = _stateMachine.state;
+    final smState = _engine.state;
 
-    // Sync error state from state machine into widget state
+    // Sync error state from engine into widget state
     switch (smState.phase) {
       case PlaybackPhase.failed:
         setState(() {
@@ -693,17 +658,6 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
           _errorMessage = smState.error?.userMessage ?? 'Unable to play this stream';
           _isBuffering = false;
         });
-        // Auto-failover to next available server if multi-stream channel
-        if (widget.servers != null && widget.servers!.length > 1 && widget.onServerSelected != null) {
-          final nextServerIndex = (widget.activeServerIndex + 1) % widget.servers!.length;
-          if (nextServerIndex != widget.activeServerIndex) {
-            final nextName = widget.servers![nextServerIndex].name.isNotEmpty
-                ? widget.servers![nextServerIndex].name
-                : 'Server ${nextServerIndex + 1}';
-            debugPrint('[Failover] Stream failed on index ${widget.activeServerIndex}, switching to server index $nextServerIndex ($nextName)');
-            widget.onServerSelected!(nextServerIndex);
-          }
-        }
         break;
 
       case PlaybackPhase.waitingForInternet:
@@ -826,16 +780,16 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
       _duration = Duration.zero;
       _bufferedPosition = Duration.zero;
     });
-    _methodChannel?.invokeMethod('play', _getCreationParams());
+    _engine.nativePort.play(_getCreationParams());
   }
 
   /// Manual retry.
   void _retryPlayback() {
-    _stateMachine.manualRetry();
+    _engine.manualRetry();
   }
 
   void _seekTo(Duration position) {
-    _methodChannel?.invokeMethod('seekTo', position.inMilliseconds);
+    _engine.nativePort.seekTo(position.inMilliseconds);
     setState(() {
       _position = position;
     });
@@ -846,7 +800,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
       _volume = value;
       _isMuted = value == 0.0;
     });
-    _methodChannel?.invokeMethod('setVolume', value);
+    _engine.nativePort.setVolume(value);
   }
 
   void _toggleMute() {
@@ -861,22 +815,14 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
   void _setQuality(String label, int height) {
     setState(() {
       _currentQuality = label;
-      _consecutiveStalls = 0;
     });
+    _engine.setQualityLabel(label);
     try {
       if (Hive.isBoxOpen(AppConstants.settingsBox)) {
         Hive.box(AppConstants.settingsBox).put('default_video_quality', label);
       }
     } catch (_) {}
-    _methodChannel?.invokeMethod('setQuality', height);
-  }
-
-  void _triggerStallRecovery() {
-    if (!mounted || _currentQuality == 'Auto') return;
-    _consecutiveStalls = 0;
-    _stallTimer?.cancel();
-    _stallTimer = null;
-    _setQuality('Auto', -1);
+    _engine.nativePort.setQuality(height);
   }
 
   void _toggleAspectRatio() {
@@ -884,7 +830,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
       _aspectRatioIndex = (_aspectRatioIndex + 1) % _resizeModes.length;
     });
     final mode = _resizeModes[_aspectRatioIndex];
-    _methodChannel?.invokeMethod('setResizeMode', mode);
+    _engine.nativePort.setResizeMode(mode);
   }
 
   // ignore: unused_element
@@ -1602,58 +1548,38 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
     // grabs focus first within the player scope. The outer _focusNode then
     // acts as a passive event-bubbling catcher for media keys.
 
-    // Initialize the connectivity service and state machine
-    _connectivityService = ConnectivityService();
-    _connectivityService.initialize();
+    // Inject AnalyticsService from ProviderScope when mounted inside app shell
+    AnalyticsService? analytics;
+    try {
+      analytics = ProviderScope.containerOf(context, listen: false)
+          .read(analyticsServiceProvider);
+    } catch (_) {}
 
-    _stateMachine = PlaybackStateMachine(
-      connectivityService: _connectivityService,
-      telemetry: PlaybackTelemetry(),
+    // Initialize the deep playback engine (connectivity, persistent circuit breaker, keep-alive)
+    _engine = PlaybackEngine(
+      telemetry: PlaybackTelemetry(analytics: analytics),
     );
+    _engine.setQualityLabel(_currentQuality);
+    _engine.initializeConnectivity();
 
-    // Wire state machine callbacks
-    _stateMachine.onRetryPlayback = _retryPlaybackInternal;
-    _stateMachine.onSwitchChannel = (channelId) {
-      if (widget.onNextChannel != null || widget.onPreviousChannel != null) {
-        widget.onNextChannel?.call();
-      }
-    };
-    _stateMachine.onSkipRequest = () {
-      final servers = widget.servers;
-      if (servers != null &&
-          servers.length > 1 &&
-          widget.activeServerIndex < servers.length - 1) {
-        final nextIdx = widget.activeServerIndex + 1;
-        final nextName = servers[nextIdx].name.isNotEmpty
-            ? servers[nextIdx].name
-            : 'Server ${nextIdx + 1}';
-        debugPrint(
-            'PlayerWidget: error on server ${widget.activeServerIndex}, auto-falling back to server $nextIdx ($nextName)');
-        widget.onServerSelected?.call(nextIdx);
-        return;
-      }
-      if (widget.onNextChannel != null) {
-        debugPrint('PlayerWidget: skipping to next channel (immediate skip)');
-        widget.onNextChannel!();
-      } else if (widget.onPreviousChannel != null) {
-        debugPrint('PlayerWidget: skipping to previous channel (immediate skip)');
-        widget.onPreviousChannel!();
-      } else {
-        debugPrint('PlayerWidget: no next/prev channel to skip to — showing error screen');
-        _stateMachine.forceFail(const ClassifiedError(
-          type: ErrorType.unknown,
-          strategy: RecoveryStrategy.showError,
-          rawMessage: 'No adjacent channels available to skip to.',
-          isRecoverable: false,
-        ));
+    _engine.onRetryRequested = _retryPlaybackInternal;
+    _engine.onServerFailover = (nextIdx) => widget.onServerSelected?.call(nextIdx);
+    _engine.onNextChannelRequested = () => widget.onNextChannel?.call();
+    _engine.onPreviousChannelRequested = () => widget.onPreviousChannel?.call();
+    _engine.onDowngradedToAuto = () {
+      if (mounted) {
+        setState(() => _currentQuality = 'Auto');
       }
     };
 
-    // Listen for state machine changes
-    _stateMachine.addListener(_onStateMachineChanged);
+    _engine.addListener(_onEngineChanged);
 
-    // Tell the state machine about the initial channel
-    _stateMachine.playChannel(widget.channel);
+    // Tell the engine about the initial channel and server list
+    _engine.loadChannel(
+      widget.channel,
+      servers: widget.servers,
+      activeServerIndex: widget.activeServerIndex,
+    );
   }
 
   @override
@@ -1665,22 +1591,19 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
     if (oldWidget.isLocked != widget.isLocked) {
       _isLocked = widget.isLocked;
     }
+    if (oldWidget.servers != widget.servers ||
+        oldWidget.activeServerIndex != widget.activeServerIndex) {
+      _engine.updateServerScope(widget.servers, widget.activeServerIndex);
+    }
     if (oldWidget.channel.id != widget.channel.id ||
         oldWidget.channel.streamUrl != widget.channel.streamUrl) {
-      // Stop old Toffee auth timer if needed
-      if (oldWidget.channel.streamUrl.contains('otte.cache.aiv-cdn.net')) {
-        LocalProxy.stopKkx4Auth();
-      }
-      if (widget.channel.streamUrl.contains('otte.cache.aiv-cdn.net')) {
-        LocalProxy.startKkx4Auth();
-      }
-
-      // Tell state machine about the new channel
-      _stateMachine.playChannel(widget.channel);
+      _engine.loadChannel(
+        widget.channel,
+        servers: widget.servers,
+        activeServerIndex: widget.activeServerIndex,
+      );
 
       _cachedParams = null;
-      _stallTimer?.cancel();
-      _stallTimer = null;
 
       setState(() {
         _hasError = false;
@@ -1691,11 +1614,9 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         _bufferedPosition = Duration.zero;
         _isDetectingQualities = true;
         _availableQualities = [];
-        _consecutiveStalls = 0;
-        _hasPlayedInitially = false;
       });
 
-      _methodChannel?.invokeMethod('play', _getCreationParams());
+      _engine.nativePort.play(_getCreationParams());
 
       // In fullscreen, after a channel switch (e.g. from chip selection in the
       // top bar), autoFocus does NOT re-fire (it only fires on first insert).
@@ -1875,17 +1796,12 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
     _scrubPositionNotifier.dispose();
     _seekDeltaNotifier.dispose();
     _stopProgressTimer();
-    _stallTimer?.cancel();
     _settingsModalSetState = null;
     _focusNode.dispose();
     _seekBarFocusNode.dispose();
     _bottomControlsFocusNode.dispose();
-    _stateMachine.removeListener(_onStateMachineChanged);
-    _stateMachine.dispose();
-    _connectivityService.dispose();
-    if (widget.channel.streamUrl.contains('otte.cache.aiv-cdn.net')) {
-      LocalProxy.stopKkx4Auth();
-    }
+    _engine.removeListener(_onEngineChanged);
+    _engine.dispose();
     _gestureToastTimer?.cancel();
     _gestureToastNotifier.dispose();
     _keysChannel.invokeMethod('setPlayerFullscreen', false);
@@ -2084,7 +2000,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
                 right: 0,
                 bottom: widget.isFullscreen ? 80 : 56,
                 child: Center(
-                  child: _StateMachineOverlay(stateMachine: _stateMachine),
+                  child: _StateMachineOverlay(stateMachine: _engine.stateMachine),
                 ),
               ),
 
@@ -2806,7 +2722,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
   // ─── Error widget (state-machine aware) ───────────────────────────
 
   Widget _buildErrorWidget() {
-    final smState = _stateMachine.state;
+    final smState = _engine.state;
     final errorType = smState.error?.type;
     final isDrm = errorType == ErrorType.drmFailure || widget.channel.hasDrm;
     final isNoInternet = errorType == ErrorType.noInternet ||

@@ -23,10 +23,10 @@ class AccountInfoSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
-    final cache = ref.watch(cacheServiceProvider);
-    final channelsVer = cache.getLocalChannelsVersion() ?? 1;
-    final eventsVer = cache.getLocalEventsVersion() ?? 1;
-    final uiVer = cache.getLocalUiConfigVersion() ?? 1;
+    final catalog = ref.watch(catalogRepositoryProvider);
+    final channelsVer = catalog.getLocalChannelsVersion() ?? 1;
+    final eventsVer = catalog.getLocalEventsVersion() ?? 1;
+    final uiVer = catalog.getLocalUiConfigVersion() ?? 1;
 
     return SafeArea(
       child: Padding(

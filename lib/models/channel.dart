@@ -1,7 +1,7 @@
 import 'drm_config.dart';
 import 'stream_server.dart';
 import '../utils/channel_name.dart';
-import '../services/stream_decryptor.dart';
+import '../services/iptv/stream_url_parser.dart';
 
 /// Data model for a TV channel
 class Channel {
@@ -104,7 +104,7 @@ class Channel {
     final rawName = (json['name'] as String?)?.trim() ?? '';
     final rawQuality = (json['quality'] as String?)?.trim();
     final rawStreamUrl = json['stream_url'] as String? ?? json['playz_links'] as String? ?? '';
-    final parsed = StreamDecryptor.parseStreamUrl(rawStreamUrl);
+    final parsed = StreamUrlParser.parsePipeHeaders(rawStreamUrl);
     final combinedHeaders = json['headers'] is Map
         ? Map<String, dynamic>.from(json['headers'] as Map)
         : <String, dynamic>{};

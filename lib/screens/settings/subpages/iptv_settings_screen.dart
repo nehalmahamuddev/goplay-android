@@ -204,7 +204,7 @@ class IptvSettingsScreen extends ConsumerWidget {
                 },
               ),
               title: Text(
-                'IPTV',
+                'Playlists',
                 style: TextStyle(
                   fontFamily: GoPlayType.family,
                   fontSize: 20,

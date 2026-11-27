@@ -9,6 +9,7 @@ import '../../../core/theme.dart';
 import '../../../core/typography.dart';
 import '../../../providers/app_providers.dart';
 import '../../../models/hero_banner_item.dart';
+import '../../../services/playback/playback_session.dart';
 import '../../../widgets/tv_focus_wrapper.dart';
 import '../skeletons/home_skeletons.dart';
 
@@ -222,7 +223,8 @@ class _HeroBannerCard extends ConsumerWidget {
       }
     } else if (banner.isChannelAction) {
       if (context.mounted) {
-        context.push('/player/${banner.actionValue}');
+        final args = PlaybackLaunchArgs(channelId: banner.actionValue!);
+        context.push(args.routeLocation);
       }
     }
   }

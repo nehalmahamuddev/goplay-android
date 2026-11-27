@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/theme.dart';
 import '../../../core/typography.dart';
 import '../../../models/channel.dart';
 import '../../../providers/app_providers.dart';
+import '../../../services/channel_stream_launcher.dart';
 import '../../../widgets/channel_avatar.dart';
 import '../../../widgets/tv_focus_wrapper.dart';
 import '../skeletons/home_skeletons.dart';
@@ -30,8 +30,6 @@ class HomeTrendingChannels extends ConsumerWidget {
       data: (channels) {
         if (channels.isEmpty) return const SizedBox.shrink();
 
-        final railIds = channels.map((c) => c.id).toList(growable: false);
-
         return SizedBox(
           height: 88,
           child: ListView.builder(
@@ -46,10 +44,7 @@ class HomeTrendingChannels extends ConsumerWidget {
                 channel: ch,
                 nameStyle: _kTrendingNameStyle,
                 showBorder: true,
-                onTap: () => context.push(
-                  '/player/${ch.id}',
-                  extra: {'eventChannels': railIds},
-                ),
+                onTap: () => ChannelStreamLauncher.launch(context, ch, scope: channels),
               );
             },
           ),

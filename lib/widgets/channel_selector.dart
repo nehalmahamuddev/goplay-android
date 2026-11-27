@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../models/event.dart';
 import '../models/channel.dart';
 import '../providers/app_providers.dart';
+import '../services/playback/playback_session.dart';
 import '../core/theme.dart';
 import '../core/typography.dart';
 
@@ -24,7 +25,12 @@ void showChannelSelector({
   }
 
   if (event.channels.length == 1) {
-    context.push('/player/${event.channels.first}');
+    final args = PlaybackLaunchArgs(
+      channelId: event.channels.first,
+      eventChannels: event.channels,
+      sportEvent: event,
+    );
+    context.push(args.routeLocation, extra: args.toExtra());
     return;
   }
 
@@ -157,13 +163,12 @@ void showChannelSelector({
                           // Scope the player to this event's channels so the
                           // switcher offers the other feeds for the same match,
                           // not everything in the channel's category.
-                          context.push(
-                            '/player/${channel.id}',
-                            extra: {
-                              'eventChannels': event.channels,
-                              'sportEvent': event,
-                            },
+                          final args = PlaybackLaunchArgs(
+                            channelId: channel.id,
+                            eventChannels: event.channels,
+                            sportEvent: event,
                           );
+                          context.push(args.routeLocation, extra: args.toExtra());
                         },
                       ),
                     );

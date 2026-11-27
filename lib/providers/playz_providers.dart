@@ -1,8 +1,6 @@
-import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/channel.dart';
 import '../models/category.dart';
-import '../services/stream_decryptor.dart';
 import 'app_providers.dart';
 
 /// Master list of fallback categories if network/database is unavailable.
@@ -145,61 +143,14 @@ class PlayzSelectedCategoryNotifier extends Notifier<Category?> {
   void select(Category? category) => state = category;
 }
 
-/// Fetches channels for a selected Category.
-///
-/// For categories with an `m3uUrl`, serves locally cached M3U channels
-/// immediately via [channelsProvider] and refreshes directly from the saved
-/// M3U URL in the background via [SyncService] (throttled per category/URL).
+/// Fetches channels for a selected Category through the unified
+/// [CatalogRepository] so M3U and DB channels never diverge from [channelsProvider].
 final playzCategoryChannelsProvider =
     FutureProvider.family<List<Channel>, Category>((ref, category) async {
   if (!category.active) return const [];
-
-  if (category.hasM3uUrl) {
-    final cache = ref.read(cacheServiceProvider);
-    final syncService = ref.read(syncServiceProvider);
-    final allChannels = await ref.watch(channelsProvider.future);
-    final existing =
-        allChannels.where((c) => c.category == category.id && c.isLive).toList();
-
-    if (existing.isEmpty && cache.getCategoryM3uMeta(category.id) == null) {
-      await syncService.refreshM3uCategoryIfDue(category, force: true);
-      return cache
-          .getCategoryM3uChannels(category.id)
-          .where((c) => c.isLive)
-          .toList();
-    }
-
-    unawaited(
-      syncService.refreshM3uCategoryIfDue(category).catchError((_) => false),
-    );
-
-    return existing;
-  }
-
-  final supabase = ref.watch(supabaseServiceProvider);
-
-  // 1. Supabase-first: check merged channels table
-  try {
-    final dbChannels = await supabase.getChannelsByCategory(category.id);
-    final activeDbChannels = dbChannels.where((c) => c.isLive).toList();
-    if (activeDbChannels.isNotEmpty) {
-      return activeDbChannels;
-    }
-  } catch (_) {}
-
-  // 2. PlayZ API fallback for custom direct categories
-  if (category.isCustom &&
-      category.playzEndpoint != null &&
-      category.playzEndpoint!.isNotEmpty) {
-    final direct = await StreamDecryptor.fetchCategoryChannels(
-      endpoint: category.playzEndpoint!,
-      categoryId: category.id,
-    );
-    if (direct.isNotEmpty) return direct.where((c) => c.isLive).toList();
-  }
-
-  // 3. Fallback to local cache if offline or direct fetch returns empty
-  final cache = ref.watch(cacheServiceProvider);
-  final local = cache.getLocalChannels();
-  return local.where((c) => c.category == category.id && c.isLive).toList();
+  final liveCatalog = await ref.watch(channelsProvider.future);
+  return ref.watch(catalogRepositoryProvider).loadCategoryChannels(
+        category,
+        liveCatalog: liveCatalog,
+      );
 });

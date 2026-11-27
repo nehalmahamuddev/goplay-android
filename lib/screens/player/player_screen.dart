@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import '../../core/navigation_coordinator.dart';
 import '../../core/theme.dart';
 import '../../core/typography.dart';
 import '../../providers/app_providers.dart';
@@ -13,11 +14,10 @@ import '../../models/channel.dart';
 import '../../models/category.dart';
 import '../../models/event.dart';
 import '../../models/nav_destination.dart';
-import 'package:go_router/go_router.dart';
 import '../../widgets/player/channel_video_player.dart';
 import '../../widgets/tv_focus_wrapper.dart';
 import '../../widgets/main_bottom_nav_bar.dart';
-import '../../services/stream_decryptor.dart';
+import '../../services/playback/playback_session.dart';
 
 // ─── Pre-cached top-level constants — zero per-frame allocations ─
 
@@ -117,9 +117,17 @@ class PlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
-  late String _currentChannelId;
-  List<Channel> _currentChannelServers = [];
-  int _activeServerIndex = 0;
+  static const PlaybackSessionCoordinator _sessionCoordinator =
+      PlaybackSessionCoordinator();
+  late PlaybackSessionState _session;
+
+  String get _currentChannelId => _session.currentChannelId;
+  List<Channel> get _currentChannelServers => _session.servers;
+  int get _activeServerIndex => _session.activeServerIndex;
+  List<Channel> get _resolvedDynamicChannels => _session.resolvedDynamicChannels;
+  bool get _isResolvingStream => _session.isResolving;
+  bool get _resolutionFailed => _session.resolutionFailed;
+
   bool _controlsVisible = true;
   bool _isFullViewMode = false;
   bool _isScreenLocked = false;
@@ -162,15 +170,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   // Exposed to the inner ChannelVideoPlayerNative so it can call
   // _channelPanelFocusScope.requestFocus() when D-Pad Right is pressed.
   bool _channelPanelHasFocus = false;
-  List<Channel> _resolvedDynamicChannels = [];
-  bool _isResolvingStream = false;
-  bool _resolutionFailed = false;
 
   void _handleServerSelected(int index) {
     if (_currentChannelServers.isEmpty || index < 0 || index >= _currentChannelServers.length) return;
     if (index == _activeServerIndex) return;
     final selected = _currentChannelServers[index];
-    setState(() => _activeServerIndex = index);
+    setState(() => _session = _session.copyWith(activeServerIndex: index));
     ref.read(analyticsServiceProvider).trackServerSwitch(
       channelId: _currentChannelId,
       channelName: selected.name,
@@ -184,136 +189,43 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       (c) => c?.id == id,
       orElse: () => null,
     );
-    if (candidate != null) {
-      final activeServers = candidate.streamServers
-          .where((s) => s.active && s.streamUrl.isNotEmpty && !s.streamUrl.startsWith('pro/') && !s.streamUrl.contains('.txt'))
-          .toList();
-      if (activeServers.isNotEmpty) {
-        final streams = activeServers.map((s) => s.toPlayableChannel(
-          parentChannelId: candidate.id,
-          parentName: candidate.name,
-          logo: candidate.logo,
-          category: candidate.category,
-        )).toList();
-
-        if (mounted) {
-          setState(() {
-            _currentChannelId = candidate.id;
-            _currentChannelServers = streams;
-            _activeServerIndex = 0;
-            _resolutionFailed = false;
-          });
-          _startControlsTimer();
-          return;
-        }
-      }
-    }
     if (candidate != null &&
-        (candidate.streamUrl.startsWith('pro/') || candidate.streamUrl.contains('.txt'))) {
-      if (mounted) setState(() => _isResolvingStream = true);
-      try {
-        final streams = await StreamDecryptor.fetchChannelStreams(
-          linksPath: candidate.streamUrl,
-          channelId: candidate.id,
-          channelName: candidate.name,
-          category: candidate.category,
-          logo: candidate.logo,
-        );
-        if (streams.isNotEmpty && mounted) {
-          setState(() {
-            _isResolvingStream = false;
-            _resolutionFailed = false;
-            _resolvedDynamicChannels = [
-              ..._resolvedDynamicChannels.where((c) => !c.id.startsWith('${candidate.id}_')),
-              ...streams,
-            ];
-            _currentChannelId = candidate.id;
-            _currentChannelServers = streams;
-            _activeServerIndex = 0;
-          });
-          _startControlsTimer();
-          return;
-        }
-      } catch (_) {}
-      if (mounted) {
-        setState(() {
-          _isResolvingStream = false;
-          _resolutionFailed = true;
-        });
-      }
+        PlaybackSessionCoordinator.expandPlayableServers(candidate).isEmpty &&
+        PlaybackSessionCoordinator.isEncryptedManifestUrl(candidate.streamUrl) &&
+        mounted) {
+      setState(() => _session = _session.copyWith(isResolving: true));
     }
-    if (mounted) {
-      setState(() {
-        _currentChannelId = id;
-        _currentChannelServers = [];
-        _activeServerIndex = 0;
-        _resolutionFailed = false;
-      });
+
+    final next = await _sessionCoordinator.selectChannel(_session, id, allChannels);
+    if (!mounted) return;
+    setState(() => _session = next);
+    if (!next.resolutionFailed) {
       _startControlsTimer();
     }
   }
 
   Future<void> _resolveSportEvent(SportEvent event) async {
-    final linksPath = event.links;
-    if (linksPath == null || linksPath.isEmpty) {
-      if (mounted) {
-        setState(() {
-          _isResolvingStream = false;
-          _resolutionFailed = true;
-        });
-      }
-      return;
-    }
-
-    try {
-      final streams = await StreamDecryptor.fetchAndDecryptStreams(
-        linksPath: linksPath,
-        eventId: event.id,
-        eventTitle: '${event.homeTeam.name} vs ${event.awayTeam.name}',
-        logo: event.banner,
-      );
-
-      if (streams.isNotEmpty && mounted) {
-        setState(() {
-          _isResolvingStream = false;
-          _resolutionFailed = false;
-          _resolvedDynamicChannels = [
-            ..._resolvedDynamicChannels.where((c) => !c.id.startsWith('live_${event.id.replaceAll('/', '_')}')),
-            ...streams,
-          ];
-          _currentChannelId = streams.first.id;
-          _currentChannelServers = streams;
-          _activeServerIndex = 0;
-        });
-        _startControlsTimer();
-        return;
-      }
-    } catch (_) {}
-
-    if (mounted) {
-      setState(() {
-        _isResolvingStream = false;
-        _resolutionFailed = true;
-      });
+    final next = await _sessionCoordinator.resolveSportEvent(_session, event);
+    if (!mounted) return;
+    setState(() => _session = next);
+    if (!next.resolutionFailed) {
+      _startControlsTimer();
     }
   }
 
   @override
   void initState() {
     super.initState();
-    _currentChannelId = widget.channelId;
-    final hasDistinctPlaylistChannels = widget.dynamicChannels != null &&
-        widget.dynamicChannels!.isNotEmpty &&
-        widget.eventChannels != null &&
-        widget.dynamicChannels!
-            .any((c) => c.id == widget.channelId && !c.id.contains('_server_'));
-    if (widget.dynamicChannels != null &&
-        widget.dynamicChannels!.isNotEmpty &&
-        !hasDistinctPlaylistChannels) {
-      _currentChannelServers = List<Channel>.from(widget.dynamicChannels!);
-      _activeServerIndex = 0;
-    } else if (widget.sportEvent != null) {
-      _isResolvingStream = true;
+    _session = _sessionCoordinator.createInitialState(
+      PlaybackLaunchArgs(
+        channelId: widget.channelId,
+        eventChannels: widget.eventChannels,
+        dynamicChannels: widget.dynamicChannels,
+        sportEvent: widget.sportEvent,
+        forceFullscreen: widget.forceFullscreen,
+      ),
+    );
+    if (_session.isResolving && widget.sportEvent != null) {
       _resolveSportEvent(widget.sportEvent!);
     }
     _startControlsTimer();
@@ -574,40 +486,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         onKeyEvent: _handlePlayerKeyEvent,
         child: Scaffold(
           backgroundColor: cs.surface,
-          bottomNavigationBar: (!isWide && !isFullscreen)
+                  bottomNavigationBar: (!isWide && !isFullscreen)
               ? MainBottomNavBar(
                   currentIndex: 2,
-                  onDestinationTap: (dest) {
-                    if (dest == NavDestination.favorites) {
-                      ref.read(selectedCategoryProvider.notifier).select('favorite');
-                      context.go('/channels');
-                    } else if (dest == NavDestination.channels) {
-                      if (ref.read(selectedCategoryProvider) == 'favorite') {
-                        ref.read(selectedCategoryProvider.notifier).select('all');
-                      }
-                      context.go('/channels');
-                    } else {
-                      context.go(dest.route);
-                    }
-                  },
+                  onDestinationTap: (dest) => navigateToDestination(context, ref, dest),
                   onTap: (targetIndex) {
-                    switch (targetIndex) {
-                      case 0:
-                        context.go('/home');
-                        break;
-                      case 1:
-                        context.go('/categories');
-                        break;
-                      case 2:
-                        context.go('/channels');
-                        break;
-                      case 3:
-                        context.go('/upcoming');
-                        break;
-                      case 4:
-                        context.go('/settings');
-                        break;
-                    }
+                    final match = NavDestination.values.firstWhere(
+                      (d) => d.branchIndex == targetIndex,
+                      orElse: () => NavDestination.home,
+                    );
+                    navigateToDestination(context, ref, match);
                   },
                 )
               : null,
@@ -666,8 +554,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           ),
                           onPressed: () {
                             setState(() {
-                              _resolutionFailed = false;
-                              _isResolvingStream = true;
+                              _session = _session.copyWith(
+                                resolutionFailed: false,
+                                isResolving: true,
+                              );
                             });
                             _resolveSportEvent(widget.sportEvent!);
                           },
@@ -682,49 +572,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
               // Populate from native Supabase streamServers if present
               if (_currentChannelServers.isEmpty) {
-                final activeServers = channel.streamServers
-                    .where((s) => s.active && s.streamUrl.isNotEmpty && !s.streamUrl.startsWith('pro/') && !s.streamUrl.contains('.txt'))
-                    .toList();
-                if (activeServers.isNotEmpty) {
-                  _currentChannelServers = activeServers.map((s) => s.toPlayableChannel(
-                    parentChannelId: channel.id,
-                    parentName: channel.name,
-                    logo: channel.logo,
-                    category: channel.category,
-                  )).toList();
+                final servers = PlaybackSessionCoordinator.expandPlayableServers(channel);
+                if (servers.isNotEmpty) {
+                  _session = _session.copyWith(servers: servers);
                 }
               }
 
               // Auto-resolve encrypted stream in the background without blocking pure native player mount
-              if ((channel.streamUrl.startsWith('pro/') || channel.streamUrl.contains('.txt')) &&
+              if (PlaybackSessionCoordinator.isEncryptedManifestUrl(channel.streamUrl) &&
                   _currentChannelServers.isEmpty &&
                   !_isResolvingStream) {
-                _isResolvingStream = true;
+                _session = _session.copyWith(isResolving: true);
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (mounted) _selectChannel(channel.id, allChannels);
                 });
               }
 
-
-              final currentPlayChannel = (_currentChannelServers.isNotEmpty &&
-                      _activeServerIndex < _currentChannelServers.length)
-                  ? _currentChannelServers[_activeServerIndex]
-                  : channel;
+              final currentPlayChannel = _session.activePlayableChannel(channel);
 
               _addToHistory(channel);
 
               // Find related channels to enable prev/next buttons
-              final relatedChannels = widget.eventChannels != null
-                  ? widget.eventChannels!
-                        .map((id) {
-                          final match = allChannels.where((c) => c.id == id);
-                          return match.isNotEmpty ? match.first : null;
-                        })
-                        .whereType<Channel>()
-                        .toList()
-                  : allChannels
-                        .where((c) => c.category == channel.category && !c.id.contains('_server_'))
-                        .toList();
+              final relatedChannels = PlaybackSessionCoordinator.resolveRelatedChannels(
+                catalog: channels,
+                eventChannels: widget.eventChannels,
+                dynamicChannels: widget.dynamicChannels,
+                resolvedDynamicChannels: _resolvedDynamicChannels,
+                category: channel.category,
+              );
 
               final currentIndex = relatedChannels.indexWhere(
                 (c) => c.id == channel.id,
@@ -862,9 +737,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                     _ServerBadgesRow(
                                       servers: _currentChannelServers,
                                       activeServerIndex: _activeServerIndex,
-                                      onServerSelected: (index) {
-                                        setState(() => _activeServerIndex = index);
-                                      },
+                                      onServerSelected: _handleServerSelected,
                                     ),
                                   _SectionLabel(text: sectionTitle),
                                   Expanded(
@@ -1448,22 +1321,12 @@ class _RelatedChannelsListState extends ConsumerState<_RelatedChannelsList> {
 
     return channelsAsync.when(
       data: (channels) {
-        final allChannels = [
-          ...channels,
-          if (widget.dynamicChannels != null) ...widget.dynamicChannels!,
-        ];
-        final List<Channel> related;
-        if (widget.eventChannels != null) {
-          related = widget.eventChannels!
-              .map((id) {
-                final match = allChannels.where((c) => c.id == id);
-                return match.isNotEmpty ? match.first : null;
-              })
-              .whereType<Channel>()
-              .toList();
-        } else {
-          related = allChannels.where((c) => c.category == widget.category && !c.id.contains('_server_')).toList();
-        }
+        final related = PlaybackSessionCoordinator.resolveRelatedChannels(
+          catalog: channels,
+          eventChannels: widget.eventChannels,
+          dynamicChannels: widget.dynamicChannels,
+          category: widget.category,
+        );
 
         if (related.isEmpty) {
           return Padding(
@@ -1827,24 +1690,12 @@ class _FullscreenTopBar extends ConsumerWidget {
                 Expanded(
                   child: channelsAsync.when(
                     data: (channels) {
-                      final allChannels = [
-                        ...channels,
-                        if (dynamicChannels != null) ...dynamicChannels!,
-                      ];
-                      final List<Channel> related;
-                      if (eventChannels != null) {
-                        related = eventChannels!
-                            .map((id) {
-                              final match = allChannels.where((c) => c.id == id);
-                              return match.isNotEmpty ? match.first : null;
-                            })
-                            .whereType<Channel>()
-                            .toList();
-                      } else {
-                        related = allChannels
-                            .where((c) => c.category == category && !c.id.contains('_server_'))
-                            .toList();
-                      }
+                      final related = PlaybackSessionCoordinator.resolveRelatedChannels(
+                        catalog: channels,
+                        eventChannels: eventChannels,
+                        dynamicChannels: dynamicChannels,
+                        category: category,
+                      );
                       if (related.isEmpty) return const SizedBox.shrink();
                       return ListView.builder(
                         scrollDirection: Axis.horizontal,
