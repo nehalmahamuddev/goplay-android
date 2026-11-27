@@ -59,3 +59,7 @@ skills-lock.json
 *.apk
 *.aab
 .codex/
+
+# Build artifacts and scratch
+/.scratch/
+/android/build/

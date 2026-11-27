@@ -114,6 +114,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       case 'favorites':
         ref.read(selectedCategoryProvider.notifier).select('favorite');
         context.go('/channels');
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            ref.read(analyticsServiceProvider).trackScreenView('favorites');
+          }
+        });
         break;
       case 'categories':
         context.go('/categories');

@@ -1,10 +1,8 @@
 import 'package:flutter/foundation.dart';
+import '../analytics_service.dart';
 import 'playback_state.dart';
 
 /// Records structured playback events for analytics.
-///
-/// Events are currently logged locally via debugPrint. In a future sprint,
-/// these will be batched and sent to Supabase via [AnalyticsService].
 class PlaybackTelemetry {
   PlaybackTelemetry();
 
@@ -18,7 +16,7 @@ class PlaybackTelemetry {
         'time=${startupTimeMs}ms');
   }
 
-  /// Record a playback error.
+  /// Record a playback error and forward to Firebase Analytics.
   void recordError({
     required String channelId,
     required String channelName,
@@ -27,6 +25,12 @@ class PlaybackTelemetry {
   }) {
     debugPrint('Telemetry: ERROR channel=$channelName '
         'type=$errorType msg=$rawMessage');
+    AnalyticsService.activeInstance?.trackPlaybackError(
+      channelId: channelId,
+      channelName: channelName,
+      errorType: errorType.name,
+      errorMessage: rawMessage,
+    );
   }
 
   /// Record a retry attempt.

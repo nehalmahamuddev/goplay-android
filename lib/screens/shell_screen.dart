@@ -63,6 +63,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       }
     }
     ref.read(lastActiveNavTabProvider.notifier).setActiveTab(dest.id);
+    ref.read(analyticsServiceProvider).trackScreenView(dest.id);
     _goBranch(dest.branchIndex);
   }
 
@@ -174,6 +175,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         if (didPop) return;
         if (index != 0) {
           // Any non-home tab (Categories, Channels, Upcoming) smoothly backs to Home tab
+          ref.read(analyticsServiceProvider).trackScreenView('home');
           _goBranch(0);
         } else {
           // Home tab requires double-back to exit within 2 seconds

@@ -35,6 +35,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   String _query = '';
   bool _showCloseButton = false;
   Timer? _debounce;
+  Timer? _analyticsDebounce;
 
   @override
   void initState() {
@@ -47,6 +48,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _controller.removeListener(_onTextChanged);
     _controller.dispose();
     _debounce?.cancel();
+    _analyticsDebounce?.cancel();
     super.dispose();
   }
 
@@ -59,6 +61,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
   }
 
+  void _scheduleSearchAnalytics(String queryText) {
+    _analyticsDebounce?.cancel();
+    final trimmed = queryText.trim();
+    if (trimmed.length < 2) return;
+    _analyticsDebounce = Timer(const Duration(milliseconds: 900), () {
+      if (!mounted) return;
+      final chCount = ref.read(filteredChannelsProvider(trimmed)).value?.length ?? 0;
+      final evCount = ref.read(filteredEventsProvider(trimmed)).value?.length ?? 0;
+      ref.read(analyticsServiceProvider).trackSearch(trimmed, chCount + evCount);
+    });
+  }
+
   void _setQuery(String queryText) {
     _debounce?.cancel();
     setState(() {
@@ -68,11 +82,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         TextPosition(offset: queryText.length),
       );
     });
+    _scheduleSearchAnalytics(queryText);
   }
 
   void _clearSearch() {
     _controller.clear();
     _debounce?.cancel();
+    _analyticsDebounce?.cancel();
     setState(() {
       _query = '';
     });
@@ -133,6 +149,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               _query = value.trim();
                             });
                           });
+                          _scheduleSearchAnalytics(value);
                         },
                         decoration: InputDecoration(
                           hintText: 'Search channels, matches, sports...',

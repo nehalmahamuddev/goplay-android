@@ -204,7 +204,13 @@ class _HeroBannerCard extends ConsumerWidget {
     ],
   );
 
-  Future<void> _handleTap(BuildContext context) async {
+  Future<void> _handleTap(BuildContext context, WidgetRef ref) async {
+    ref.read(analyticsServiceProvider).trackBannerClick(
+      bannerId: banner.id,
+      title: banner.title ?? 'Hero Banner',
+      actionType: banner.actionType,
+      actionValue: banner.actionValue,
+    );
     if (banner.isExternalUrl) {
       final uri = Uri.tryParse(banner.actionValue!);
       if (uri != null) {
@@ -232,7 +238,7 @@ class _HeroBannerCard extends ConsumerWidget {
       autoFocus: autoFocus,
       borderRadius: BorderRadius.circular(20),
       onFocusChange: onFocusChange,
-      onTap: () => _handleTap(context),
+      onTap: () => _handleTap(context, ref),
       child: Padding(
         padding: const EdgeInsets.only(left: 10, right: 10, top: 4, bottom: 4),
         child: DecoratedBox(

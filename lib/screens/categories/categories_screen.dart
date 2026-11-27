@@ -109,6 +109,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
       _channelSort = ChannelSortOption.defaultOrder;
     });
     ref.read(playzSelectedCategoryProvider.notifier).select(category);
+    ref.read(analyticsServiceProvider).trackCategorySelect(category.id, category.name);
   }
 
   void _refreshCategoryChannels(Category category) {

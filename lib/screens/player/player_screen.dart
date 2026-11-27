@@ -168,7 +168,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   void _handleServerSelected(int index) {
     if (_currentChannelServers.isEmpty || index < 0 || index >= _currentChannelServers.length) return;
+    if (index == _activeServerIndex) return;
+    final selected = _currentChannelServers[index];
     setState(() => _activeServerIndex = index);
+    ref.read(analyticsServiceProvider).trackServerSwitch(
+      channelId: _currentChannelId,
+      channelName: selected.name,
+      serverIndex: index,
+      serverName: selected.name,
+    );
   }
 
   Future<void> _selectChannel(String id, List<Channel> allChannels) async {
@@ -439,8 +447,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           ref.read(watchHistoryProvider.notifier).addChannel(channel);
-          // Track active channel playback
-          ref.read(analyticsServiceProvider).startWatching(channel.id, channel.name);
+          final ev = widget.sportEvent;
+          final eventTitle = ev != null
+              ? '${ev.homeTeam.name} vs ${ev.awayTeam.name}'
+              : null;
+          // Track active channel or live sports event playback
+          ref.read(analyticsServiceProvider).startWatching(
+                channel.id,
+                channel.name,
+                categoryName: channel.category,
+                eventId: ev?.id,
+                eventName: eventTitle,
+                sport: ev?.sport,
+              );
         }
       });
     }

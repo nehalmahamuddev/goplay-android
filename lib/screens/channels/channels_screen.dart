@@ -238,6 +238,24 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
     if (ref.read(selectedCategoryProvider) != id) {
       ref.read(selectedCategoryProvider.notifier).select(id);
     }
+
+    if (id == 'favorite') {
+      ref.read(analyticsServiceProvider).trackScreenView('favorites');
+    } else if (id != 'all') {
+      final cats = ref.read(categoriesProvider).value;
+      String catName = id;
+      if (id == 'trending') {
+        catName = 'Trending';
+      } else if (cats != null) {
+        for (final c in cats) {
+          if (c.id == id) {
+            catName = c.name;
+            break;
+          }
+        }
+      }
+      ref.read(analyticsServiceProvider).trackCategorySelect(id, catName);
+    }
   }
 
   void _triggerM3uRefreshForTab(String categoryId) {

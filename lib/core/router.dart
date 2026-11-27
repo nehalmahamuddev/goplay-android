@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:go_router/go_router.dart';
 import '../models/channel.dart';
 import '../models/event.dart';
+import '../services/analytics_service.dart';
 import '../screens/shell_screen.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/categories/categories_screen.dart';
@@ -27,12 +30,47 @@ import '../screens/iptv/iptv_screen.dart';
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 final shellNavigatorKey = GlobalKey<NavigatorState>();
 
+class _SafeFirebaseScreenObserver extends NavigatorObserver {
+  void _track(Route<dynamic>? route) {
+    if (route == null) return;
+    final name = route.settings.name;
+    if (name == null || name.isEmpty) return;
+
+    final instance = AnalyticsService.activeInstance;
+    if (instance != null) {
+      instance.trackScreenView(name);
+    } else if (Firebase.apps.isNotEmpty) {
+      FirebaseAnalytics.instance.logScreenView(screenName: name).catchError((_) {});
+    }
+  }
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPush(route, previousRoute);
+    _track(route);
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPop(route, previousRoute);
+    _track(previousRoute);
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
+    _track(newRoute);
+  }
+}
+
 final appRouter = GoRouter(
   navigatorKey: rootNavigatorKey,
   initialLocation: '/',
+  observers: [_SafeFirebaseScreenObserver()],
   routes: [
     GoRoute(
       path: '/',
+      name: 'splash',
       builder: (context, state) => const SplashScreen(),
     ),
     StatefulShellRoute.indexedStack(
@@ -49,6 +87,7 @@ final appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/home',
+              name: 'home',
               builder: (context, state) => const HomeScreen(),
             ),
           ],
@@ -57,6 +96,7 @@ final appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/categories',
+              name: 'categories',
               builder: (context, state) => const CategoriesScreen(),
             ),
           ],
@@ -65,6 +105,7 @@ final appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/channels',
+              name: 'channels',
               builder: (context, state) => const ChannelsScreen(),
             ),
           ],
@@ -73,6 +114,7 @@ final appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/upcoming',
+              name: 'upcoming',
               builder: (context, state) => const UpcomingScreen(),
             ),
           ],
@@ -81,52 +123,64 @@ final appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/settings',
+              name: 'settings',
               builder: (context, state) => const SettingsScreen(isShellTab: true),
               routes: [
                 GoRoute(
                   path: 'general',
+                  name: 'settings_general',
                   builder: (context, state) => const GeneralSettingsScreen(),
                 ),
                 GoRoute(
                   path: 'player',
+                  name: 'settings_player',
                   builder: (context, state) => const PlayerSettingsScreen(),
                 ),
                 GoRoute(
                   path: 'layout',
+                  name: 'settings_layout',
                   builder: (context, state) => const LayoutSettingsScreen(),
                   routes: [
                     GoRoute(
                       path: 'navigation',
+                      name: 'settings_layout_navigation',
                       builder: (context, state) => const NavigationTabsSettingsScreen(),
                     ),
                     GoRoute(
                       path: 'primary-color',
+                      name: 'settings_layout_primary_color',
                       builder: (context, state) => const PrimaryColorSettingsScreen(),
                     ),
                     GoRoute(
                       path: 'app-theme',
+                      name: 'settings_layout_app_theme',
                       builder: (context, state) => const AppThemeSettingsScreen(),
                     ),
                     GoRoute(
                       path: 'launch-screen',
+                      name: 'settings_layout_launch_screen',
                       builder: (context, state) => const LaunchScreenSettingsScreen(),
                     ),
                   ],
                 ),
                 GoRoute(
                   path: 'updates',
+                  name: 'settings_updates',
                   builder: (context, state) => const UpdatesSettingsScreen(),
                 ),
                 GoRoute(
                   path: 'sync',
+                  name: 'settings_sync',
                   builder: (context, state) => const SyncSettingsScreen(),
                 ),
                 GoRoute(
                   path: 'account',
+                  name: 'settings_account',
                   builder: (context, state) => const AccountSettingsScreen(),
                 ),
                 GoRoute(
                   path: 'iptv',
+                  name: 'settings_iptv',
                   builder: (context, state) => const IptvSettingsScreen(),
                 ),
               ],
@@ -137,6 +191,7 @@ final appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/iptv',
+              name: 'iptv',
               builder: (context, state) => const IptvScreen(),
             ),
           ],
@@ -145,6 +200,7 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/player/:channelId',
+      name: 'player',
       parentNavigatorKey: rootNavigatorKey,
       builder: (context, state) {
         final rawId = state.pathParameters['channelId'] ?? '';
@@ -173,6 +229,7 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/search',
+      name: 'search',
       parentNavigatorKey: rootNavigatorKey,
       builder: (context, state) => const SearchScreen(),
     ),

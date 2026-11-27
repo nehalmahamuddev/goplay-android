@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -68,13 +69,24 @@ void main() async {
 /// SplashScreen races this future against a minimum display timer.
 Future<void> _initializeApp() async {
   try {
-    // Hive + Supabase can run concurrently.
+    // Hive, Supabase, and Firebase can run concurrently.
     await Future.wait([
       _initHive(),
       _initSupabase(),
+      _initFirebase(),
     ]);
   } catch (e, stack) {
     debugPrint('Background init error (non-fatal): $e\n$stack');
+  }
+}
+
+Future<void> _initFirebase() async {
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp();
+    }
+  } catch (e) {
+    debugPrint('Firebase.initializeApp non-fatal error: $e');
   }
 }
 

@@ -58,7 +58,14 @@ class ChannelCard extends ConsumerWidget {
 
   void _toggleFavorite(WidgetRef ref) {
     HapticFeedback.mediumImpact();
-    ref.read(favoriteChannelIdsProvider.notifier).toggle(channel.id);
+    final notifier = ref.read(favoriteChannelIdsProvider.notifier);
+    final willBeFavorite = !notifier.isFavorite(channel.id);
+    notifier.toggle(channel.id);
+    ref.read(analyticsServiceProvider).trackFavoriteToggle(
+      itemId: channel.id,
+      itemName: channel.displayName,
+      isFavorite: willBeFavorite,
+    );
   }
 
   void _open(BuildContext context) {
