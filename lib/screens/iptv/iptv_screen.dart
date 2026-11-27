@@ -111,7 +111,7 @@ class _IptvScreenState extends ConsumerState<IptvScreen> {
     }
   }
 
-  void _toggleSelectionMode({List<IptvPlaylist>? allPlaylists}) {
+  void _toggleSelectionMode() {
     HapticFeedback.selectionClick();
     setState(() {
       if (_isSelectionMode) {
@@ -121,6 +121,16 @@ class _IptvScreenState extends ConsumerState<IptvScreen> {
         _isSelectionMode = true;
         _selectedIds.clear();
       }
+    });
+  }
+
+  void _enterSelectionModeWith(String playlistId) {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _isSelectionMode = true;
+      _selectedIds
+        ..clear()
+        ..add(playlistId);
     });
   }
 
@@ -446,7 +456,7 @@ class _IptvScreenState extends ConsumerState<IptvScreen> {
                             child: Text(
                               _isSelectionMode
                                   ? '${_selectedIds.length} Selected'
-                                  : 'IPTV.',
+                                  : 'Playlists',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
@@ -477,31 +487,7 @@ class _IptvScreenState extends ConsumerState<IptvScreen> {
                           ),
                           const SizedBox(width: 2),
 
-                          // 2. Help / Onboarding Guide (?)
-                          _buildHeaderIcon(
-                            tooltip: 'IPTV Guide',
-                            svgIcon: IptvSvgIcons.help,
-                            onPressed: () => IptvGuideSheet.show(context),
-                          ),
-                          const SizedBox(width: 2),
-
-                          // 3. Multi-Select Mode (APK selectModeImageViewPlaylist)
-                          _buildHeaderIcon(
-                            tooltip: _isSelectionMode
-                                ? 'Exit multi-select'
-                                : 'Select playlists',
-                            svgIcon: _isSelectionMode
-                                ? IptvSvgIcons.checkSquare
-                                : IptvSvgIcons.microchip,
-                            color: _isSelectionMode
-                                ? accentColor.color
-                                : Colors.white,
-                            onPressed: () =>
-                                _toggleSelectionMode(allPlaylists: playlists),
-                          ),
-                          const SizedBox(width: 2),
-
-                          // 4. Sort / Filter (APK filterImageViewPlaylist)
+                          // 2. Sort / Filter (APK filterImageViewPlaylist)
                           _buildHeaderIcon(
                             tooltip: 'Sort & Filter',
                             svgIcon: IptvSvgIcons.sliders,
@@ -811,6 +797,7 @@ class _IptvScreenState extends ConsumerState<IptvScreen> {
                               playlist: p,
                               isGrid: false,
                               index: index,
+                              onLongPress: () => _enterSelectionModeWith(p.id),
                             ),
                           );
                         },
@@ -836,6 +823,8 @@ class _IptvScreenState extends ConsumerState<IptvScreen> {
                                     isSelected: _selectedIds.contains(p.id),
                                     onToggleSelect: () =>
                                         _toggleItemSelection(p.id),
+                                    onLongPress: () =>
+                                        _enterSelectionModeWith(p.id),
                                   ),
                                 ),
                             ],
@@ -1057,9 +1046,17 @@ class _IptvScreenState extends ConsumerState<IptvScreen> {
         break;
     }
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: overlayStyle,
-      child: scaffold,
+    return PopScope(
+      canPop: !_isSelectionMode,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _isSelectionMode) {
+          _toggleSelectionMode();
+        }
+      },
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: overlayStyle,
+        child: scaffold,
+      ),
     );
   }
 

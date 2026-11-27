@@ -37,7 +37,12 @@ class _PlayerSettingsScreenState extends ConsumerState<PlayerSettingsScreen> {
     try {
       if (Hive.isBoxOpen(AppConstants.settingsBox)) {
         final box = Hive.box(AppConstants.settingsBox);
-        _selectedQuality = box.get('default_video_quality') as String? ?? 'Auto';
+        _selectedQuality =
+            box.get(AppConstants.defaultVideoQualityKey) as String? ?? 'Auto';
+        _selectedBufferMode =
+            box.get(AppConstants.defaultBufferModeKey) as String? ?? 'Balanced';
+        _selectedAspectRatio =
+            box.get(AppConstants.defaultAspectRatioKey) as String? ?? '16:9 (Fit)';
         _volumeBrightnessGestures = box.get(AppConstants.volumeBrightnessGesturesKey) as bool? ?? true;
         _extraBrightness = box.get(AppConstants.extraBrightnessKey) as bool? ?? false;
         _doubleTapSeek = box.get(AppConstants.doubleTapSeekKey) as bool? ?? false;
@@ -61,8 +66,9 @@ class _PlayerSettingsScreenState extends ConsumerState<PlayerSettingsScreen> {
           borderRadius: BorderRadius.circular(20),
           side: const BorderSide(color: Color(0x1AFFFFFF), width: 1),
         ),
-        titlePadding: const EdgeInsets.fromLTRB(24, 22, 24, 12),
+        titlePadding: const EdgeInsets.fromLTRB(24, 22, 24, 14),
         contentPadding: const EdgeInsets.symmetric(vertical: 8),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
         title: Text(
           title,
           style: TextStyle(
@@ -72,53 +78,82 @@ class _PlayerSettingsScreenState extends ConsumerState<PlayerSettingsScreen> {
             color: cs.onSurface,
           ),
         ),
-        content: RadioGroup<String>(
-          groupValue: currentValue,
-          onChanged: (val) {
-            if (val != null) {
-              onSelected(val);
-              Navigator.of(context).pop();
-            }
-          },
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: options.map((opt) {
-              final isSelected = opt == currentValue;
-              return InkWell(
-                onTap: () {
-                  onSelected(opt);
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: RadioGroup<String>(
+              groupValue: currentValue,
+              onChanged: (val) {
+                if (val != null) {
+                  onSelected(val);
                   Navigator.of(context).pop();
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          opt,
-                          style: TextStyle(
-                            fontFamily: GoPlayType.family,
-                            fontSize: 15,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                            color: isSelected ? cs.primary : cs.onSurface,
+                }
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: options.map((opt) {
+                  final isSelected = opt == currentValue;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                    child: Material(
+                      color: isSelected
+                          ? cs.primary.withValues(alpha: 0.10)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () {
+                          onSelected(opt);
+                          Navigator.of(context).pop();
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  opt,
+                                  style: TextStyle(
+                                    fontFamily: GoPlayType.family,
+                                    fontSize: 15,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: isSelected ? cs.primary : cs.onSurface,
+                                  ),
+                                ),
+                              ),
+                              Radio<String>(
+                                value: opt,
+                                activeColor: cs.primary,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                      Radio<String>(
-                        value: opt,
-                        activeColor: cs.primary,
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
           ),
         ),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
+            style: TextButton.styleFrom(
+              foregroundColor: cs.onSurfaceVariant,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ),
             child: Text(
               'Cancel',
               style: TextStyle(
@@ -277,7 +312,8 @@ class _PlayerSettingsScreenState extends ConsumerState<PlayerSettingsScreen> {
                       setState(() => _selectedQuality = val);
                       try {
                         if (Hive.isBoxOpen(AppConstants.settingsBox)) {
-                          Hive.box(AppConstants.settingsBox).put('default_video_quality', val);
+                          Hive.box(AppConstants.settingsBox)
+                              .put(AppConstants.defaultVideoQualityKey, val);
                         }
                       } catch (_) {}
                     },
@@ -293,7 +329,15 @@ class _PlayerSettingsScreenState extends ConsumerState<PlayerSettingsScreen> {
                     title: 'Select Buffer Profile',
                     options: _bufferModes,
                     currentValue: _selectedBufferMode,
-                    onSelected: (val) => setState(() => _selectedBufferMode = val),
+                    onSelected: (val) {
+                      setState(() => _selectedBufferMode = val);
+                      try {
+                        if (Hive.isBoxOpen(AppConstants.settingsBox)) {
+                          Hive.box(AppConstants.settingsBox)
+                              .put(AppConstants.defaultBufferModeKey, val);
+                        }
+                      } catch (_) {}
+                    },
                   );
                 },
               ),
@@ -306,7 +350,15 @@ class _PlayerSettingsScreenState extends ConsumerState<PlayerSettingsScreen> {
                     title: 'Select Default Aspect Ratio',
                     options: _aspectRatios,
                     currentValue: _selectedAspectRatio,
-                    onSelected: (val) => setState(() => _selectedAspectRatio = val),
+                    onSelected: (val) {
+                      setState(() => _selectedAspectRatio = val);
+                      try {
+                        if (Hive.isBoxOpen(AppConstants.settingsBox)) {
+                          Hive.box(AppConstants.settingsBox)
+                              .put(AppConstants.defaultAspectRatioKey, val);
+                        }
+                      } catch (_) {}
+                    },
                   );
                 },
               ),

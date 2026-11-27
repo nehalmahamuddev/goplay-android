@@ -12,8 +12,8 @@ import 'iptv_channel_browser_sheet.dart';
 import 'iptv_home_dialogs.dart';
 import 'iptv_svg_icon.dart';
 
-/// Card component representing an imported IPTV playlist matching the decompiled APK's
-/// exact UI (Image 3: drag handle, circle initials avatar, metadata, link button, and [Playlist] button).
+/// Card component representing an imported IPTV playlist (drag/select handle,
+/// playlist title, date & channel count metadata, source URL, and options menu).
 class IptvPlaylistCard extends ConsumerWidget {
   final IptvPlaylist playlist;
   final bool isGrid;
@@ -21,6 +21,7 @@ class IptvPlaylistCard extends ConsumerWidget {
   final bool selectionMode;
   final bool isSelected;
   final VoidCallback? onToggleSelect;
+  final VoidCallback? onLongPress;
 
   const IptvPlaylistCard({
     super.key,
@@ -30,17 +31,18 @@ class IptvPlaylistCard extends ConsumerWidget {
     this.selectionMode = false,
     this.isSelected = false,
     this.onToggleSelect,
+    this.onLongPress,
   });
 
   Color _getAvatarColor(String name) {
     const colors = [
-      Color(0xFFE58344), // Warm orange (matches "T" avatar in screenshot)
-      Color(0xFFDE6251), // Coral red (matches "BS" avatar in screenshot)
-      Color(0xFF4A90E2), // Cerulean Blue
-      Color(0xFF5B9E77), // Emerald Green
-      Color(0xFF9B51E0), // Purple
-      Color(0xFFE6A23C), // Amber
-      Color(0xFF3AAFA9), // Teal
+      Color(0xFFE58344),
+      Color(0xFFDE6251),
+      Color(0xFF4A90E2),
+      Color(0xFF5B9E77),
+      Color(0xFF9B51E0),
+      Color(0xFFE6A23C),
+      Color(0xFF3AAFA9),
     ];
     return colors[name.hashCode.abs() % colors.length];
   }
@@ -52,7 +54,7 @@ class IptvPlaylistCard extends ConsumerWidget {
     if (parts.length >= 2 && parts[0].isNotEmpty && parts[1].isNotEmpty) {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     }
-    return clean.substring(0, clean.length >= 2 ? 1 : 1).toUpperCase();
+    return clean.substring(0, 1).toUpperCase();
   }
 
   String _formatDate(DateTime dt) {
@@ -175,26 +177,36 @@ class IptvPlaylistCard extends ConsumerWidget {
 
       case 'delete':
         HapticFeedback.heavyImpact();
+        final themeMode = ref.read(activeThemeModeProvider);
         final confirm = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            backgroundColor: const Color(0xFF1B1C20),
+            backgroundColor: themeMode.surfaceContainerHigh,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
-              side: const BorderSide(color: Color(0x1FFFFFFF)),
+              side: BorderSide(color: themeMode.dividerColor),
             ),
-            title: const Text(
+            title: Text(
               'Delete Playlist?',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: themeMode.onSurfaceColor,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             content: Text(
               'Are you sure you want to remove "${playlist.name}"? This action cannot be undone.',
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
+              style: TextStyle(
+                color: themeMode.onSurfaceVariantColor,
+                fontSize: 13,
+              ),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('CANCEL', style: TextStyle(color: Colors.white54)),
+                child: Text(
+                  'CANCEL',
+                  style: TextStyle(color: themeMode.onSurfaceMutedColor),
+                ),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.of(ctx).pop(true),
@@ -226,11 +238,15 @@ class IptvPlaylistCard extends ConsumerWidget {
     final dateStr = _formatDate(playlist.lastSync ?? playlist.addedAt);
 
     final hasEpg = playlist.epgUrl != null && playlist.epgUrl!.trim().isNotEmpty;
+    final hasUrl = playlist.url.trim().isNotEmpty;
     final selectedHighlight = selectionMode && isSelected;
     final cardBgColor = selectedHighlight
-        ? accentColor.color.withValues(alpha: 0.18)
+        ? accentColor.color.withValues(alpha: 0.14)
         : themeMode.cardColor;
-    const cardRadius = BorderRadius.all(Radius.circular(4));
+    final borderColor = selectedHighlight
+        ? accentColor.color
+        : themeMode.dividerColor;
+    const cardRadius = BorderRadius.all(Radius.circular(12));
 
     return Material(
       color: cardBgColor,
@@ -245,9 +261,16 @@ class IptvPlaylistCard extends ConsumerWidget {
             IptvChannelBrowserSheet.show(context, playlist);
           }
         },
+        onLongPress: selectionMode ? null : onLongPress,
         borderRadius: cardRadius,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(4, 12, 4, 12),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(color: borderColor, width: 3),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(4, 14, 4, 14),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -306,192 +329,206 @@ class IptvPlaylistCard extends ConsumerWidget {
                 ),
               const SizedBox(width: 4),
 
-          // Circle Avatar with Initials
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: avatarColor,
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              initials,
-              style: const TextStyle(
-                fontFamily: GoPlayType.family,
-                fontSize: GoPlayType.md,
-                fontWeight: FontWeight.w700,
-                height: GoPlayType.leadingFlat,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-
-          // Title, Date, and URL Column
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Playlist Name (e.g. "toffee", "bd ip server")
-                Text(
-                  playlist.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+              // Circle Avatar with Initials
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: avatarColor,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  initials,
+                  style: const TextStyle(
                     fontFamily: GoPlayType.family,
                     fontSize: GoPlayType.md,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: -0.2,
-                    height: GoPlayType.leadingSnug,
-                    color: themeMode.onSurfaceColor,
+                    height: GoPlayType.leadingFlat,
+                    color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 4),
+              ),
+              const SizedBox(width: 14),
 
-                // Date & channel count (e.g. "24/11/2026 • 76 ch") + optional EPG tag
-                Row(
+              // Title, Date/Channel Count, and URL Column
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Flexible(
-                      child: Text(
-                        '$dateStr  •  ${playlist.channelCount} ch',
+                    // Playlist Name
+                    Text(
+                      playlist.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: GoPlayType.family,
+                        fontSize: GoPlayType.md,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                        height: GoPlayType.leadingSnug,
+                        color: themeMode.onSurfaceColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+
+                    // Date & channel count (e.g. "24/11/2026 • 76 ch") + optional EPG tag
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            '$dateStr • ${playlist.channelCount} ch',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: GoPlayType.family,
+                              fontSize: GoPlayType.sm,
+                              fontWeight: FontWeight.w500,
+                              height: GoPlayType.leadingFlat,
+                              color: themeMode.onSurfaceMutedColor,
+                            ),
+                          ),
+                        ),
+                        if (hasEpg) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: accentColor.color.withAlpha(25),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'EPG',
+                              style: TextStyle(
+                                fontFamily: GoPlayType.family,
+                                fontSize: GoPlayType.xs,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: GoPlayType.trackingMeta,
+                                height: GoPlayType.leadingFlat,
+                                color: accentColor.color,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (hasUrl) ...[
+                      const SizedBox(height: 3),
+
+                      // URL / Stream link
+                      Text(
+                        playlist.url,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontFamily: GoPlayType.family,
-                          fontSize: GoPlayType.sm,
-                          fontWeight: FontWeight.w500,
-                          height: GoPlayType.leadingFlat,
-                          color: themeMode.onSurfaceMutedColor,
-                        ),
-                      ),
-                    ),
-                    if (hasEpg) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: accentColor.color.withAlpha(25),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'EPG',
-                          style: TextStyle(
-                            fontFamily: GoPlayType.family,
-                            fontSize: GoPlayType.xs,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: GoPlayType.trackingMeta,
-                            height: GoPlayType.leadingFlat,
-                            color: accentColor.color,
-                          ),
+                          fontSize: GoPlayType.xs,
+                          fontWeight: FontWeight.w400,
+                          height: GoPlayType.leadingSnug,
+                          color: themeMode.onSurfaceMutedColor
+                              .withValues(alpha: 0.85),
                         ),
                       ),
                     ],
                   ],
                 ),
-                const SizedBox(height: 4),
+              ),
+              const SizedBox(width: 4),
 
-                // URL / Stream link
-                Text(
-                  playlist.url,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: GoPlayType.family,
-                    fontSize: GoPlayType.xs,
-                    fontWeight: FontWeight.w400,
-                    height: GoPlayType.leadingSnug,
-                    color: themeMode.onSurfaceMutedColor.withValues(alpha: 0.72),
-                  ),
+              // Right Action: 3-dots popup menu (48dp touch target)
+              Theme(
+                data: Theme.of(context).copyWith(
+                  dividerColor: themeMode.dividerColor,
+                  splashColor: accentColor.color.withValues(alpha: 0.12),
+                  highlightColor: accentColor.color.withValues(alpha: 0.08),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 4),
-
-          // Right Action: 3-dots popup menu (48dp touch target)
-          PopupMenuButton<String>(
-                icon: IptvSvgIcon(
-                  IptvSvgIcons.moreVertical,
-                  color: themeMode.onSurfaceMutedColor.withAlpha(200),
-                  size: 22,
+                child: PopupMenuButton<String>(
+                  icon: IptvSvgIcon(
+                    IptvSvgIcons.moreVertical,
+                    color: themeMode.onSurfaceMutedColor,
+                    size: 22,
+                  ),
+                  tooltip: 'Playlist Options',
+                  color: themeMode.cardColor,
+                  surfaceTintColor: Colors.transparent,
+                  elevation: 4,
+                  shadowColor: Colors.black.withValues(alpha: 0.35),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                  position: PopupMenuPosition.under,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  menuPadding: const EdgeInsets.symmetric(vertical: 6),
+                  onSelected: (val) => _handleMenuAction(context, ref, val),
+                  itemBuilder: (ctx) => [
+                    _buildMenuItem(
+                      value: 'refresh',
+                      icon: IptvSvgIcons.refresh,
+                      title: 'Re-sync Channels',
+                      iconColor: themeMode.onSurfaceColor.withValues(alpha: 0.85),
+                      textColor: themeMode.onSurfaceColor,
+                    ),
+                    _buildMenuItem(
+                      value: 'edit',
+                      icon: IptvSvgIcons.sliders,
+                      title: 'Edit Source',
+                      iconColor: themeMode.onSurfaceColor.withValues(alpha: 0.85),
+                      textColor: themeMode.onSurfaceColor,
+                    ),
+                    _buildMenuItem(
+                      value: 'rename',
+                      icon: IptvSvgIcons.edit,
+                      title: 'Rename Playlist',
+                      iconColor: themeMode.onSurfaceColor.withValues(alpha: 0.85),
+                      textColor: themeMode.onSurfaceColor,
+                    ),
+                    _buildMenuItem(
+                      value: 'copy_url',
+                      icon: IptvSvgIcons.copy,
+                      title: 'Copy Source URL',
+                      iconColor: themeMode.onSurfaceColor.withValues(alpha: 0.85),
+                      textColor: themeMode.onSurfaceColor,
+                    ),
+                    _buildMenuItem(
+                      value: 'export_m3u',
+                      icon: IptvSvgIcons.download,
+                      title: 'Export M3U Playlist',
+                      iconColor: themeMode.onSurfaceColor.withValues(alpha: 0.85),
+                      textColor: themeMode.onSurfaceColor,
+                    ),
+                    _buildMenuItem(
+                      value: 'epg',
+                      icon: IptvSvgIcons.epg,
+                      title: 'TV Guide / EPG',
+                      iconColor: accentColor.color,
+                      textColor: themeMode.onSurfaceColor,
+                    ),
+                    _buildMenuItem(
+                      value: 'info',
+                      icon: IptvSvgIcons.info,
+                      title: 'Playlist Info',
+                      iconColor: themeMode.onSurfaceColor.withValues(alpha: 0.85),
+                      textColor: themeMode.onSurfaceColor,
+                    ),
+                    const PopupMenuDivider(height: 12),
+                    _buildMenuItem(
+                      value: 'delete',
+                      icon: IptvSvgIcons.delete,
+                      title: 'Delete Playlist',
+                      iconColor: GoPlayTheme.error,
+                      textColor: GoPlayTheme.error,
+                    ),
+                  ],
                 ),
-                tooltip: 'Playlist Options',
-                color: themeMode.surfaceContainerHigh,
-                surfaceTintColor: Colors.transparent,
-                elevation: 8,
-                shadowColor: Colors.black.withAlpha(140),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-                position: PopupMenuPosition.under,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                menuPadding: const EdgeInsets.symmetric(vertical: 6),
-                onSelected: (val) => _handleMenuAction(context, ref, val),
-                itemBuilder: (ctx) => [
-                  _buildMenuItem(
-                    value: 'refresh',
-                    icon: IptvSvgIcons.refresh,
-                    title: 'Re-sync Channels',
-                    iconColor: themeMode.onSurfaceColor.withAlpha(220),
-                    textColor: themeMode.onSurfaceColor,
-                  ),
-                  _buildMenuItem(
-                    value: 'edit',
-                    icon: IptvSvgIcons.sliders,
-                    title: 'Edit Source',
-                    iconColor: themeMode.onSurfaceColor.withAlpha(220),
-                    textColor: themeMode.onSurfaceColor,
-                  ),
-                  _buildMenuItem(
-                    value: 'rename',
-                    icon: IptvSvgIcons.edit,
-                    title: 'Rename Playlist',
-                    iconColor: themeMode.onSurfaceColor.withAlpha(220),
-                    textColor: themeMode.onSurfaceColor,
-                  ),
-                  _buildMenuItem(
-                    value: 'copy_url',
-                    icon: IptvSvgIcons.copy,
-                    title: 'Copy Source URL',
-                    iconColor: themeMode.onSurfaceColor.withAlpha(220),
-                    textColor: themeMode.onSurfaceColor,
-                  ),
-                  _buildMenuItem(
-                    value: 'export_m3u',
-                    icon: IptvSvgIcons.download,
-                    title: 'Export M3U Playlist',
-                    iconColor: themeMode.onSurfaceColor.withAlpha(220),
-                    textColor: themeMode.onSurfaceColor,
-                  ),
-                  _buildMenuItem(
-                    value: 'epg',
-                    icon: IptvSvgIcons.epg,
-                    title: 'TV Guide / EPG',
-                    iconColor: accentColor.color,
-                    textColor: themeMode.onSurfaceColor,
-                  ),
-                  _buildMenuItem(
-                    value: 'info',
-                    icon: IptvSvgIcons.info,
-                    title: 'Playlist Info',
-                    iconColor: themeMode.onSurfaceColor.withAlpha(220),
-                    textColor: themeMode.onSurfaceColor,
-                  ),
-                  const PopupMenuDivider(height: 10),
-                  _buildMenuItem(
-                    value: 'delete',
-                    icon: IptvSvgIcons.delete,
-                    title: 'Delete Playlist',
-                    iconColor: GoPlayTheme.error,
-                    textColor: GoPlayTheme.error,
-                  ),
-                ],
               ),
         ],
       ),
+    ),
     ),
   ),
 );
@@ -503,12 +540,12 @@ class IptvPlaylistCard extends ConsumerWidget {
     required String title,
     required Color iconColor,
     required Color textColor,
-    double size = 16.5,
+    double size = 18,
   }) {
     return PopupMenuItem<String>(
       value: value,
-      height: 38,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
           IptvSvgIcon(icon, color: iconColor, size: size),
@@ -516,8 +553,9 @@ class IptvPlaylistCard extends ConsumerWidget {
           Text(
             title,
             style: TextStyle(
+              fontFamily: GoPlayType.family,
               color: textColor,
-              fontSize: 13,
+              fontSize: GoPlayType.base,
               fontWeight: FontWeight.w500,
             ),
           ),

@@ -407,6 +407,13 @@ class NativePlayerView(
         val url = config["url"] as? String ?: return
         Log.d(TAG, "Initializing player with config: $config")
 
+        // Apply initial quality & aspect ratio preferences from settings
+        val initialQuality = (config["initial_quality"] as? Number)?.toInt() ?: -1
+        preferredQualityHeight = if (initialQuality > 0) initialQuality else -1
+        val initialResizeMode = (config["initial_resize_mode"] as? Number)?.toInt() ?: 0
+        playerView.resizeMode = initialResizeMode
+        val bufferMode = config["buffer_mode"] as? String ?: "Balanced"
+
         // --- Build HTTP DataSource Factory with custom headers ---
         val httpFactory = DefaultHttpDataSource.Factory()
             .setConnectTimeoutMs(15_000)
@@ -509,8 +516,13 @@ class NativePlayerView(
         // --- Setup / Reuse ExoPlayer ---
         var exoPlayer = player
         if (exoPlayer == null) {
+            val (minBufMs, maxBufMs, playBufMs, rebufMs) = when (bufferMode) {
+                "Fast Load" -> listOf(5_000, 20_000, 500, 1_000)
+                "High Stability" -> listOf(30_000, 90_000, 3_000, 5_000)
+                else -> listOf(15_000, 50_000, 1_500, 2_000) // Balanced
+            }
             val loadControl = DefaultLoadControl.Builder()
-                .setBufferDurationsMs(15_000, 50_000, 1_500, 2_000)
+                .setBufferDurationsMs(minBufMs, maxBufMs, playBufMs, rebufMs)
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
 

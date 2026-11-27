@@ -761,7 +761,7 @@ class _IptvAddSourceDialogState extends ConsumerState<IptvAddSourceDialog> {
           controller: _urlCtrl,
           label: 'Playlist URL',
           hint: 'https://example.com/playlist.m3u8',
-          helper: 'Supported formats: .m3u, .m3u8, .json (http, https, ftp)',
+          helper: 'Supports .m3u, .m3u8, and .json links (http, https, ftp)',
           keyboardType: TextInputType.url,
           onChanged: _onUrlChanged,
           validator: (v) {
@@ -819,7 +819,7 @@ class _IptvAddSourceDialogState extends ConsumerState<IptvAddSourceDialog> {
           controller: _epgCtrl,
           label: 'EPG URL (optional)',
           hint: 'https://example.com/guide.xml',
-          helper: 'If the playlist contains #EXTM3U url-tvg="...", it will be detected automatically.',
+          helper: "Auto-detected from the playlist's url-tvg tag if left blank.",
           keyboardType: TextInputType.url,
         ),
         const SizedBox(height: 14),
@@ -1210,7 +1210,7 @@ class _IptvAddSourceDialogState extends ConsumerState<IptvAddSourceDialog> {
       children: [
         _buildField(
           controller: _dohCtrl,
-          label: 'DNS over HTTPS (DoH) Endpoint (optional)',
+          label: 'DNS-over-HTTPS URL (optional)',
           hint: 'https://cloudflare-dns.com/dns-query',
           keyboardType: TextInputType.url,
           onChanged: (_) => setState(() {}),
@@ -1345,7 +1345,7 @@ class _IptvAddSourceDialogState extends ConsumerState<IptvAddSourceDialog> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    _showMoreOptions ? 'Hide More Options' : 'More Options',
+                    _showMoreOptions ? 'Hide Advanced Options' : 'Advanced Options',
                     style: TextStyle(
                       color: _showMoreOptions ? accentColor.color : themeMode.onSurfaceColor,
                       fontSize: 13.5,
@@ -1364,7 +1364,7 @@ class _IptvAddSourceDialogState extends ConsumerState<IptvAddSourceDialog> {
         if (_showMoreOptions) ...[
           const SizedBox(height: 8),
           _buildDropdown<String>(
-            label: 'Request type',
+            label: 'Request Type',
             value: _requestType,
             items: kIptvRequestTypes
                 .map((r) => DropdownMenuItem(value: r, child: Text(r.toUpperCase())))
@@ -1483,7 +1483,10 @@ class _IptvAddSourceDialogState extends ConsumerState<IptvAddSourceDialog> {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2, color: accentColor.onAccentColor),
                     )
-                  : const Text('SAVE', style: TextStyle(fontWeight: FontWeight.w700)),
+                  : Text(
+                      _isEditing ? 'SAVE' : 'ADD PLAYLIST',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
             ),
           ),
         ],

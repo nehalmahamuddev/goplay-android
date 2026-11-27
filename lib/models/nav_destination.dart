@@ -94,15 +94,15 @@ enum NavDestination {
     NavDestination.home,
     NavDestination.categories,
     NavDestination.channels,
-    NavDestination.events,
     NavDestination.iptv,
+    NavDestination.settings,
   ];
 
   static const List<String> defaultTabIds = [
     'home',
     'categories',
     'channels',
-    'events',
     'iptv',
+    'settings',
   ];
 }

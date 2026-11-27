@@ -775,7 +775,6 @@ class _IptvChannelBrowserSheetState
       color: themeMode.cardColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: themeMode.dividerColor, width: 1),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -898,7 +897,6 @@ class _IptvChannelBrowserSheetState
       color: themeMode.cardColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: themeMode.dividerColor, width: 1),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -1014,7 +1012,6 @@ class _IptvChannelBrowserSheetState
       color: const Color(0xFF141519),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: Color(0xFF242731), width: 1),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -1120,7 +1117,6 @@ class _IptvChannelBrowserSheetState
       color: const Color(0xFF141519),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: Color(0xFF242731), width: 1),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(

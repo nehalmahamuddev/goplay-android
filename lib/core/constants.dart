@@ -22,6 +22,11 @@ class AppConstants {
   static const String extraBrightnessKey = 'extra_brightness_enabled';
   static const String doubleTapSeekKey = 'double_tap_seek_enabled';
 
+  // Player Buffering & Layout Settings Keys
+  static const String defaultVideoQualityKey = 'default_video_quality';
+  static const String defaultBufferModeKey = 'default_buffer_mode';
+  static const String defaultAspectRatioKey = 'default_aspect_ratio';
+
   // Navigation & Startup Settings Keys
   static const String customNavTabsKey = 'custom_nav_tabs';
   static const String defaultLaunchPageKey = 'default_launch_page';

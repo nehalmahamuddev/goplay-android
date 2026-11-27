@@ -511,10 +511,21 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
       initialQuality = int.tryParse(_currentQuality.replaceAll('p', '')) ?? -1;
     }
 
+    String bufferMode = 'Balanced';
+    try {
+      if (Hive.isBoxOpen(AppConstants.settingsBox)) {
+        bufferMode = Hive.box(AppConstants.settingsBox)
+                .get(AppConstants.defaultBufferModeKey) as String? ??
+            'Balanced';
+      }
+    } catch (_) {}
+
     final params = <String, dynamic>{
       'url': playUrl,
       'headers': headers,
       'initial_quality': initialQuality,
+      'buffer_mode': bufferMode,
+      'initial_resize_mode': _resizeModes[_aspectRatioIndex],
     };
 
     if (subtitleUrl != null && subtitleUrl.isNotEmpty) {
@@ -819,7 +830,8 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
     _engine.setQualityLabel(label);
     try {
       if (Hive.isBoxOpen(AppConstants.settingsBox)) {
-        Hive.box(AppConstants.settingsBox).put('default_video_quality', label);
+        Hive.box(AppConstants.settingsBox)
+            .put(AppConstants.defaultVideoQualityKey, label);
       }
     } catch (_) {}
     _engine.nativePort.setQuality(height);
@@ -1536,9 +1548,18 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
 
     try {
       if (Hive.isBoxOpen(AppConstants.settingsBox)) {
-        final saved = Hive.box(AppConstants.settingsBox).get('default_video_quality') as String?;
+        final box = Hive.box(AppConstants.settingsBox);
+        final saved = box.get(AppConstants.defaultVideoQualityKey) as String?;
         if (saved != null && saved.isNotEmpty) {
           _currentQuality = saved;
+        }
+        final savedAspect = box.get(AppConstants.defaultAspectRatioKey) as String?;
+        if (savedAspect != null) {
+          _aspectRatioIndex = switch (savedAspect) {
+            'Stretch' => 1,
+            'Original' => 2,
+            _ => 0,
+          };
         }
       }
     } catch (_) {}

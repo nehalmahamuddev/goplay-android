@@ -40,9 +40,9 @@ void main() {
       expect(NavDestination.fromId('unknown'), NavDestination.home);
     });
 
-    test('Default tabs contains standard destinations including IPTV', () {
+    test('Default tabs contains standard destinations including Playlists and Settings', () {
       expect(NavDestination.defaultTabs.length, 5);
-      expect(NavDestination.defaultTabIds, ['home', 'categories', 'channels', 'events', 'iptv']);
+      expect(NavDestination.defaultTabIds, ['home', 'categories', 'channels', 'iptv', 'settings']);
     });
   });
 
