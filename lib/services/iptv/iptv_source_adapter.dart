@@ -102,6 +102,22 @@ class DioIptvSourceAdapter implements IptvSourceAdapter {
 
   final Dio _dio;
 
+  /// Adds HTTP cache-bypass headers for playlist/API/key fetches without
+  /// mutating [headers] passed onward to playback [Channel.headers].
+  Map<String, String> _withNoCacheHeaders(Map<String, String>? headers) {
+    final out = <String, String>{
+      if (headers != null) ...headers,
+    };
+    final lowerKeys = out.keys.map((k) => k.toLowerCase()).toSet();
+    if (!lowerKeys.contains('cache-control')) {
+      out['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+    }
+    if (!lowerKeys.contains('pragma')) {
+      out['Pragma'] = 'no-cache';
+    }
+    return out;
+  }
+
   @override
   Future<IptvPlaylist> fetchAndParse(IptvPlaylist playlist) async {
     try {
@@ -208,6 +224,14 @@ class DioIptvSourceAdapter implements IptvSourceAdapter {
           break;
       }
 
+      if (playlist.hasRemoteEndpoint &&
+          playlist.channels.isNotEmpty &&
+          channels.isEmpty) {
+        throw StateError(
+          'Remote playlist returned 0 channels; keeping cached channels',
+        );
+      }
+
       final effectiveEpgUrl =
           (playlist.epgUrl != null && playlist.epgUrl!.trim().isNotEmpty)
               ? playlist.epgUrl
@@ -237,18 +261,19 @@ class DioIptvSourceAdapter implements IptvSourceAdapter {
     String? requestType,
   }) async {
     final normalizedMethod = (requestType ?? 'download').toLowerCase();
+    final requestHeaders = _withNoCacheHeaders(headers);
     final Response<String> response = normalizedMethod == 'post'
         ? await _dio.post<String>(
             url,
             options: Options(
-              headers: headers,
+              headers: requestHeaders,
               responseType: ResponseType.plain,
             ),
           )
         : await _dio.get<String>(
             url,
             options: Options(
-              headers: headers,
+              headers: requestHeaders,
               responseType: ResponseType.plain,
             ),
           );
@@ -319,11 +344,11 @@ class DioIptvSourceAdapter implements IptvSourceAdapter {
         final res = await _dio.get(
           apiUrl,
           options: Options(
-            headers: {
+            headers: _withNoCacheHeaders({
               if (mac.isNotEmpty) 'Cookie': 'mac=$mac',
               'User-Agent':
                   'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3',
-            },
+            }),
           ),
         );
         String? freshCmd;
@@ -365,7 +390,7 @@ class DioIptvSourceAdapter implements IptvSourceAdapter {
         final res = await _dio.get<String>(
           drm.licenseUrl!,
           options: Options(
-            headers: reqHeaders,
+            headers: _withNoCacheHeaders(reqHeaders),
             responseType: ResponseType.plain,
           ),
         );
@@ -429,7 +454,7 @@ class DioIptvSourceAdapter implements IptvSourceAdapter {
       final response = await _dio.get<List<int>>(
         trimmed,
         options: Options(
-          headers: headers,
+          headers: _withNoCacheHeaders(headers),
           responseType: ResponseType.bytes,
           receiveTimeout: const Duration(seconds: 45),
         ),
@@ -494,7 +519,7 @@ class DioIptvSourceAdapter implements IptvSourceAdapter {
       try {
         final res = await _dio.get(
           '$apiUrl&action=$action',
-          options: Options(headers: headers),
+          options: Options(headers: _withNoCacheHeaders(headers)),
         );
         if (res.data is List) {
           for (final item in res.data as List) {
@@ -523,7 +548,7 @@ class DioIptvSourceAdapter implements IptvSourceAdapter {
       try {
         final streamRes = await _dio.get(
           '$apiUrl&action=get_live_streams',
-          options: Options(headers: headers),
+          options: Options(headers: _withNoCacheHeaders(headers)),
         );
         if (streamRes.data is List) {
           var index = 0;
@@ -564,7 +589,7 @@ class DioIptvSourceAdapter implements IptvSourceAdapter {
       try {
         final vodRes = await _dio.get(
           '$apiUrl&action=get_vod_streams',
-          options: Options(headers: headers),
+          options: Options(headers: _withNoCacheHeaders(headers)),
         );
         if (vodRes.data is List) {
           var index = 0;
@@ -604,7 +629,7 @@ class DioIptvSourceAdapter implements IptvSourceAdapter {
       try {
         final seriesRes = await _dio.get(
           '$apiUrl&action=get_series',
-          options: Options(headers: headers),
+          options: Options(headers: _withNoCacheHeaders(headers)),
         );
         if (seriesRes.data is List) {
           var index = 0;
@@ -670,11 +695,11 @@ class DioIptvSourceAdapter implements IptvSourceAdapter {
       final res = await _dio.get(
         handshakeUrl,
         options: Options(
-          headers: {
+          headers: _withNoCacheHeaders({
             'Cookie': 'mac=$cleanMac',
             'User-Agent':
                 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3',
-          },
+          }),
         ),
       );
 
@@ -687,7 +712,9 @@ class DioIptvSourceAdapter implements IptvSourceAdapter {
       try {
         final genreRes = await _dio.get(
           '$cleanUrl/server/load.php?type=itv&action=get_genres&token=$token&JsHttpRequest=1-xml',
-          options: Options(headers: {'Cookie': 'mac=$cleanMac'}),
+          options: Options(
+            headers: _withNoCacheHeaders({'Cookie': 'mac=$cleanMac'}),
+          ),
         );
         if (genreRes.data is Map && genreRes.data['js'] is List) {
           for (final g in genreRes.data['js'] as List) {
@@ -702,7 +729,9 @@ class DioIptvSourceAdapter implements IptvSourceAdapter {
           '$cleanUrl/server/load.php?type=itv&action=get_all_channels&token=$token&JsHttpRequest=1-xml';
       final chRes = await _dio.get(
         allChannelsUrl,
-        options: Options(headers: {'Cookie': 'mac=$cleanMac'}),
+        options: Options(
+          headers: _withNoCacheHeaders({'Cookie': 'mac=$cleanMac'}),
+        ),
       );
 
       if (chRes.data is Map &&

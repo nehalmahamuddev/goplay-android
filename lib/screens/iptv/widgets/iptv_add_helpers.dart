@@ -111,6 +111,44 @@ Future<({String name, String content, String uri})?> pickLocalPlaylistFile() asy
   }
 }
 
+/// Scans standard storage folders for `.m3u` / `.m3u8` files as a fallback on
+/// Android TV devices that lack a system DocumentsUI file picker.
+Future<List<({String name, String path, int size})>> listLocalPlaylistFiles() async {
+  try {
+    final raw = await _kFilePickerChannel.invokeListMethod<dynamic>('listLocalPlaylistFiles');
+    if (raw == null) return const [];
+    return raw.whereType<Map>().map((entry) {
+      return (
+        name: (entry['name'] ?? 'playlist.m3u').toString(),
+        path: (entry['path'] ?? '').toString(),
+        size: (entry['size'] as num?)?.toInt() ?? 0,
+      );
+    }).where((f) => f.path.isNotEmpty).toList();
+  } catch (_) {
+    return const [];
+  }
+}
+
+/// Reads a local playlist file selected from [listLocalPlaylistFiles].
+Future<({String name, String content, String uri})?> readLocalPlaylistFile(String path) async {
+  try {
+    final result = await _kFilePickerChannel.invokeMapMethod<String, dynamic>(
+      'readLocalPlaylistFile',
+      path,
+    );
+    if (result == null) return null;
+    return (
+      name: (result['name'] ?? 'playlist.m3u').toString(),
+      content: (result['content'] ?? '').toString(),
+      uri: (result['uri'] ?? '').toString(),
+    );
+  } on MissingPluginException {
+    return null;
+  } on PlatformException {
+    rethrow;
+  }
+}
+
 /// Validates whether a stream/playlist input begins with a supported URI scheme or file path.
 bool isSupportedIptvScheme(String input) {
   final trimmed = input.trim();

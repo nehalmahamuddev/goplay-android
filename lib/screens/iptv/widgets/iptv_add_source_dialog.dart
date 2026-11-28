@@ -9,6 +9,9 @@ import '../../../models/drm_config.dart';
 import '../../../models/iptv_playlist.dart';
 import '../../../providers/iptv_providers.dart';
 import '../../../providers/theme_provider.dart';
+import '../../../services/tv_service.dart';
+import '../../../widgets/tv_focus_wrapper.dart';
+import '../../../widgets/tv_modal.dart';
 import 'iptv_add_helpers.dart';
 
 /// Unified Add / Edit dialog matching the reference APK's 5 media/playlist forms:
@@ -29,10 +32,11 @@ class IptvAddSourceDialog extends ConsumerStatefulWidget {
     IptvSourceType initialType = IptvSourceType.m3uUrl,
     IptvPlaylist? existingPlaylist,
   }) {
-    return showModalBottomSheet<IptvPlaylist>(
+    return showAdaptiveSheet<IptvPlaylist>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      maxDialogWidth: 620,
       builder: (context) => IptvAddSourceDialog(
         initialType: existingPlaylist?.sourceType ?? initialType,
         existingPlaylist: existingPlaylist,
@@ -331,14 +335,19 @@ class _IptvAddSourceDialogState extends ConsumerState<IptvAddSourceDialog> {
       _errorMsg = null;
     });
     try {
-      final picked = await pickLocalPlaylistFile();
+      ({String name, String content, String uri})? picked;
+      if (TvDeviceInfo.instance.canOpenDocument) {
+        picked = await pickLocalPlaylistFile();
+      } else {
+        picked = await _showTvLocalFilePickerDialog();
+      }
       if (!mounted) return;
       if (picked != null) {
         final stem = picked.name
             .replaceFirst(RegExp(r'\.(m3u8?|json|txt)$', caseSensitive: false), '')
             .trim();
         setState(() {
-          _pickedFileName = picked.name;
+          _pickedFileName = picked!.name;
           _localContentCtrl.text = picked.content;
           if (!_nameEditedManually && stem.isNotEmpty) {
             _nameCtrl.text = stem;
@@ -347,6 +356,23 @@ class _IptvAddSourceDialogState extends ConsumerState<IptvAddSourceDialog> {
       }
     } on PlatformException catch (e) {
       if (!mounted) return;
+      if (e.code == 'NO_FILE_PICKER') {
+        final fallback = await _showTvLocalFilePickerDialog();
+        if (!mounted) return;
+        if (fallback != null) {
+          final stem = fallback.name
+              .replaceFirst(RegExp(r'\.(m3u8?|json|txt)$', caseSensitive: false), '')
+              .trim();
+          setState(() {
+            _pickedFileName = fallback.name;
+            _localContentCtrl.text = fallback.content;
+            if (!_nameEditedManually && stem.isNotEmpty) {
+              _nameCtrl.text = stem;
+            }
+          });
+        }
+        return;
+      }
       setState(() {
         _errorMsg = e.message ?? 'Could not read selected file.';
       });
@@ -355,6 +381,113 @@ class _IptvAddSourceDialogState extends ConsumerState<IptvAddSourceDialog> {
         setState(() => _isPickingFile = false);
       }
     }
+  }
+
+  Future<({String name, String content, String uri})?> _showTvLocalFilePickerDialog() async {
+    final files = await listLocalPlaylistFiles();
+    if (!mounted) return null;
+    final themeMode = ref.read(activeThemeModeProvider);
+    final accentColor = ref.read(activeAccentColorProvider);
+
+    final selectedPath = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: themeMode.surfaceContainerHigh,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: themeMode.dividerColor),
+        ),
+        title: Text(
+          'Local Playlists on Device',
+          style: TextStyle(
+            fontFamily: GoPlayType.family,
+            color: themeMode.onSurfaceColor,
+            fontWeight: FontWeight.w700,
+            fontSize: 17,
+          ),
+        ),
+        content: SizedBox(
+          width: 460,
+          child: files.isEmpty
+              ? Text(
+                  'No .m3u or .m3u8 files were found in Downloads or internal storage.\n\n'
+                  'You can copy a playlist file to your Downloads folder or paste its M3U content directly into the text box.',
+                  style: TextStyle(
+                    fontFamily: GoPlayType.family,
+                    color: themeMode.onSurfaceMutedColor,
+                    fontSize: 13,
+                    height: 1.45,
+                  ),
+                )
+              : ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 320),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: files.length,
+                    itemBuilder: (context, index) {
+                      final file = files[index];
+                      final kb = (file.size / 1024).ceil();
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: TvFocusable(
+                          autoFocus: index == 0,
+                          excludeChildFocus: true,
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: () => Navigator.of(ctx).pop(file.path),
+                          child: ListTile(
+                            dense: true,
+                            leading: Icon(
+                              Icons.playlist_play_rounded,
+                              color: accentColor.color,
+                            ),
+                            title: Text(
+                              file.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: themeMode.onSurfaceColor,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13.5,
+                              ),
+                            ),
+                            subtitle: Text(
+                              '${file.path} • ${kb}KB',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: themeMode.onSurfaceMutedColor,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+        ),
+        actions: [
+          TvFocusable(
+            autoFocus: files.isEmpty,
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => Navigator.of(ctx).pop(null),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Text(
+                'CLOSE',
+                style: TextStyle(
+                  color: accentColor.color,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (selectedPath == null || selectedPath.isEmpty) return null;
+    return await readLocalPlaylistFile(selectedPath);
   }
 
   Future<void> _testStalkerPortal() async {

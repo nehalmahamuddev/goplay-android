@@ -8,6 +8,8 @@ import '../providers/app_providers.dart';
 import '../services/playback/playback_session.dart';
 import '../core/theme.dart';
 import '../core/typography.dart';
+import 'tv_focus_wrapper.dart';
+import 'tv_modal.dart';
 
 void showChannelSelector({
   required BuildContext context,
@@ -47,7 +49,7 @@ void showChannelSelector({
     return match;
   }).toList();
 
-  showModalBottomSheet(
+  showAdaptiveSheet(
     context: context,
     backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
     shape: const RoundedRectangleBorder(
@@ -89,9 +91,15 @@ void showChannelSelector({
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: GoPlayTheme.onSurfaceVariant),
-                    onPressed: () => Navigator.pop(context),
+                  TvFocusable(
+                    isCircle: true,
+                    excludeChildFocus: true,
+                    semanticLabel: 'Close',
+                    onTap: () => Navigator.pop(context),
+                    child: const Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Icon(Icons.close, color: GoPlayTheme.onSurfaceVariant),
+                    ),
                   ),
                 ],
               ),
@@ -102,67 +110,14 @@ void showChannelSelector({
                   itemCount: matchedChannels.length,
                   itemBuilder: (context, index) {
                     final channel = matchedChannels[index];
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(
-                        color: GoPlayTheme.surfaceContainerHigh,
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: TvFocusable(
+                        autoFocus: index == 0,
+                        excludeChildFocus: true,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: GoPlayTheme.cardBorder, width: 0.5),
-                      ),
-                      child: ListTile(
-                        leading: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withAlpha(15),
-                          ),
-                          child: channel.logo != null && channel.logo!.isNotEmpty
-                              ? CachedNetworkImage(
-                                  imageUrl: channel.logo!,
-                                  fit: BoxFit.cover,
-                                  memCacheWidth: 80,
-                                  memCacheHeight: 80,
-                                  imageBuilder: (context, imageProvider) => Container(
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      image: DecorationImage(
-                                        image: imageProvider,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-                                  ),
-                                  placeholder: (context, url) => const Icon(
-                                    Icons.live_tv_rounded,
-                                    color: GoPlayTheme.primary,
-                                  ),
-                                  errorWidget: (context, url, error) => const Icon(
-                                    Icons.live_tv_rounded,
-                                    color: GoPlayTheme.primary,
-                                  ),
-                                )
-                              : const Icon(
-                                  Icons.live_tv_rounded,
-                                  color: GoPlayTheme.primary,
-                                ),
-                        ),
-                        title: Text(
-                          channel.displayName,
-                          style: GoPlayType.label.copyWith(
-                            color: GoPlayTheme.onSurface,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: const Icon(
-                          Icons.play_arrow_rounded,
-                          color: GoPlayTheme.primary,
-                        ),
                         onTap: () {
                           Navigator.pop(context);
-                          // Scope the player to this event's channels so the
-                          // switcher offers the other feeds for the same match,
-                          // not everything in the channel's category.
                           final args = PlaybackLaunchArgs(
                             channelId: channel.id,
                             eventChannels: event.channels,
@@ -170,6 +125,63 @@ void showChannelSelector({
                           );
                           context.push(args.routeLocation, extra: args.toExtra());
                         },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: GoPlayTheme.surfaceContainerHigh,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: GoPlayTheme.cardBorder, width: 0.5),
+                          ),
+                          child: ListTile(
+                            leading: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withAlpha(15),
+                              ),
+                              child: channel.logo != null && channel.logo!.isNotEmpty
+                                  ? CachedNetworkImage(
+                                      imageUrl: channel.logo!,
+                                      fit: BoxFit.cover,
+                                      memCacheWidth: 80,
+                                      memCacheHeight: 80,
+                                      imageBuilder: (context, imageProvider) => Container(
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          image: DecorationImage(
+                                            image: imageProvider,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
+                                      ),
+                                      placeholder: (context, url) => const Icon(
+                                        Icons.live_tv_rounded,
+                                        color: GoPlayTheme.primary,
+                                      ),
+                                      errorWidget: (context, url, error) => const Icon(
+                                        Icons.live_tv_rounded,
+                                        color: GoPlayTheme.primary,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.live_tv_rounded,
+                                      color: GoPlayTheme.primary,
+                                    ),
+                            ),
+                            title: Text(
+                              channel.displayName,
+                              style: GoPlayType.label.copyWith(
+                                color: GoPlayTheme.onSurface,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: const Icon(
+                              Icons.play_arrow_rounded,
+                              color: GoPlayTheme.primary,
+                            ),
+                          ),
+                        ),
                       ),
                     );
                   },

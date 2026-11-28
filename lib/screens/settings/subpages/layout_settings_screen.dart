@@ -5,12 +5,115 @@ import '../../../core/typography.dart';
 import '../../../models/app_theme_options.dart';
 import '../../../providers/app_providers.dart';
 import '../../../providers/theme_provider.dart';
+import '../../../providers/tv_provider.dart';
+import '../../../services/tv_service.dart';
+import '../../../widgets/tv_focus_wrapper.dart';
 import '../widgets/setting_section_header.dart';
 import '../widgets/setting_tile.dart';
 
 /// Layout and Theme Settings Screen matching Upstream's 'Layout' subpage.
 class LayoutSettingsScreen extends ConsumerWidget {
   const LayoutSettingsScreen({super.key});
+
+  String _tvModeLabel(String override) {
+    switch (override) {
+      case 'on':
+        return 'Always On (Force TV Layout & D-Pad Focus)';
+      case 'off':
+        return 'Always Off (Mobile / Touch Mode)';
+      case 'auto':
+      default:
+        return TvDeviceInfo.instance.nativeIsTv
+            ? 'Auto (Detected: Android TV)'
+            : 'Auto (Detected: Mobile / Tablet)';
+    }
+  }
+
+  void _showTvModeDialog(BuildContext context, WidgetRef ref, String current) {
+    final cs = Theme.of(context).colorScheme;
+    const options = [
+      (value: 'auto', label: 'Auto (Recommended)', desc: 'Detects Android TV, Leanback & remotes automatically'),
+      (value: 'on', label: 'Always On', desc: 'Forces TV Rail, D-Pad focus rings & overscan on any box'),
+      (value: 'off', label: 'Always Off', desc: 'Uses standard touch/tablet behavior'),
+    ];
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF161616),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0x1AFFFFFF), width: 1),
+        ),
+        title: Text(
+          'Android TV Mode',
+          style: TextStyle(
+            fontFamily: GoPlayType.family,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: cs.onSurface,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: options.map((opt) {
+            final selected = opt.value == current;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: TvFocusable(
+                autoFocus: selected,
+                excludeChildFocus: true,
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  ref.read(tvModeOverrideProvider.notifier).setOverride(opt.value);
+                  Navigator.of(ctx).pop();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? cs.primary.withValues(alpha: 0.12)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              opt.label,
+                              style: TextStyle(
+                                fontFamily: GoPlayType.family,
+                                fontSize: 14.5,
+                                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                                color: selected ? cs.primary : cs.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              opt.desc,
+                              style: TextStyle(
+                                fontFamily: GoPlayType.family,
+                                fontSize: 12,
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (selected)
+                        Icon(Icons.check_rounded, color: cs.primary, size: 20),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -28,6 +131,8 @@ class LayoutSettingsScreen extends ConsumerWidget {
     final tabConfig = uiConfig.channelsTab;
     final customTabs = ref.watch(customNavTabsProvider);
     final defaultLaunchPage = ref.watch(defaultLaunchPageProvider);
+    final tvModeOverride = ref.watch(tvModeOverrideProvider);
+    final tvOverscanEnabled = ref.watch(tvOverscanEnabledProvider);
 
     return Scaffold(
       backgroundColor: cs.surface,
@@ -53,16 +158,20 @@ class LayoutSettingsScreen extends ConsumerWidget {
               elevation: 0,
               scrolledUnderElevation: 0,
               automaticallyImplyLeading: false,
-              leading: IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
-                tooltip: 'Back',
-                onPressed: () {
+              leading: TvFocusable(
+                isCircle: true,
+                excludeChildFocus: true,
+                semanticLabel: 'Back',
+                onTap: () {
                   if (Navigator.of(context).canPop()) {
                     Navigator.of(context).pop();
                   } else {
                     context.go('/settings');
                   }
                 },
+                child: Center(
+                  child: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
+                ),
               ),
               title: Text(
                 'Layout',
@@ -137,6 +246,26 @@ class LayoutSettingsScreen extends ConsumerWidget {
                 title: 'Customize navigation tabs',
                 subtitle: '${customTabs.length} tabs enabled (3-5 allowed)',
                 onTap: () => context.go('/settings/layout/navigation'),
+              ),
+
+              const SizedBox(height: 12),
+
+              // ─── Android TV & Display Section ───
+              const SettingSectionHeader(title: 'Android TV & Display'),
+              SettingTile(
+                icon: Icons.tv_rounded,
+                title: 'Android TV Mode',
+                subtitle: _tvModeLabel(tvModeOverride),
+                onTap: () => _showTvModeDialog(context, ref, tvModeOverride),
+              ),
+              SettingSwitchTile(
+                icon: Icons.fit_screen_rounded,
+                title: 'TV Overscan Safe Margin',
+                subtitle: 'Adds edge padding on TVs to prevent cropping near bezels',
+                value: tvOverscanEnabled,
+                onChanged: (val) {
+                  ref.read(tvOverscanEnabledProvider.notifier).setEnabled(val);
+                },
               ),
 
               const SizedBox(height: 12),

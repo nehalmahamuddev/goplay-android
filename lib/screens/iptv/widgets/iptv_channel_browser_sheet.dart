@@ -11,6 +11,9 @@ import '../../../models/iptv_playlist.dart';
 import '../../../providers/iptv_providers.dart';
 import '../../../providers/theme_provider.dart';
 import '../../../services/iptv_service.dart';
+import '../../../services/tv_service.dart';
+import '../../../widgets/tv_focus_wrapper.dart';
+import '../../../widgets/tv_modal.dart';
 import 'iptv_category_sheets.dart';
 import 'iptv_svg_icon.dart';
 import 'iptv_view_settings_sheet.dart';
@@ -71,16 +74,20 @@ class _IptvChannelBrowserSheetState
       unawaited(ref.read(iptvEpgProvider.notifier).loadEpgForPlaylist(playlist));
     }
 
-    final isRemoteSource = playlist.sourceType == IptvSourceType.m3uUrl ||
-        playlist.sourceType == IptvSourceType.xtream ||
-        playlist.sourceType == IptvSourceType.stalker;
+    if (!playlist.hasRemoteEndpoint) return;
 
-    final shouldAutoSync = isRemoteSource &&
-        playlist.url.trim().isNotEmpty &&
-        (!settings.cacheEnabled || !playlist.isCacheFresh);
+    // Show cached channels immediately while keeping frequently-updating
+    // playlists fresh via stale-while-revalidate background sync.
+    final mustSyncImmediately =
+        !settings.cacheEnabled || !playlist.isCacheFresh;
+    final shouldRevalidateInBackground =
+        playlist.needsBackgroundRevalidation(maxAge: const Duration(minutes: 2));
 
-    if (shouldAutoSync) {
-      await _refreshPlaylist(silentOnSuccess: true);
+    if (mustSyncImmediately || shouldRevalidateInBackground) {
+      await _refreshPlaylist(
+        silentOnSuccess: true,
+        silentOnError: playlist.channels.isNotEmpty,
+      );
     }
   }
 
@@ -158,7 +165,10 @@ class _IptvChannelBrowserSheetState
     });
   }
 
-  Future<void> _refreshPlaylist({bool silentOnSuccess = false}) async {
+  Future<void> _refreshPlaylist({
+    bool silentOnSuccess = false,
+    bool silentOnError = false,
+  }) async {
     if (_isRefreshing) return;
     final current = ref.read(selectedIptvPlaylistProvider) ?? widget.playlist;
     setState(() {
@@ -188,7 +198,7 @@ class _IptvChannelBrowserSheetState
         );
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && !silentOnError) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Sync failed: $e'),
@@ -392,13 +402,11 @@ class _IptvChannelBrowserSheetState
                   statusBarBrightness:
                       themeMode.isDark ? Brightness.dark : Brightness.light,
                 ),
-                leading: IconButton(
-                  icon: IptvSvgIcon(
-                    IptvSvgIcons.arrowLeft,
-                    color: themeMode.onSurfaceColor,
-                    size: 20,
-                  ),
-                  onPressed: () {
+                leading: TvFocusable(
+                  isCircle: true,
+                  excludeChildFocus: true,
+                  semanticLabel: 'Back',
+                  onTap: () {
                     if (_isSearching) {
                       _searchDebounce?.cancel();
                       _searchController.clear();
@@ -408,29 +416,45 @@ class _IptvChannelBrowserSheetState
                       Navigator.of(context).pop();
                     }
                   },
+                  child: Center(
+                    child: IptvSvgIcon(
+                      IptvSvgIcons.arrowLeft,
+                      color: themeMode.onSurfaceColor,
+                      size: 20,
+                    ),
+                  ),
                 ),
                 title: _isSearching
-                    ? TextField(
-                        controller: _searchController,
-                        focusNode: _searchFocus,
-                        autofocus: true,
-                        style: TextStyle(
-                          fontFamily: GoPlayType.family,
-                          color: themeMode.onSurfaceColor,
-                          fontSize: 16,
+                    ? Focus(
+                        canRequestFocus: false,
+                        onKeyEvent: (node, event) => handleTvTextFieldKeyEvent(
+                          _searchFocus,
+                          event,
+                          context,
                         ),
-                        cursorColor: accentColor.color,
-                        decoration: InputDecoration(
-                          hintText: 'Search channels...',
-                          hintStyle: TextStyle(
+                        child: TextField(
+                          controller: _searchController,
+                          focusNode: _searchFocus,
+                          autofocus: !TvScope.isTvOf(context),
+                          textInputAction: TextInputAction.search,
+                          style: TextStyle(
                             fontFamily: GoPlayType.family,
-                            color: themeMode.onSurfaceMutedColor,
-                            fontSize: 15,
+                            color: themeMode.onSurfaceColor,
+                            fontSize: 16,
                           ),
-                          border: InputBorder.none,
-                          isDense: true,
+                          cursorColor: accentColor.color,
+                          decoration: InputDecoration(
+                            hintText: 'Search channels...',
+                            hintStyle: TextStyle(
+                              fontFamily: GoPlayType.family,
+                              color: themeMode.onSurfaceMutedColor,
+                              fontSize: 15,
+                            ),
+                            border: InputBorder.none,
+                            isDense: true,
+                          ),
+                          onChanged: _onSearchChanged,
                         ),
-                        onChanged: _onSearchChanged,
                       )
                     : Text(
                         activePlaylist.name,
@@ -445,71 +469,103 @@ class _IptvChannelBrowserSheetState
                       ),
                 actions: _isSearching
                     ? [
-                        IconButton(
-                          icon: IptvSvgIcon(
-                            IptvSvgIcons.close,
-                            color: themeMode.onSurfaceColor,
-                            size: 20,
+                        Tooltip(
+                          message: 'Clear search',
+                          child: TvFocusable(
+                            isCircle: true,
+                            excludeChildFocus: true,
+                            semanticLabel: 'Clear search',
+                            onTap: () {
+                              _searchDebounce?.cancel();
+                              _searchController.clear();
+                              ref
+                                  .read(iptvSearchQueryProvider.notifier)
+                                  .setQuery('');
+                              setState(() => _isSearching = false);
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(10),
+                              child: IptvSvgIcon(
+                                IptvSvgIcons.close,
+                                color: themeMode.onSurfaceColor,
+                                size: 20,
+                              ),
+                            ),
                           ),
-                          tooltip: 'Clear search',
-                          onPressed: () {
-                            _searchDebounce?.cancel();
-                            _searchController.clear();
-                            ref
-                                .read(iptvSearchQueryProvider.notifier)
-                                .setQuery('');
-                            setState(() => _isSearching = false);
-                          },
                         ),
                       ]
                     : [
-                        IconButton(
-                          icon: IptvSvgIcon(
-                            IptvSvgIcons.search,
-                            color: themeMode.onSurfaceColor,
-                            size: 20,
-                          ),
-                          tooltip: 'Search channels',
-                          onPressed: () {
-                            setState(() => _isSearching = true);
-                          },
-                        ),
-                        IconButton(
-                          icon: IptvSvgIcon(
-                            IptvSvgIcons.layoutGrid,
-                            color: themeMode.onSurfaceColor,
-                            size: 20,
-                          ),
-                          tooltip: 'View settings',
-                          onPressed: () => IptvViewSettingsSheet.show(
-                            context,
-                            activePlaylist.id,
+                        Tooltip(
+                          message: 'Search channels',
+                          child: TvFocusable(
+                            isCircle: true,
+                            excludeChildFocus: true,
+                            semanticLabel: 'Search channels',
+                            onTap: () {
+                              setState(() => _isSearching = true);
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(10),
+                              child: IptvSvgIcon(
+                                IptvSvgIcons.search,
+                                color: themeMode.onSurfaceColor,
+                                size: 20,
+                              ),
+                            ),
                           ),
                         ),
-                        IconButton(
-                          icon: IptvSvgIcon(
-                            IptvSvgIcons.layoutList,
-                            color: themeMode.onSurfaceColor,
-                            size: 20,
+                        Tooltip(
+                          message: 'View settings',
+                          child: TvFocusable(
+                            isCircle: true,
+                            excludeChildFocus: true,
+                            semanticLabel: 'View settings',
+                            onTap: () => IptvViewSettingsSheet.show(
+                              context,
+                              activePlaylist.id,
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(10),
+                              child: IptvSvgIcon(
+                                IptvSvgIcons.layoutGrid,
+                                color: themeMode.onSurfaceColor,
+                                size: 20,
+                              ),
+                            ),
                           ),
-                          tooltip: 'Category tabs',
-                          onPressed: groups.isEmpty
-                              ? null
-                              : () {
-                                  IptvTabJumpSheet.show(
-                                    context,
-                                    categories: groups,
-                                    activeCategoryTitle: activeTitle,
-                                    onSelectTabIndex: (idx) {
-                                      final controller = _tabController;
-                                      if (controller != null &&
-                                          idx >= 0 &&
-                                          idx < groups.length) {
-                                        controller.animateTo(idx);
-                                      }
-                                    },
-                                  );
-                                },
+                        ),
+                        Tooltip(
+                          message: 'Category tabs',
+                          child: TvFocusable(
+                            isCircle: true,
+                            excludeChildFocus: true,
+                            semanticLabel: 'Category tabs',
+                            onTap: groups.isEmpty
+                                ? null
+                                : () {
+                                    IptvTabJumpSheet.show(
+                                      context,
+                                      categories: groups,
+                                      activeCategoryTitle: activeTitle,
+                                      onSelectTabIndex: (idx) {
+                                        final controller = _tabController;
+                                        if (controller != null &&
+                                            idx >= 0 &&
+                                            idx < groups.length) {
+                                          controller.animateTo(idx);
+                                        }
+                                      },
+                                    );
+                                  },
+                            child: Padding(
+                              padding: const EdgeInsets.all(10),
+                              child: IptvSvgIcon(
+                                IptvSvgIcons.layoutList,
+                                color: themeMode.onSurfaceColor,
+                                size: 20,
+                              ),
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 2),
                       ],
@@ -590,7 +646,13 @@ class _IptvChannelBrowserSheetState
             ];
           },
           body: groups.isEmpty || tc == null
-              ? _buildEmptyState(hasSearch: false)
+              ? (_isRefreshing
+                  ? _buildLoadingState(
+                      accentColor.color,
+                      themeMode.onSurfaceColor,
+                      themeMode.onSurfaceMutedColor,
+                    )
+                  : _buildEmptyState(hasSearch: false))
               : TabBarView(
                   controller: tc,
                   children: [
@@ -771,30 +833,32 @@ class _IptvChannelBrowserSheetState
     final subtitle =
         liveProg != null ? liveProg.title : 'No TV guide available | $groupLabel';
 
-    return Material(
-      color: themeMode.cardColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
+    return TvFocusable(
+      excludeChildFocus: true,
+      borderRadius: BorderRadius.circular(10),
+      onTap: () => launchIptvChannelPlayback(
+        context,
+        ref,
+        channel: ch,
+        scopeChannels: scope,
       ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => launchIptvChannelPlayback(
+      onLongPress: () => IptvEpgInfoBottomSheet.show(
+        context,
+        channel: ch,
+        programmes: progs,
+        onPlay: () => launchIptvChannelPlayback(
           context,
           ref,
           channel: ch,
           scopeChannels: scope,
         ),
-        onLongPress: () => IptvEpgInfoBottomSheet.show(
-          context,
-          channel: ch,
-          programmes: progs,
-          onPlay: () => launchIptvChannelPlayback(
-            context,
-            ref,
-            channel: ch,
-            scopeChannels: scope,
-          ),
+      ),
+      child: Material(
+        color: themeMode.cardColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
         ),
+        clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -893,30 +957,32 @@ class _IptvChannelBrowserSheetState
         ? '${timeFmt.format(liveProg.startTime)}-${timeFmt.format(liveProg.stopTime)} ${liveProg.title}'
         : 'No TV guide available | $groupLabel';
 
-    return Material(
-      color: themeMode.cardColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
+    return TvFocusable(
+      excludeChildFocus: true,
+      borderRadius: BorderRadius.circular(10),
+      onTap: () => launchIptvChannelPlayback(
+        context,
+        ref,
+        channel: ch,
+        scopeChannels: scope,
       ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => launchIptvChannelPlayback(
+      onLongPress: () => IptvEpgInfoBottomSheet.show(
+        context,
+        channel: ch,
+        programmes: progs,
+        onPlay: () => launchIptvChannelPlayback(
           context,
           ref,
           channel: ch,
           scopeChannels: scope,
         ),
-        onLongPress: () => IptvEpgInfoBottomSheet.show(
-          context,
-          channel: ch,
-          programmes: progs,
-          onPlay: () => launchIptvChannelPlayback(
-            context,
-            ref,
-            channel: ch,
-            scopeChannels: scope,
-          ),
+      ),
+      child: Material(
+        color: themeMode.cardColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
         ),
+        clipBehavior: Clip.antiAlias,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Row(
@@ -1008,30 +1074,32 @@ class _IptvChannelBrowserSheetState
     final liveProg = _liveProgramme(progs, now);
     final groupLabel = _groupLabel(ch);
 
-    return Material(
-      color: const Color(0xFF141519),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
+    return TvFocusable(
+      excludeChildFocus: true,
+      borderRadius: BorderRadius.circular(10),
+      onTap: () => launchIptvChannelPlayback(
+        context,
+        ref,
+        channel: ch,
+        scopeChannels: scope,
       ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => launchIptvChannelPlayback(
+      onLongPress: () => IptvEpgInfoBottomSheet.show(
+        context,
+        channel: ch,
+        programmes: progs,
+        onPlay: () => launchIptvChannelPlayback(
           context,
           ref,
           channel: ch,
           scopeChannels: scope,
         ),
-        onLongPress: () => IptvEpgInfoBottomSheet.show(
-          context,
-          channel: ch,
-          programmes: progs,
-          onPlay: () => launchIptvChannelPlayback(
-            context,
-            ref,
-            channel: ch,
-            scopeChannels: scope,
-          ),
+      ),
+      child: Material(
+        color: const Color(0xFF141519),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
         ),
+        clipBehavior: Clip.antiAlias,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -1113,30 +1181,32 @@ class _IptvChannelBrowserSheetState
     final liveProg = _liveProgramme(progs, now);
     final groupLabel = _groupLabel(ch);
 
-    return Material(
-      color: const Color(0xFF141519),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
+    return TvFocusable(
+      excludeChildFocus: true,
+      borderRadius: BorderRadius.circular(10),
+      onTap: () => launchIptvChannelPlayback(
+        context,
+        ref,
+        channel: ch,
+        scopeChannels: scope,
       ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => launchIptvChannelPlayback(
+      onLongPress: () => IptvEpgInfoBottomSheet.show(
+        context,
+        channel: ch,
+        programmes: progs,
+        onPlay: () => launchIptvChannelPlayback(
           context,
           ref,
           channel: ch,
           scopeChannels: scope,
         ),
-        onLongPress: () => IptvEpgInfoBottomSheet.show(
-          context,
-          channel: ch,
-          programmes: progs,
-          onPlay: () => launchIptvChannelPlayback(
-            context,
-            ref,
-            channel: ch,
-            scopeChannels: scope,
-          ),
+      ),
+      child: Material(
+        color: const Color(0xFF141519),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
         ),
+        clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -1199,6 +1269,44 @@ class _IptvChannelBrowserSheetState
     );
   }
 
+  Widget _buildLoadingState(
+    Color accentColor,
+    Color onSurfaceColor,
+    Color onSurfaceMutedColor,
+  ) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: accentColor),
+            const SizedBox(height: 16),
+            Text(
+              'Syncing playlist channels...',
+              style: TextStyle(
+                fontFamily: GoPlayType.family,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: onSurfaceColor,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Fetching and parsing channels from source',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: GoPlayType.family,
+                fontSize: 12.5,
+                color: onSurfaceMutedColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmptyState({required bool hasSearch}) {
     return Center(
       child: Padding(
@@ -1225,7 +1333,7 @@ class _IptvChannelBrowserSheetState
             Text(
               hasSearch
                   ? 'Try clearing or shortening your title filter.'
-                  : 'Tap Sync in the top bar to re-fetch channels from source.',
+                  : 'Tap Re-sync Now or pull down to fetch channels from source.',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontFamily: GoPlayType.family,
@@ -1233,6 +1341,14 @@ class _IptvChannelBrowserSheetState
                 color: Color(0xFF8E9099),
               ),
             ),
+            if (!hasSearch && widget.playlist.url.trim().isNotEmpty) ...[
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: _isRefreshing ? null : () => _refreshPlaylist(),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Re-sync Now'),
+              ),
+            ],
           ],
         ),
       ),

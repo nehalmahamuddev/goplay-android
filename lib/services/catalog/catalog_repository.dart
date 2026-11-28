@@ -8,6 +8,7 @@ import '../../models/category.dart';
 import '../../models/channel.dart';
 import '../../models/event.dart';
 import '../../models/hero_banner_item.dart';
+import '../../utils/channel_name.dart';
 import '../category_m3u_service.dart';
 import 'catalog_store.dart';
 import 'remote_catalog_adapter.dart';
@@ -269,15 +270,18 @@ class CatalogRepository {
   }) async {
     final channels = liveCatalog ??
         (await loadChannels()).where((c) => c.isLive).toList(growable: false);
-    final channelMap = {for (final ch in channels) ch.id: ch};
 
     try {
       final remoteTrending = await _remote.getTrendingChannels(limit: limit);
       if (remoteTrending.isNotEmpty) {
-        return remoteTrending
-            .where((t) => t.isLive && channelMap.containsKey(t.id))
-            .map((t) => channelMap[t.id]!)
-            .toList(growable: false);
+        final resolved = resolveTrendingChannels(
+          remoteTrending: remoteTrending,
+          liveCatalog: channels,
+          limit: limit,
+        );
+        if (resolved.isNotEmpty) {
+          return resolved;
+        }
       }
     } catch (e) {
       debugPrint('CatalogRepository: trending fetch fallback: $e');
@@ -285,7 +289,74 @@ class CatalogRepository {
 
     return channels
         .where((ch) => ch.isTrending && ch.isLive)
+        .take(limit)
         .toList(growable: false);
+  }
+
+  /// Resolves remote trending entries against [liveCatalog] by exact ID first,
+  /// then by `(category, normalizedName)` and finally by `normalizedName` so
+  /// DB-backed trending rows and legacy M3U IDs map cleanly to active M3U
+  /// channels without duplicates.
+  static List<Channel> resolveTrendingChannels({
+    required List<Channel> remoteTrending,
+    required List<Channel> liveCatalog,
+    int limit = 20,
+  }) {
+    if (remoteTrending.isEmpty || liveCatalog.isEmpty || limit <= 0) {
+      return const <Channel>[];
+    }
+
+    final byId = <String, Channel>{};
+    final byCategoryAndName = <(String, String), Channel>{};
+    final byName = <String, Channel>{};
+
+    for (final ch in liveCatalog) {
+      if (!ch.isLive) continue;
+      if (ch.id.isNotEmpty) {
+        byId.putIfAbsent(ch.id, () => ch);
+      }
+      final nameKey = _trendingNameMatchKey(ch.name);
+      if (nameKey.isEmpty) continue;
+      final catKey = (ch.category ?? '').trim().toLowerCase();
+      if (catKey.isNotEmpty) {
+        byCategoryAndName.putIfAbsent((catKey, nameKey), () => ch);
+      }
+      byName.putIfAbsent(nameKey, () => ch);
+    }
+
+    final resolved = <Channel>[];
+    final seenIds = <String>{};
+
+    for (final remote in remoteTrending) {
+      if (!remote.isLive) continue;
+
+      Channel? match = byId[remote.id];
+      if (match == null) {
+        final nameKey = _trendingNameMatchKey(remote.name);
+        if (nameKey.isNotEmpty) {
+          final catKey = (remote.category ?? '').trim().toLowerCase();
+          if (catKey.isNotEmpty) {
+            match = byCategoryAndName[(catKey, nameKey)];
+          }
+          match ??= byName[nameKey];
+        }
+      }
+
+      if (match == null) continue;
+      if (match.id.isEmpty || seenIds.add(match.id)) {
+        resolved.add(match);
+        if (resolved.length >= limit) break;
+      }
+    }
+
+    return resolved;
+  }
+
+  static String _trendingNameMatchKey(String rawName) {
+    final trimmed = rawName.trim();
+    if (trimmed.isEmpty || trimmed == 'Unknown Channel') return '';
+    final normalized = normalizeChannelName(trimmed).toLowerCase();
+    return normalized.replaceAll(RegExp(r'[^a-z0-9]'), '');
   }
 
   // ─── Events, Announcements, Hero Banners, UI Config ─────────────────────

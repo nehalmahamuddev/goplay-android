@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/typography.dart';
 import '../../../models/iptv_playlist.dart';
 import '../../../providers/theme_provider.dart';
+import '../../../widgets/tv_focus_wrapper.dart';
+import '../../../widgets/tv_modal.dart';
 import 'iptv_add_source_dialog.dart';
 import 'iptv_home_dialogs.dart';
 import 'iptv_svg_icon.dart';
@@ -13,7 +15,7 @@ class IptvAddMenuSheet extends ConsumerWidget {
   const IptvAddMenuSheet({super.key});
 
   static Future<void> show(BuildContext context) {
-    return showModalBottomSheet(
+    return showAdaptiveSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -80,19 +82,25 @@ class IptvAddMenuSheet extends ConsumerWidget {
                     ),
                   ),
                 ),
-                IconButton(
-                  tooltip: 'IPTV Guide',
-                  icon: IptvSvgIcon(
-                    IptvSvgIcons.help,
-                    color: themeMode.onSurfaceMutedColor,
-                    size: 20,
-                  ),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                  onPressed: () {
+                TvFocusable(
+                  isCircle: true,
+                  excludeChildFocus: true,
+                  semanticLabel: 'IPTV Guide',
+                  onTap: () {
                     Navigator.of(context).pop();
                     IptvGuideSheet.show(context);
                   },
+                  child: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Center(
+                      child: IptvSvgIcon(
+                        IptvSvgIcons.help,
+                        color: themeMode.onSurfaceMutedColor,
+                        size: 20,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -207,15 +215,17 @@ class IptvAddMenuSheet extends ConsumerWidget {
     bool isFirst = false,
     bool isLast = false,
   }) {
-    return InkWell(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        onTap();
-      },
+    return TvFocusable(
+      autoFocus: isFirst,
+      excludeChildFocus: true,
       borderRadius: BorderRadius.vertical(
         top: isFirst ? const Radius.circular(14) : Radius.zero,
         bottom: isLast ? const Radius.circular(14) : Radius.zero,
       ),
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(

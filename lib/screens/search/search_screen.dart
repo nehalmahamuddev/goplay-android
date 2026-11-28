@@ -9,7 +9,10 @@ import '../../models/channel.dart';
 import '../../models/event.dart';
 import '../../services/channel_stream_launcher.dart';
 import '../../services/event_stream_launcher.dart';
+import '../../services/tv_service.dart';
 import '../../widgets/cards/modern_event_card.dart';
+import '../../widgets/tv_focus_wrapper.dart';
+import '../../widgets/tv_modal.dart';
 
 /// Opens [ch] in the player scoped to [scope] — the list the user tapped it in.
 void _openPlayer(BuildContext context, Channel ch, List<Channel> scope) {
@@ -25,6 +28,7 @@ class SearchScreen extends ConsumerStatefulWidget {
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
+  final _searchFocusNode = FocusNode(debugLabel: 'GlobalSearchInput');
   String _query = '';
   bool _showCloseButton = false;
   Timer? _debounce;
@@ -40,6 +44,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void dispose() {
     _controller.removeListener(_onTextChanged);
     _controller.dispose();
+    _searchFocusNode.dispose();
     _debounce?.cancel();
     _analyticsDebounce?.cancel();
     super.dispose();
@@ -94,97 +99,132 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     return Scaffold(
       backgroundColor: cs.surface,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // YouTube-style sleek search bar
-            Container(
-              padding: const EdgeInsets.fromLTRB(4, 8, 16, 12),
-              decoration: BoxDecoration(
-                color: cs.surface,
-                border: const Border(
-                  bottom: BorderSide(
-                    color: Color(0x1AFFFFFF),
-                    width: 0.8,
+      body: Padding(
+        padding: TvScope.overscanPaddingOf(context),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // YouTube-style sleek search bar
+              Container(
+                padding: const EdgeInsets.fromLTRB(4, 8, 16, 12),
+                decoration: BoxDecoration(
+                  color: cs.surface,
+                  border: const Border(
+                    bottom: BorderSide(
+                      color: Color(0x1AFFFFFF),
+                      width: 0.8,
+                    ),
                   ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: GoPlayTheme.onSurface,
-                      size: 24,
-                    ),
-                    tooltip: 'Back',
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  Expanded(
-                    child: Container(
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: GoPlayTheme.surfaceContainer,
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      child: TextField(
-                        controller: _controller,
-                        autofocus: true,
-                        cursorColor: GoPlayTheme.primary,
-                        style: GoPlayType.body.copyWith(
+                child: Row(
+                  children: [
+                    TvFocusable(
+                      isCircle: true,
+                      excludeChildFocus: true,
+                      semanticLabel: 'Back',
+                      onTap: () => Navigator.of(context).pop(),
+                      child: const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: Icon(
+                          Icons.arrow_back_rounded,
                           color: GoPlayTheme.onSurface,
-                          fontSize: 15,
-                        ),
-                        onChanged: (value) {
-                          if (_debounce?.isActive ?? false) _debounce!.cancel();
-                          _debounce = Timer(const Duration(milliseconds: 200), () {
-                            setState(() {
-                              _query = value.trim();
-                            });
-                          });
-                          _scheduleSearchAnalytics(value);
-                        },
-                        decoration: InputDecoration(
-                          hintText: 'Search channels, matches, sports...',
-                          hintStyle: GoPlayType.body.copyWith(
-                            color: GoPlayTheme.onSurfaceVariant,
-                            fontSize: 15,
-                          ),
-                          filled: false,
-                          fillColor: Colors.transparent,
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          errorBorder: InputBorder.none,
-                          disabledBorder: InputBorder.none,
-                          focusedErrorBorder: InputBorder.none,
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 11,
-                            horizontal: 16,
-                          ),
-                          prefixIcon: const Icon(
-                            Icons.search_rounded,
-                            color: GoPlayTheme.onSurfaceVariant,
-                            size: 20,
-                          ),
-                          suffixIcon: _showCloseButton
-                              ? IconButton(
-                                  icon: const Icon(
-                                    Icons.close_rounded,
-                                    color: GoPlayTheme.onSurfaceVariant,
-                                    size: 20,
-                                  ),
-                                  onPressed: _clearSearch,
-                                )
-                              : null,
+                          size: 24,
                         ),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Container(
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: GoPlayTheme.surfaceContainer,
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Focus(
+                          canRequestFocus: false,
+                          onKeyEvent: (node, event) => handleTvTextFieldKeyEvent(
+                            _searchFocusNode,
+                            event,
+                            context,
+                            onSubmit: () {
+                              setState(() {
+                                _query = _controller.text.trim();
+                              });
+                            },
+                          ),
+                          child: TextField(
+                            controller: _controller,
+                            focusNode: _searchFocusNode,
+                            autofocus: !TvScope.isTvOf(context),
+                            textInputAction: TextInputAction.search,
+                            onSubmitted: (value) {
+                              _debounce?.cancel();
+                              setState(() {
+                                _query = value.trim();
+                              });
+                            },
+                            cursorColor: GoPlayTheme.primary,
+                            style: GoPlayType.body.copyWith(
+                              color: GoPlayTheme.onSurface,
+                              fontSize: 15,
+                            ),
+                            onChanged: (value) {
+                              if (_debounce?.isActive ?? false) _debounce!.cancel();
+                              _debounce = Timer(const Duration(milliseconds: 200), () {
+                                setState(() {
+                                  _query = value.trim();
+                                });
+                              });
+                              _scheduleSearchAnalytics(value);
+                            },
+                            decoration: InputDecoration(
+                              hintText: 'Search channels, matches, sports...',
+                              hintStyle: GoPlayType.body.copyWith(
+                                color: GoPlayTheme.onSurfaceVariant,
+                                fontSize: 15,
+                              ),
+                              filled: false,
+                              fillColor: Colors.transparent,
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              errorBorder: InputBorder.none,
+                              disabledBorder: InputBorder.none,
+                              focusedErrorBorder: InputBorder.none,
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 11,
+                                horizontal: 16,
+                              ),
+                              prefixIcon: const Icon(
+                                Icons.search_rounded,
+                                color: GoPlayTheme.onSurfaceVariant,
+                                size: 20,
+                              ),
+                              suffixIcon: _showCloseButton
+                                  ? TvFocusable(
+                                      isCircle: true,
+                                      excludeChildFocus: true,
+                                      semanticLabel: 'Clear search',
+                                      onTap: _clearSearch,
+                                      child: const Padding(
+                                        padding: EdgeInsets.all(8),
+                                        child: Icon(
+                                          Icons.close_rounded,
+                                          color: GoPlayTheme.onSurfaceVariant,
+                                          size: 20,
+                                        ),
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
 
             // Main Content: Empty State (Discovery) or Live Search Results
             Expanded(
@@ -200,6 +240,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -241,10 +282,11 @@ class _EmptySearchState extends ConsumerWidget {
             spacing: 8,
             runSpacing: 10,
             children: popularTags.map((tag) {
-              return InkWell(
-                onTap: () => onTagSelect(tag.query),
+              return TvFocusable(
+                excludeChildFocus: true,
                 borderRadius: BorderRadius.circular(8),
-                child: Ink(
+                onTap: () => onTagSelect(tag.query),
+                child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                   decoration: BoxDecoration(
                     color: GoPlayTheme.surfaceContainer,
@@ -326,22 +368,21 @@ class _EmptySearchState extends ConsumerWidget {
     Channel ch, {
     required List<Channel> scope,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: GoPlayTheme.surfaceContainer,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TvFocusable(
+        excludeChildFocus: true,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0x14FFFFFF),
-          width: 0.6,
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => _openPlayer(context, ch, scope),
+        onTap: () => _openPlayer(context, ch, scope),
+        child: Container(
+          decoration: BoxDecoration(
+            color: GoPlayTheme.surfaceContainer,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: const Color(0x14FFFFFF),
+              width: 0.6,
+            ),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
@@ -490,17 +531,21 @@ class _SearchResultsState extends ConsumerState<_SearchResults> {
                 maxLines: 3,
               ),
               const SizedBox(height: 20),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: GoPlayTheme.surfaceContainerHigh,
-                  foregroundColor: GoPlayTheme.onSurface,
+              TvFocusable(
+                excludeChildFocus: true,
+                borderRadius: BorderRadius.circular(100),
+                onTap: widget.onClear,
+                child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  shape: RoundedRectangleBorder(
+                  decoration: BoxDecoration(
+                    color: GoPlayTheme.surfaceContainerHigh,
                     borderRadius: BorderRadius.circular(100),
                   ),
+                  child: Text(
+                    'Clear search',
+                    style: GoPlayType.label.copyWith(color: GoPlayTheme.onSurface),
+                  ),
                 ),
-                onPressed: widget.onClear,
-                child: Text('Clear search', style: GoPlayType.label),
               ),
             ],
           ),
@@ -645,22 +690,21 @@ class _SearchResultsState extends ConsumerState<_SearchResults> {
     Channel ch, {
     required List<Channel> scope,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: GoPlayTheme.surfaceContainer,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TvFocusable(
+        excludeChildFocus: true,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0x14FFFFFF),
-          width: 0.6,
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => _openPlayer(context, ch, scope),
+        onTap: () => _openPlayer(context, ch, scope),
+        child: Container(
+          decoration: BoxDecoration(
+            color: GoPlayTheme.surfaceContainer,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: const Color(0x14FFFFFF),
+              width: 0.6,
+            ),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
@@ -808,10 +852,11 @@ class _LoadMoreButton extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(0, 8, 0, 4),
-      child: InkWell(
-        onTap: onTap,
+      child: TvFocusable(
+        excludeChildFocus: true,
         borderRadius: BorderRadius.circular(10),
-        child: Ink(
+        onTap: onTap,
+        child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 11),
           decoration: BoxDecoration(

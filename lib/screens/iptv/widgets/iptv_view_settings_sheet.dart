@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/typography.dart';
 import '../../../models/iptv_playlist.dart';
 import '../../../providers/iptv_providers.dart';
+import '../../../widgets/tv_modal.dart';
 
 /// Bottom sheet replicating `R.layout.layout_view_settings` (`res/qr.xml`, `context.md` §6.2).
 /// Allows switching List / Grid / Poster / Square modes, tuning Columns & Poster Aspect Ratio,
@@ -14,7 +15,7 @@ class IptvViewSettingsSheet extends ConsumerWidget {
   const IptvViewSettingsSheet({super.key, required this.playlistId});
 
   static Future<void> show(BuildContext context, String playlistId) {
-    return showModalBottomSheet(
+    return showAdaptiveSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

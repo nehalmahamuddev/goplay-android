@@ -1,20 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/theme.dart';
+import '../services/tv_service.dart';
 
 /// Platform-aware interaction wrapper.
 ///
 /// On Android TV / D-Pad devices this provisions a [FocusNode] and a [Focus]
 /// widget with visual focus indicators (border highlight, scale up) and key
-/// handlers.
+/// handlers. When [TvScope.isTvOf(context)] is true, focus visuals stay active
+/// even if an air-mouse or pointer temporarily changes Flutter's highlight mode.
 ///
 /// On mobile touch devices it genuinely skips FocusNode allocation, focus-tree
 /// registration and the implicit-animation controller, leaving only a
-/// [Listener] + [GestureDetector] and an instant press transform. The previous
-/// implementation documented this fast path but never took it: it called
-/// `_ensureFocusNode()` and wrapped in `Focus` + `AnimatedScale`
-/// unconditionally, so every grid card allocated a FocusNode *and* an
-/// AnimationController and churned both on every fling.
+/// [Listener] + [GestureDetector] and an instant press transform.
 class TvFocusable extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
@@ -27,6 +25,10 @@ class TvFocusable extends StatefulWidget {
   final Color? focusColor;
   final ValueChanged<bool>? onFocusChange;
   final FocusOnKeyEventCallback? onKeyEvent;
+
+  /// When true, prevents descendant Material buttons/InkWells/Switches from
+  /// creating duplicate D-Pad focus stops inside this [TvFocusable].
+  final bool excludeChildFocus;
 
   /// Optional accessibility label. When provided the wrapper exposes itself as
   /// a single semantic button instead of leaking its children's nodes.
@@ -45,6 +47,7 @@ class TvFocusable extends StatefulWidget {
     this.focusColor,
     this.onFocusChange,
     this.onKeyEvent,
+    this.excludeChildFocus = false,
     this.semanticLabel,
   });
 
@@ -152,7 +155,8 @@ class _TvFocusableState extends State<TvFocusable> {
     // Scoped read: the old `MediaQuery.of(context)` subscribed to *every*
     // MediaQuery field, so opening the search keyboard (viewInsets change)
     // rebuilt every card in the grid.
-    final isDpadMode = _highlightIsTraditional ||
+    final isDpadMode = TvScope.isTvOf(context) ||
+        _highlightIsTraditional ||
         MediaQuery.navigationModeOf(context) == NavigationMode.directional;
 
     // Focus is also required when a caller drives focus explicitly (nav rail
@@ -165,11 +169,15 @@ class _TvFocusableState extends State<TvFocusable> {
     final focusColor = widget.focusColor ?? GoPlayTheme.primary;
     final showFocusRing = _isFocused && isDpadMode;
 
+    final innerChild = widget.excludeChildFocus
+        ? ExcludeFocus(child: widget.child)
+        : widget.child;
+
     Widget visual = Stack(
       alignment: Alignment.center,
       clipBehavior: Clip.none,
       children: [
-        widget.child,
+        innerChild,
 
         // Instant touch-down press overlay.
         if (_isPressed)

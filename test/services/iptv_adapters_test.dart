@@ -200,5 +200,114 @@ void main() {
       await container.read(iptvPlaylistsProvider.notifier).deletePlaylist('pl_a');
       expect(container.read(selectedIptvPlaylistProvider), isNull);
     });
+
+    test('frequently-updating playlists revalidate when stale, deduplicate concurrent syncs, and match shifted channel IDs', () async {
+      final staleTime = DateTime.now().subtract(const Duration(minutes: 10));
+      final freshTime = DateTime.now().subtract(const Duration(seconds: 20));
+
+      final stalePlaylist = IptvPlaylist(
+        id: 'pl_freq',
+        name: 'Rotating Tokens',
+        sourceType: IptvSourceType.m3uUrl,
+        url: 'https://m3u.test/rotating.m3u',
+        addedAt: staleTime,
+        lastSync: staleTime,
+        channelCount: 1,
+        channels: [
+          Channel(
+            id: 'pl_freq_c_sports.hd_1',
+            name: 'Sports HD',
+            category: 'Sports',
+            tvgId: 'sports.hd',
+            streamUrl: 'https://cdn.test/live.m3u8?token=expired',
+          ),
+        ],
+      );
+
+      final freshPlaylist = IptvPlaylist(
+        id: 'pl_fresh',
+        name: 'Fresh Pack',
+        sourceType: IptvSourceType.m3uUrl,
+        url: 'https://m3u.test/fresh.m3u',
+        addedAt: freshTime,
+        lastSync: freshTime,
+        channelCount: 1,
+        channels: [
+          Channel(
+            id: 'pl_fresh_c_1_1',
+            name: 'Fresh One',
+            streamUrl: 'https://cdn.test/fresh.m3u8',
+          ),
+        ],
+      );
+
+      expect(stalePlaylist.isCacheFresh, isTrue);
+      expect(stalePlaylist.needsBackgroundRevalidation(), isTrue);
+      expect(freshPlaylist.needsBackgroundRevalidation(), isFalse);
+
+      var fetchCount = 0;
+      final storage = InMemoryIptvStorageAdapter([stalePlaylist, freshPlaylist]);
+      final source = _FakeIptvSourceAdapter((pl) {
+        fetchCount++;
+        if (pl.id == 'pl_freq') {
+          // Simulate index shift (channel moved from index 1 -> index 2) and rotated token
+          return pl.copyWith(
+            lastSync: DateTime.now(),
+            channelCount: 2,
+            channels: [
+              Channel(
+                id: 'pl_freq_c_intro_1',
+                name: 'Intro Channel',
+                category: 'Info',
+                streamUrl: 'https://cdn.test/intro.m3u8',
+              ),
+              Channel(
+                id: 'pl_freq_c_sports.hd_2',
+                name: 'Sports HD',
+                category: 'Sports',
+                tvgId: 'sports.hd',
+                streamUrl: 'https://cdn.test/live.m3u8?token=fresh_123',
+                headers: const {'Authorization': 'Bearer fresh_tok'},
+              ),
+            ],
+          );
+        }
+        return pl;
+      });
+
+      final container = ProviderContainer(
+        overrides: [
+          iptvServiceProvider.overrideWithValue(
+            IptvService(storage: storage, source: source),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(iptvPlaylistsProvider.future);
+
+      // 1. Background stale sync updates only pl_freq (not pl_fresh).
+      await container
+          .read(iptvPlaylistsProvider.notifier)
+          .syncStalePlaylists(maxAge: const Duration(minutes: 5));
+      expect(fetchCount, 1);
+
+      // 2. Concurrent refreshPlaylist calls share a single in-flight fetch.
+      await Future.wait([
+        container.read(iptvPlaylistsProvider.notifier).refreshPlaylist('pl_freq'),
+        container.read(iptvPlaylistsProvider.notifier).refreshPlaylist('pl_freq'),
+      ]);
+      expect(fetchCount, 2);
+
+      // 3. Failed stale channel resolves to the updated channel even across index shifts.
+      final staleFailed = stalePlaylist.channels.single;
+      final recovered = await container
+          .read(iptvPlaylistsProvider.notifier)
+          .refreshChannelFromSource(staleFailed);
+      expect(recovered, isNotNull);
+      expect(recovered!.id, 'pl_freq_c_sports.hd_2');
+      expect(recovered.streamUrl, 'https://cdn.test/live.m3u8?token=fresh_123');
+      expect(recovered.headers['Authorization'], 'Bearer fresh_tok');
+    });
   });
 }

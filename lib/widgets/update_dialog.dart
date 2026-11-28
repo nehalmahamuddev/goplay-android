@@ -477,6 +477,7 @@ class UpdateDialog extends ConsumerWidget {
               if (!isForce) const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton(
+                  autofocus: true,
                   onPressed: () {
                     notifier.installApk();
                   },

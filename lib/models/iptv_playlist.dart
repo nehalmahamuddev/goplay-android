@@ -473,10 +473,27 @@ class IptvPlaylist {
     this.channels = const [],
   });
 
+  bool get isRemoteSource =>
+      sourceType == IptvSourceType.m3uUrl ||
+      sourceType == IptvSourceType.xtream ||
+      sourceType == IptvSourceType.stalker;
+
+  bool get hasRemoteEndpoint => isRemoteSource && url.trim().isNotEmpty;
+
   bool get isCacheFresh =>
       channels.isNotEmpty &&
       lastSync != null &&
       DateTime.now().difference(lastSync!).inHours < 24;
+
+  /// Whether a remote playlist should re-fetch fresh channel links/tokens in the
+  /// background on open while showing cached channels immediately.
+  bool needsBackgroundRevalidation({
+    Duration maxAge = const Duration(minutes: 2),
+  }) {
+    if (!hasRemoteEndpoint) return false;
+    if (channels.isEmpty || lastSync == null) return true;
+    return DateTime.now().difference(lastSync!) >= maxAge;
+  }
 
   IptvPlaylist copyWith({
     String? id,

@@ -5,6 +5,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../../../core/constants.dart';
 import '../../../core/typography.dart';
 import '../../../providers/theme_provider.dart';
+import '../../../providers/tv_provider.dart';
+import '../../../widgets/tv_focus_wrapper.dart';
 import '../widgets/setting_section_header.dart';
 import '../widgets/setting_tile.dart';
 
@@ -17,9 +19,6 @@ class PlayerSettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _PlayerSettingsScreenState extends ConsumerState<PlayerSettingsScreen> {
-  bool _hwAcceleration = true;
-  bool _autoPlay = true;
-  bool _backgroundAudio = false;
   bool _volumeBrightnessGestures = true;
   bool _extraBrightness = false;
   bool _doubleTapSeek = false;
@@ -95,46 +94,48 @@ class _PlayerSettingsScreenState extends ConsumerState<PlayerSettingsScreen> {
                   final isSelected = opt == currentValue;
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                    child: Material(
-                      color: isSelected
-                          ? cs.primary.withValues(alpha: 0.10)
-                          : Colors.transparent,
+                    child: TvFocusable(
+                      autoFocus: isSelected,
+                      excludeChildFocus: true,
                       borderRadius: BorderRadius.circular(12),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () {
-                          onSelected(opt);
-                          Navigator.of(context).pop();
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  opt,
-                                  style: TextStyle(
-                                    fontFamily: GoPlayType.family,
-                                    fontSize: 15,
-                                    fontWeight: isSelected
-                                        ? FontWeight.w700
-                                        : FontWeight.w500,
-                                    color: isSelected ? cs.primary : cs.onSurface,
-                                  ),
+                      onTap: () {
+                        onSelected(opt);
+                        Navigator.of(context).pop();
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? cs.primary.withValues(alpha: 0.10)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                opt,
+                                style: TextStyle(
+                                  fontFamily: GoPlayType.family,
+                                  fontSize: 15,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: isSelected ? cs.primary : cs.onSurface,
                                 ),
                               ),
-                              Radio<String>(
-                                value: opt,
-                                activeColor: cs.primary,
-                                materialTapTargetSize:
-                                    MaterialTapTargetSize.shrinkWrap,
-                                visualDensity: VisualDensity.compact,
-                              ),
-                            ],
-                          ),
+                            ),
+                            Radio<String>(
+                              value: opt,
+                              activeColor: cs.primary,
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -174,6 +175,10 @@ class _PlayerSettingsScreenState extends ConsumerState<PlayerSettingsScreen> {
     final cs = theme.colorScheme;
     final themeMode = ref.watch(activeThemeModeProvider);
     final headerBg = theme.bottomNavigationBarTheme.backgroundColor ?? themeMode.bottomNavColor;
+    final hwAcceleration = ref.watch(hwAccelerationProvider);
+    final useSurfaceView = ref.watch(useSurfaceViewProvider);
+    final autoPlay = ref.watch(autoPlayOnOpenProvider);
+    final backgroundAudio = ref.watch(backgroundAudioProvider);
 
     return Scaffold(
       backgroundColor: cs.surface,
@@ -199,16 +204,20 @@ class _PlayerSettingsScreenState extends ConsumerState<PlayerSettingsScreen> {
               elevation: 0,
               scrolledUnderElevation: 0,
               automaticallyImplyLeading: false,
-              leading: IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
-                tooltip: 'Back',
-                onPressed: () {
+              leading: TvFocusable(
+                isCircle: true,
+                excludeChildFocus: true,
+                semanticLabel: 'Back',
+                onTap: () {
                   if (Navigator.of(context).canPop()) {
                     Navigator.of(context).pop();
                   } else {
                     context.go('/settings');
                   }
                 },
+                child: Center(
+                  child: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
+                ),
               ),
               title: Text(
                 'Player',
@@ -229,23 +238,30 @@ class _PlayerSettingsScreenState extends ConsumerState<PlayerSettingsScreen> {
               SettingSwitchTile(
                 icon: Icons.memory_rounded,
                 title: 'Hardware Acceleration',
-                subtitle: 'Leverages GPU hardware decoding for ultra-low latency & cooler device',
-                value: _hwAcceleration,
-                onChanged: (val) => setState(() => _hwAcceleration = val),
+                subtitle: 'Uses GPU hardware decoders; turn off to prefer software decoding on incompatible TV boxes',
+                value: hwAcceleration,
+                onChanged: (val) => ref.read(hwAccelerationProvider.notifier).setEnabled(val),
+              ),
+              SettingSwitchTile(
+                icon: Icons.layers_outlined,
+                title: 'SurfaceView Rendering (DRM / 4K TV)',
+                subtitle: 'Recommended if Widevine DRM shows black video on Android TV',
+                value: useSurfaceView,
+                onChanged: (val) => ref.read(useSurfaceViewProvider.notifier).setEnabled(val),
               ),
               SettingSwitchTile(
                 icon: Icons.play_circle_outline_rounded,
                 title: 'Auto-play Stream on Open',
                 subtitle: 'Automatically start live broadcast upon entering the player view',
-                value: _autoPlay,
-                onChanged: (val) => setState(() => _autoPlay = val),
+                value: autoPlay,
+                onChanged: (val) => ref.read(autoPlayOnOpenProvider.notifier).setEnabled(val),
               ),
               SettingSwitchTile(
                 icon: Icons.headphones_outlined,
                 title: 'Background Audio Playback',
                 subtitle: 'Keep audio active when screen is turned off or navigating away',
-                value: _backgroundAudio,
-                onChanged: (val) => setState(() => _backgroundAudio = val),
+                value: backgroundAudio,
+                onChanged: (val) => ref.read(backgroundAudioProvider.notifier).setEnabled(val),
               ),
 
               const SizedBox(height: 12),

@@ -16,6 +16,8 @@ import 'utils/web_helper.dart';
 import 'widgets/update_handler.dart';
 import 'widgets/app_broadcast_wrapper.dart';
 import 'providers/app_providers.dart';
+import 'providers/tv_provider.dart';
+import 'services/tv_service.dart';
 
 // Global future that SplashScreen waits on before navigating.
 // Completes when all heavy init is done.
@@ -31,10 +33,21 @@ void main() async {
     debugPrint('Global FlutterError caught: ${details.exceptionAsString()}');
   };
 
+  // Detect native Android TV & low-RAM capabilities early so ImageCache & TvScope are ready on frame 1.
+  await TvDeviceInfo.instance.init();
+
   // Cap the image cache to avoid unbounded decoded-image GC pressure.
-  // 200 images max; 80 MB total — covers a full search result page with headroom.
-  PaintingBinding.instance.imageCache.maximumSize = 200;
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 80 * 1024 * 1024;
+  // Tighter bounds on Android TV / low-RAM TV boxes prevent OOM crashes.
+  if (TvDeviceInfo.instance.isLowRam) {
+    PaintingBinding.instance.imageCache.maximumSize = 60;
+    PaintingBinding.instance.imageCache.maximumSizeBytes = 24 * 1024 * 1024;
+  } else if (TvDeviceInfo.instance.nativeIsTv) {
+    PaintingBinding.instance.imageCache.maximumSize = 110;
+    PaintingBinding.instance.imageCache.maximumSizeBytes = 44 * 1024 * 1024;
+  } else {
+    PaintingBinding.instance.imageCache.maximumSize = 200;
+    PaintingBinding.instance.imageCache.maximumSizeBytes = 80 * 1024 * 1024;
+  }
 
   // System UI — synchronous, no cost.
   try {
@@ -163,6 +176,8 @@ class GoPlayApp extends ConsumerWidget {
     }
     final dynamicTheme = ref.watch(appThemeProvider);
     final router = ref.watch(routerProvider);
+    final tvOverride = ref.watch(tvModeOverrideProvider);
+    final overscanEnabled = ref.watch(tvOverscanEnabledProvider);
 
     return AppBroadcastWrapper(
       child: MaterialApp.router(
@@ -173,12 +188,20 @@ class GoPlayApp extends ConsumerWidget {
         themeMode: ThemeMode.dark,
         routerConfig: router,
         builder: (context, child) {
+          final isTv = TvDeviceInfo.instance.resolveIsTv(
+            context,
+            override: tvOverride,
+          );
           // Bound the system font scale. Unclamped accessibility scaling
           // overflowed fixed-height layouts such as the channel grid cards.
-          return MediaQuery.withClampedTextScaling(
-            minScaleFactor: 1.0,
-            maxScaleFactor: 1.3,
-            child: UpdateHandler(child: child!),
+          return TvScope(
+            isTv: isTv,
+            overscanEnabled: overscanEnabled,
+            child: MediaQuery.withClampedTextScaling(
+              minScaleFactor: 1.0,
+              maxScaleFactor: 1.3,
+              child: UpdateHandler(child: child!),
+            ),
           );
         },
       ),

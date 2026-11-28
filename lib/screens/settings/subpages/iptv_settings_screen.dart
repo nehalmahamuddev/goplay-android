@@ -8,6 +8,8 @@ import '../../../core/typography.dart';
 import '../../../models/iptv_playlist.dart';
 import '../../../providers/iptv_providers.dart';
 import '../../../providers/theme_provider.dart';
+import '../../../widgets/tv_focus_wrapper.dart';
+import '../../../widgets/tv_modal.dart';
 import '../../iptv/widgets/iptv_category_sheets.dart';
 import '../../iptv/widgets/iptv_home_dialogs.dart';
 import '../widgets/setting_section_header.dart';
@@ -19,7 +21,7 @@ class IptvSettingsScreen extends ConsumerWidget {
   const IptvSettingsScreen({super.key});
 
   Future<void> _showBackgroundPicker(BuildContext context, WidgetRef ref) async {
-    await showModalBottomSheet<void>(
+    await showAdaptiveSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -192,16 +194,20 @@ class IptvSettingsScreen extends ConsumerWidget {
               elevation: 0,
               scrolledUnderElevation: 0,
               automaticallyImplyLeading: false,
-              leading: IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
-                tooltip: 'Back',
-                onPressed: () {
+              leading: TvFocusable(
+                isCircle: true,
+                excludeChildFocus: true,
+                semanticLabel: 'Back',
+                onTap: () {
                   if (Navigator.of(context).canPop()) {
                     Navigator.of(context).pop();
                   } else {
                     context.go('/settings');
                   }
                 },
+                child: Center(
+                  child: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
+                ),
               ),
               title: Text(
                 'Playlists',

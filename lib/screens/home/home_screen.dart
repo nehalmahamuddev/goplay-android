@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
 import '../../core/typography.dart';
 import '../../providers/app_providers.dart';
+import '../../services/tv_service.dart';
 
 import 'widgets/home_sliver_app_bar.dart';
 import 'widgets/home_hero_banner.dart';
@@ -109,8 +110,7 @@ class HomeScreen extends ConsumerWidget {
     // Adaptive bottom inset: adapts dynamically to TV/Desktop side rail vs mobile gesture bar
     final size = MediaQuery.sizeOf(context);
     final isLandscape = size.width > size.height;
-    final isTv = MediaQuery.navigationModeOf(context) == NavigationMode.directional ||
-        FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
+    final isTv = TvScope.isTvOf(context);
     final isDesktop = isLandscape || isTv;
     final bottomPadding = MediaQuery.paddingOf(context).bottom;
     final topPadding = MediaQuery.paddingOf(context).top;

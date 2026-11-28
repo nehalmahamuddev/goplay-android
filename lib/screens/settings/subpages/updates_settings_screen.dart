@@ -8,6 +8,7 @@ import '../../../core/typography.dart';
 import '../../../providers/app_providers.dart';
 import '../../../providers/theme_provider.dart';
 import '../../../providers/update_notifier.dart';
+import '../../../widgets/tv_focus_wrapper.dart';
 import '../widgets/setting_section_header.dart';
 import '../widgets/setting_tile.dart';
 
@@ -78,16 +79,20 @@ class _UpdatesSettingsScreenState extends ConsumerState<UpdatesSettingsScreen> {
               elevation: 0,
               scrolledUnderElevation: 0,
               automaticallyImplyLeading: false,
-              leading: IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
-                tooltip: 'Back',
-                onPressed: () {
+              leading: TvFocusable(
+                isCircle: true,
+                excludeChildFocus: true,
+                semanticLabel: 'Back',
+                onTap: () {
                   if (Navigator.of(context).canPop()) {
                     Navigator.of(context).pop();
                   } else {
                     context.go('/settings');
                   }
                 },
+                child: Center(
+                  child: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
+                ),
               ),
               title: Text(
                 'Updates and Backup',

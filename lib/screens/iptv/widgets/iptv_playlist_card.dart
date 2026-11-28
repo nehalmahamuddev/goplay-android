@@ -7,14 +7,16 @@ import '../../../models/iptv_playlist.dart';
 import '../../../providers/iptv_providers.dart';
 import '../../../providers/theme_provider.dart';
 import '../../../services/iptv_service.dart';
+import '../../../widgets/tv_focus_wrapper.dart';
 import 'iptv_add_source_dialog.dart';
 import 'iptv_channel_browser_sheet.dart';
 import 'iptv_home_dialogs.dart';
 import 'iptv_svg_icon.dart';
 
 /// Card component representing an imported IPTV playlist (drag/select handle,
-/// playlist title, date & channel count metadata, source URL, and options menu).
-class IptvPlaylistCard extends ConsumerWidget {
+/// playlist title, date & channel count metadata, source URL, stale badge, and options menu).
+/// Matches the APK's per-playlist `progressLoading` sync indicator and `showExpiredDialog` pattern.
+class IptvPlaylistCard extends ConsumerStatefulWidget {
   final IptvPlaylist playlist;
   final bool isGrid;
   final int? index;
@@ -33,6 +35,19 @@ class IptvPlaylistCard extends ConsumerWidget {
     this.onToggleSelect,
     this.onLongPress,
   });
+
+  @override
+  ConsumerState<IptvPlaylistCard> createState() => _IptvPlaylistCardState();
+}
+
+class _IptvPlaylistCardState extends ConsumerState<IptvPlaylistCard> {
+  IptvPlaylist get playlist => widget.playlist;
+  bool get isGrid => widget.isGrid;
+  int? get index => widget.index;
+  bool get selectionMode => widget.selectionMode;
+  bool get isSelected => widget.isSelected;
+  VoidCallback? get onToggleSelect => widget.onToggleSelect;
+  VoidCallback? get onLongPress => widget.onLongPress;
 
   Color _getAvatarColor(String name) {
     const colors = [
@@ -64,6 +79,21 @@ class IptvPlaylistCard extends ConsumerWidget {
     return '$day/$month/$year';
   }
 
+  Future<void> _syncWithProgress(BuildContext context) async {
+    final syncStates = ref.read(iptvPlaylistSyncStatesProvider.notifier);
+    syncStates.setLoading(playlist.id);
+    try {
+      await ref.read(iptvPlaylistsProvider.notifier).refreshPlaylist(playlist.id);
+      if (mounted) syncStates.setDone(playlist.id);
+    } catch (e) {
+      if (mounted) {
+        syncStates.setError(playlist.id, e.toString());
+        await Future<void>.delayed(const Duration(seconds: 3));
+        if (mounted) syncStates.setDone(playlist.id);
+      }
+    }
+  }
+
   void _handleMenuAction(BuildContext context, WidgetRef ref, String action) async {
     switch (action) {
       case 'edit':
@@ -72,16 +102,7 @@ class IptvPlaylistCard extends ConsumerWidget {
 
       case 'refresh':
         HapticFeedback.lightImpact();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Syncing "${playlist.name}"...'),
-            duration: const Duration(seconds: 1),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        await ref
-            .read(iptvPlaylistsProvider.notifier)
-            .refreshPlaylist(playlist.id);
+        await _syncWithProgress(context);
         break;
 
       case 'rename':
@@ -230,15 +251,24 @@ class IptvPlaylistCard extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final themeMode = ref.watch(activeThemeModeProvider);
     final accentColor = ref.watch(activeAccentColorProvider);
+    final syncState = ref.watch(iptvPlaylistSyncStatesProvider)[playlist.id];
+    final isSyncing = syncState?.isSyncing ?? false;
     final avatarColor = _getAvatarColor(playlist.name);
     final initials = _getInitials(playlist.name);
     final dateStr = _formatDate(playlist.lastSync ?? playlist.addedAt);
 
     final hasEpg = playlist.epgUrl != null && playlist.epgUrl!.trim().isNotEmpty;
     final hasUrl = playlist.url.trim().isNotEmpty;
+    final isRemoteSource = playlist.sourceType == IptvSourceType.m3uUrl ||
+        playlist.sourceType == IptvSourceType.xtream ||
+        playlist.sourceType == IptvSourceType.stalker;
+    final isStale = isRemoteSource &&
+        hasUrl &&
+        playlist.lastSync != null &&
+        !playlist.isCacheFresh;
     final selectedHighlight = selectionMode && isSelected;
     final cardBgColor = selectedHighlight
         ? accentColor.color.withValues(alpha: 0.14)
@@ -248,30 +278,45 @@ class IptvPlaylistCard extends ConsumerWidget {
         : themeMode.dividerColor;
     const cardRadius = BorderRadius.all(Radius.circular(12));
 
-    return Material(
-      color: cardBgColor,
-      shape: const RoundedRectangleBorder(borderRadius: cardRadius),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          if (selectionMode) {
-            onToggleSelect?.call();
-          } else {
-            IptvChannelBrowserSheet.show(context, playlist);
-          }
-        },
-        onLongPress: selectionMode ? null : onLongPress,
-        borderRadius: cardRadius,
+    return TvFocusable(
+      borderRadius: cardRadius,
+      onTap: () {
+        HapticFeedback.selectionClick();
+        if (selectionMode) {
+          onToggleSelect?.call();
+        } else {
+          IptvChannelBrowserSheet.show(context, playlist);
+        }
+      },
+      onLongPress: selectionMode ? null : onLongPress,
+      child: Material(
+        color: cardBgColor,
+        shape: const RoundedRectangleBorder(borderRadius: cardRadius),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          canRequestFocus: false,
+          onTap: () {
+            HapticFeedback.selectionClick();
+            if (selectionMode) {
+              onToggleSelect?.call();
+            } else {
+              IptvChannelBrowserSheet.show(context, playlist);
+            }
+          },
+          onLongPress: selectionMode ? null : onLongPress,
+          borderRadius: cardRadius,
         child: DecoratedBox(
           decoration: BoxDecoration(
             border: Border(
               left: BorderSide(color: borderColor, width: 3),
             ),
           ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(4, 14, 4, 14),
-          child: Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 14, 4, 14),
+                child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // Selection checkbox in Multi-Select mode, otherwise 48dp touch-friendly drag handle
@@ -390,6 +435,53 @@ class IptvPlaylistCard extends ConsumerWidget {
                             ),
                           ),
                         ),
+                        if (isSyncing) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: accentColor.color.withAlpha(25),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'SYNCING',
+                              style: TextStyle(
+                                fontFamily: GoPlayType.family,
+                                fontSize: GoPlayType.xs,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: GoPlayType.trackingMeta,
+                                height: GoPlayType.leadingFlat,
+                                color: accentColor.color,
+                              ),
+                            ),
+                          ),
+                        ] else if (isStale) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF59E0B).withAlpha(28),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'STALE',
+                              style: TextStyle(
+                                fontFamily: GoPlayType.family,
+                                fontSize: GoPlayType.xs,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: GoPlayType.trackingMeta,
+                                height: GoPlayType.leadingFlat,
+                                color: Color(0xFFF59E0B),
+                              ),
+                            ),
+                          ),
+                        ],
                         if (hasEpg) ...[
                           const SizedBox(width: 8),
                           Container(
@@ -529,7 +621,16 @@ class IptvPlaylistCard extends ConsumerWidget {
         ],
       ),
     ),
+              if (isSyncing)
+                LinearProgressIndicator(
+                  minHeight: 2.5,
+                  backgroundColor: Colors.transparent,
+                  valueColor: AlwaysStoppedAnimation<Color>(accentColor.color),
+                ),
+            ],
+          ),
     ),
+  ),
   ),
 );
   }

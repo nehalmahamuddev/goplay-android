@@ -4,6 +4,7 @@ import '../models/channel.dart';
 import '../models/drm_config.dart';
 import '../models/iptv_playlist.dart';
 import '../services/iptv_service.dart';
+import '../services/playback/playback_session.dart';
 import 'app_providers.dart';
 
 /// Singleton service provider
@@ -443,6 +444,8 @@ final iptvPlaylistsProvider =
 );
 
 class IptvPlaylistsNotifier extends AsyncNotifier<List<IptvPlaylist>> {
+  final Map<String, Future<IptvPlaylist?>> _inFlightRefreshes = {};
+
   @override
   Future<List<IptvPlaylist>> build() async {
     final service = ref.read(iptvServiceProvider);
@@ -480,28 +483,94 @@ class IptvPlaylistsNotifier extends AsyncNotifier<List<IptvPlaylist>> {
     return effective;
   }
 
-  /// Refresh / re-sync an existing playlist & return the updated playlist
-  Future<IptvPlaylist?> refreshPlaylist(String id) async {
+  /// Refresh / re-sync an existing playlist & return the updated playlist.
+  /// Concurrent calls for the same [id] share the active in-flight request.
+  Future<IptvPlaylist?> refreshPlaylist(String id) {
+    final existing = _inFlightRefreshes[id];
+    if (existing != null) return existing;
+
+    final future = _performRefreshPlaylist(id).whenComplete(() {
+      _inFlightRefreshes.remove(id);
+    });
+    _inFlightRefreshes[id] = future;
+    return future;
+  }
+
+  Future<IptvPlaylist?> _performRefreshPlaylist(String id) async {
     final current = state.value ?? [];
     final index = current.indexWhere((p) => p.id == id);
     if (index == -1) return null;
 
     final target = current[index];
     final service = ref.read(iptvServiceProvider);
+    final syncStates = ref.read(iptvPlaylistSyncStatesProvider.notifier);
+    syncStates.setLoading(id);
 
-    final refreshed = await service.fetchAndParse(target);
-    await service.savePlaylist(refreshed);
+    try {
+      final refreshed = await service.fetchAndParse(target);
+      await service.savePlaylist(refreshed);
 
-    final updated = List<IptvPlaylist>.from(current);
-    updated[index] = refreshed;
-    state = AsyncData(updated);
+      final updated = List<IptvPlaylist>.from(state.value ?? current);
+      final liveIndex = updated.indexWhere((p) => p.id == id);
+      if (liveIndex != -1) {
+        updated[liveIndex] = refreshed;
+        state = AsyncData(updated);
+      }
 
-    if (refreshed.epgUrl != null && refreshed.epgUrl!.isNotEmpty) {
-      await ref
-          .read(iptvEpgProvider.notifier)
-          .loadEpgForPlaylist(refreshed, forceRefresh: true);
+      if (refreshed.epgUrl != null && refreshed.epgUrl!.isNotEmpty) {
+        await ref
+            .read(iptvEpgProvider.notifier)
+            .loadEpgForPlaylist(refreshed, forceRefresh: true);
+      }
+      syncStates.setDone(id);
+      return refreshed;
+    } catch (e) {
+      syncStates.setError(id, e.toString());
+      rethrow;
     }
-    return refreshed;
+  }
+
+  /// Silently revalidates remote playlists whose [lastSync] is older than
+  /// [maxAge] so frequently-updating URLs stay playable across opens.
+  Future<void> syncStalePlaylists({
+    Duration maxAge = const Duration(minutes: 5),
+  }) async {
+    final list = List<IptvPlaylist>.from(state.value ?? await future);
+    for (final p in list) {
+      if (!p.needsBackgroundRevalidation(maxAge: maxAge)) continue;
+      try {
+        await refreshPlaylist(p.id);
+      } catch (_) {}
+    }
+  }
+
+  /// Refreshes the parent IPTV playlist (if remote) and resolves fresh playback
+  /// URLs/headers/DRM for [failedChannel] when tokens or endpoints rotate.
+  Future<Channel?> refreshChannelFromSource(Channel failedChannel) async {
+    final list = state.value ?? await future;
+    final owner = findOwnerPlaylist(failedChannel, list);
+    final service = ref.read(iptvServiceProvider);
+
+    Channel? candidate;
+    if (owner != null && owner.hasRemoteEndpoint) {
+      try {
+        final refreshed = await refreshPlaylist(owner.id);
+        if (refreshed != null) {
+          candidate =
+              findMatchingRefreshedChannel(failedChannel, refreshed.channels);
+        }
+      } catch (_) {}
+    }
+
+    final base = candidate ?? failedChannel;
+    if (PlaybackSessionCoordinator.needsIptvResolution(base)) {
+      try {
+        final resolved = await service.resolveChannelForPlayback(base);
+        return resolved;
+      } catch (_) {}
+    }
+
+    return candidate;
   }
 
   Future<void> reorderPlaylists(int oldIndex, int newIndex) async {
@@ -742,6 +811,41 @@ List<Channel> filterIptvCategoryChannels(List<Channel> source, String rawQuery) 
       .toList(growable: false);
 }
 
+/// Per-playlist sync state: idle (absent), syncing, or error (matches APK `progressLoading` visibility).
+final iptvPlaylistSyncStatesProvider =
+    NotifierProvider<IptvPlaylistSyncStatesNotifier, Map<String, IptvPlaylistSyncState>>(
+  IptvPlaylistSyncStatesNotifier.new,
+);
+
+/// Sync state for a single playlist.
+class IptvPlaylistSyncState {
+  final bool isSyncing;
+  final String? error;
+  const IptvPlaylistSyncState({this.isSyncing = false, this.error});
+}
+
+class IptvPlaylistSyncStatesNotifier
+    extends Notifier<Map<String, IptvPlaylistSyncState>> {
+  @override
+  Map<String, IptvPlaylistSyncState> build() => const {};
+
+  void setLoading(String id) {
+    state = {...state, id: const IptvPlaylistSyncState(isSyncing: true)};
+  }
+
+  void setError(String id, String message) {
+    state = {...state, id: IptvPlaylistSyncState(isSyncing: false, error: message)};
+  }
+
+  void setDone(String id) {
+    final next = Map<String, IptvPlaylistSyncState>.from(state)..remove(id);
+    state = next;
+  }
+
+  bool isSyncing(String id) => state[id]?.isSyncing ?? false;
+  String? errorFor(String id) => state[id]?.error;
+}
+
 /// Backwards-compatible provider exposing the active category's filtered channels.
 final filteredIptvChannelsProvider = Provider<List<Channel>>((ref) {
   final groups = ref.watch(iptvGroupedCategoriesProvider);
@@ -777,4 +881,76 @@ List<({IptvPlaylist playlist, Channel channel})> searchChannelsAcrossPlaylists(
     }
   }
   return results;
+}
+
+/// Finds the [IptvPlaylist] owning [channel] by exact channel ID, playlist ID
+/// prefix (for M3U/JSON entries whose index shifted after sync), or metadata.
+IptvPlaylist? findOwnerPlaylist(
+  Channel channel,
+  List<IptvPlaylist> playlists,
+) {
+  for (final p in playlists) {
+    if (p.channels.any((c) => c.id == channel.id)) {
+      return p;
+    }
+  }
+  for (final p in playlists) {
+    if (channel.id.startsWith('${p.id}_')) {
+      return p;
+    }
+  }
+  for (final p in playlists) {
+    if (!p.hasRemoteEndpoint) continue;
+    if (findMatchingRefreshedChannel(channel, p.channels) != null) {
+      return p;
+    }
+  }
+  return null;
+}
+
+/// Finds the updated channel corresponding to [target] inside a freshly parsed
+/// playlist, resilient to shifted M3U item indices when channels are added/removed.
+Channel? findMatchingRefreshedChannel(
+  Channel target,
+  List<Channel> candidates,
+) {
+  if (candidates.isEmpty) return null;
+
+  final targetNameNorm = target.name.trim().toLowerCase();
+  final targetTvgNorm = target.tvgId?.trim().toLowerCase();
+  final targetCatNorm = target.category?.trim().toLowerCase();
+
+  for (final c in candidates) {
+    if (c.id == target.id && c.name.trim().toLowerCase() == targetNameNorm) {
+      return c;
+    }
+  }
+  if (targetTvgNorm != null && targetTvgNorm.isNotEmpty) {
+    Channel? tvgFallback;
+    for (final c in candidates) {
+      if (c.tvgId?.trim().toLowerCase() == targetTvgNorm) {
+        if (c.name.trim().toLowerCase() == targetNameNorm) return c;
+        tvgFallback ??= c;
+      }
+    }
+    if (tvgFallback != null) return tvgFallback;
+  }
+  if (targetNameNorm.isNotEmpty) {
+    Channel? nameFallback;
+    for (final c in candidates) {
+      if (c.name.trim().toLowerCase() == targetNameNorm) {
+        if (targetCatNorm != null &&
+            targetCatNorm.isNotEmpty &&
+            c.category?.trim().toLowerCase() == targetCatNorm) {
+          return c;
+        }
+        nameFallback ??= c;
+      }
+    }
+    if (nameFallback != null) return nameFallback;
+  }
+  for (final c in candidates) {
+    if (c.id == target.id) return c;
+  }
+  return null;
 }

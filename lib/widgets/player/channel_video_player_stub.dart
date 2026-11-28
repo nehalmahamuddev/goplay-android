@@ -33,6 +33,7 @@ Widget getChannelVideoPlayer({
   ValueChanged<int>? onServerSelected,
   bool isLocked = false,
   ValueChanged<bool>? onLockChanged,
+  Future<Channel?> Function(Channel failedChannel)? onRefreshChannel,
 }) {
   return ChannelVideoPlayerNative(
     channel: channel,
@@ -51,6 +52,7 @@ Widget getChannelVideoPlayer({
     onServerSelected: onServerSelected,
     isLocked: isLocked,
     onLockChanged: onLockChanged,
+    onRefreshChannel: onRefreshChannel,
   );
 }
 
@@ -87,6 +89,8 @@ class ChannelVideoPlayerNative extends StatefulWidget implements ChannelVideoPla
   final bool isLocked;
   @override
   final ValueChanged<bool>? onLockChanged;
+  @override
+  final Future<Channel?> Function(Channel failedChannel)? onRefreshChannel;
 
   const ChannelVideoPlayerNative({
     super.key,
@@ -106,6 +110,7 @@ class ChannelVideoPlayerNative extends StatefulWidget implements ChannelVideoPla
     this.onServerSelected,
     this.isLocked = false,
     this.onLockChanged,
+    this.onRefreshChannel,
   });
 
   @override
@@ -134,7 +139,11 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
 
   // Cache creation params to avoid re-building on every frame
   Map<String, dynamic>? _cachedParams;
-  String? _cachedChannelId;
+  String? _cachedChannelSignature;
+  bool _hasAttemptedSourceRefresh = false;
+  bool _isRefreshingSource = false;
+  String? _lastRefreshedFromChannelId;
+  String? _lastRefreshedToChannelId;
 
   // Player state variables for controls
   Duration _position = Duration.zero;
@@ -460,18 +469,22 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
     ),
   );
 
-  String? _cachedStreamUrl;
+  String _channelSignature(Channel ch) {
+    final drm = ch.drm;
+    final drmPart = drm == null
+        ? ''
+        : '${drm.type.name}|${drm.kid ?? ''}|${drm.key ?? ''}|${drm.licenseUrl ?? ''}|${drm.manifestType ?? ''}|${drm.clearKeys ?? ''}|${drm.licenseHeaders ?? ''}';
+    return '${ch.id}|${ch.streamUrl}|${ch.headers}|$drmPart';
+  }
 
   // ─── Creation params ─────────────────────────────────────────────
 
   Map<String, dynamic> _getCreationParams() {
-    if (_cachedParams != null &&
-        _cachedChannelId == widget.channel.id &&
-        _cachedStreamUrl == widget.channel.streamUrl) {
+    final sig = _channelSignature(widget.channel);
+    if (_cachedParams != null && _cachedChannelSignature == sig) {
       return _cachedParams!;
     }
-    _cachedChannelId = widget.channel.id;
-    _cachedStreamUrl = widget.channel.streamUrl;
+    _cachedChannelSignature = sig;
     _cachedParams = _buildCreationParams();
     return _cachedParams!;
   }
@@ -512,11 +525,18 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
     }
 
     String bufferMode = 'Balanced';
+    bool hwAcceleration = true;
+    bool useSurfaceView = false;
+    bool backgroundAudio = false;
+    bool autoPlay = true;
     try {
       if (Hive.isBoxOpen(AppConstants.settingsBox)) {
-        bufferMode = Hive.box(AppConstants.settingsBox)
-                .get(AppConstants.defaultBufferModeKey) as String? ??
-            'Balanced';
+        final box = Hive.box(AppConstants.settingsBox);
+        bufferMode = box.get(AppConstants.defaultBufferModeKey) as String? ?? 'Balanced';
+        hwAcceleration = box.get(AppConstants.hwAccelerationKey) as bool? ?? true;
+        useSurfaceView = box.get(AppConstants.useSurfaceViewKey) as bool? ?? false;
+        backgroundAudio = box.get(AppConstants.backgroundAudioKey) as bool? ?? false;
+        autoPlay = box.get(AppConstants.autoPlayOnOpenKey) as bool? ?? true;
       }
     } catch (_) {}
 
@@ -526,6 +546,10 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
       'initial_quality': initialQuality,
       'buffer_mode': bufferMode,
       'initial_resize_mode': _resizeModes[_aspectRatioIndex],
+      'hw_acceleration': hwAcceleration,
+      'use_surface_view': useSurfaceView,
+      'background_audio': backgroundAudio,
+      'auto_play': autoPlay,
     };
 
     if (subtitleUrl != null && subtitleUrl.isNotEmpty) {
@@ -581,17 +605,21 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         // Delegate recovery, buffering monitor, and stall-to-Auto downgrade to engine
         _engine.handleNativeStateEvent(args);
 
-        // Update local UI state for controls rendering
-        if (_isPlaying != isPlaying || _isBuffering != nowBuffering ||
-            (isReady && (_hasError || _errorMessage != null))) {
+        if (mounted &&
+            (_isPlaying != isPlaying ||
+                _isBuffering != nowBuffering ||
+                (isReady && (_hasError || _errorMessage != null)))) {
           setState(() {
             _isPlaying = isPlaying;
             _isBuffering = nowBuffering;
             if (isReady) {
               _hasError = false;
               _errorMessage = null;
+              _hasAttemptedSourceRefresh = false;
             }
           });
+        } else if (isReady) {
+          _hasAttemptedSourceRefresh = false;
         }
 
         if (isPlaying) {
@@ -649,8 +677,7 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         debugPrint('NativePlayer error: $message');
         _stopProgressTimer();
 
-        // Delegate to engine — handles classification, retry, failover, or skip
-        _engine.handleNativeError(args);
+        unawaited(_handleNativeError(args));
         break;
     }
   }
@@ -794,9 +821,78 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
     _engine.nativePort.play(_getCreationParams());
   }
 
+  Future<void> _handleNativeError(Map<String, dynamic> args) async {
+    final refresher = widget.onRefreshChannel;
+    if (refresher != null &&
+        !_hasAttemptedSourceRefresh &&
+        !_isRefreshingSource) {
+      final failedSnapshot = widget.channel;
+      _hasAttemptedSourceRefresh = true;
+      _isRefreshingSource = true;
+      if (mounted) {
+        setState(() {
+          _hasError = false;
+          _errorMessage = null;
+          _isBuffering = true;
+        });
+      }
+      try {
+        final refreshed = await refresher(failedSnapshot);
+        if (!mounted) return;
+        if (refreshed != null &&
+            _channelSignature(refreshed) != _channelSignature(failedSnapshot)) {
+          _lastRefreshedFromChannelId = failedSnapshot.id;
+          _lastRefreshedToChannelId = refreshed.id;
+          return;
+        }
+      } catch (e) {
+        debugPrint('NativePlayer source refresh error: $e');
+      } finally {
+        _isRefreshingSource = false;
+      }
+    }
+
+    if (mounted) {
+      _engine.handleNativeError(args);
+    }
+  }
+
   /// Manual retry.
   void _retryPlayback() {
-    _engine.manualRetry();
+    unawaited(_retryWithOptionalSourceRefresh());
+  }
+
+  Future<void> _retryWithOptionalSourceRefresh() async {
+    final refresher = widget.onRefreshChannel;
+    if (refresher != null && !_isRefreshingSource) {
+      final failedSnapshot = widget.channel;
+      _hasAttemptedSourceRefresh = false;
+      _isRefreshingSource = true;
+      if (mounted) {
+        setState(() {
+          _hasError = false;
+          _errorMessage = null;
+          _isBuffering = true;
+        });
+      }
+      try {
+        final refreshed = await refresher(failedSnapshot);
+        if (!mounted) return;
+        if (refreshed != null &&
+            _channelSignature(refreshed) != _channelSignature(failedSnapshot)) {
+          _lastRefreshedFromChannelId = failedSnapshot.id;
+          _lastRefreshedToChannelId = refreshed.id;
+          return;
+        }
+      } catch (e) {
+        debugPrint('Manual retry source refresh error: $e');
+      } finally {
+        _isRefreshingSource = false;
+      }
+    }
+    if (mounted) {
+      _engine.manualRetry();
+    }
   }
 
   void _seekTo(Duration position) {
@@ -1616,8 +1712,16 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
         oldWidget.activeServerIndex != widget.activeServerIndex) {
       _engine.updateServerScope(widget.servers, widget.activeServerIndex);
     }
-    if (oldWidget.channel.id != widget.channel.id ||
-        oldWidget.channel.streamUrl != widget.channel.streamUrl) {
+    if (_channelSignature(oldWidget.channel) != _channelSignature(widget.channel)) {
+      final isAutoRefreshSwap =
+          oldWidget.channel.id == _lastRefreshedFromChannelId &&
+              widget.channel.id == _lastRefreshedToChannelId;
+      if (!isAutoRefreshSwap && oldWidget.channel.id != widget.channel.id) {
+        _hasAttemptedSourceRefresh = false;
+      }
+      _lastRefreshedFromChannelId = null;
+      _lastRefreshedToChannelId = null;
+
       _engine.loadChannel(
         widget.channel,
         servers: widget.servers,
@@ -1704,16 +1808,14 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
     widget.onInteract?.call();
   }
 
-  /// D-Pad key mapping on TV remote:
+  /// D-Pad & TV Remote key mapping:
   ///
-  ///  OK / Select / Enter / Space → Show controls if hidden, then activate
-  ///                                  focused button or toggle play/pause.
-  ///  Up / Down (non-fullscreen)   → Previous / next channel.
-  ///  Up / Down (fullscreen)       → Ignored — Flutter traversal moves focus
-  ///                                  between rows (top bar → center → bottom).
-  ///  Left / Right                 → Ignored — Flutter traversal moves focus
-  ///                                  between buttons in the same row.
-  ///  Media keys                   → Play, pause, rewind, fast-forward.
+  ///  CH+ / CH-                    → Switch channel immediately (even when OSD hidden).
+  ///  Media Play/Pause/RW/FF       → Act immediately (even when OSD hidden).
+  ///  Up / Down (OSD hidden)       → Quick channel zap with OSD (or wake OSD if single channel).
+  ///  Left / Right (OSD hidden)    → Seek ±10s on VOD streams, or wake OSD on live streams.
+  ///  OK / Select / Enter / Space  → Wake OSD if hidden, or activate focused button / Play-Pause.
+  ///  D-Pad (OSD visible)          → Directional traversal across all player controls.
   KeyEventResult _handlePlayerKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
@@ -1721,50 +1823,29 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
 
     final key = event.logicalKey;
 
-    // Any key press → ensure controls are visible and timer is refreshed.
-    // This is the TV "wake up controls" behaviour.
-    if (!widget.showControls) {
-      widget.onTap?.call(); // toggles controls visible in parent
-      // After showing controls, move focus to play/pause so the user can
-      // immediately navigate with D-Pad without an extra key press.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        if (widget.playPauseFocusNode != null) {
-          widget.playPauseFocusNode!.requestFocus();
-        } else {
-          final ctx = _playPauseKey.currentContext;
-          if (ctx != null) {
-            Focus.of(ctx).requestFocus();
-          }
-        }
-      });
-      return KeyEventResult.handled;
-    } else {
-      widget.onInteract?.call(); // just resets the hide timer
-    }
-
-    // ── Play / Pause (fallback when no child button is focused) ──
-    // TvFocusable buttons handle OK themselves; this covers the case where
-    // the outer node has focus (e.g. error state, buffering).
-    if (key == LogicalKeyboardKey.select ||
-        key == LogicalKeyboardKey.enter ||
-        key == LogicalKeyboardKey.space ||
-        key == LogicalKeyboardKey.gameButtonA ||
-        key == LogicalKeyboardKey.accept ||
-        key == LogicalKeyboardKey.numpadEnter ||
-        key == LogicalKeyboardKey.mediaPlayPause ||
-        key == LogicalKeyboardKey.mediaPlay ||
-        key == LogicalKeyboardKey.mediaPause) {
-      // Only act if the outer node (not a TvFocusable child) has primary focus
-      if (_focusNode.hasPrimaryFocus) {
-        _togglePlayPause();
+    // ── Dedicated Channel +/- remote keys (always immediate) ──
+    if (key == LogicalKeyboardKey.channelUp) {
+      if (widget.onPreviousChannel != null) {
+        widget.onPreviousChannel!();
+        _showOsd('Previous Channel', Icons.skip_previous_rounded);
         return KeyEventResult.handled;
       }
-      return KeyEventResult.ignored; // let TvFocusable child handle it
+    }
+    if (key == LogicalKeyboardKey.channelDown) {
+      if (widget.onNextChannel != null) {
+        widget.onNextChannel!();
+        _showOsd('Next Channel', Icons.skip_next_rounded);
+        return KeyEventResult.handled;
+      }
     }
 
-    // ── Media rewind/fast-forward keys (dedicated remote buttons) ──
-    // These are DISTINCT from D-Pad Left/Right and should always seek.
+    // ── Dedicated Media Play/Pause & Rewind/FF keys (always immediate) ──
+    if (key == LogicalKeyboardKey.mediaPlayPause ||
+        key == LogicalKeyboardKey.mediaPlay ||
+        key == LogicalKeyboardKey.mediaPause) {
+      _togglePlayPause();
+      return KeyEventResult.handled;
+    }
     if (key == LogicalKeyboardKey.mediaRewind ||
         key == LogicalKeyboardKey.mediaStepBackward) {
       _seekRelative(-10);
@@ -1778,32 +1859,67 @@ class _ChannelVideoPlayerNativeState extends State<ChannelVideoPlayerNative> {
       return KeyEventResult.handled;
     }
 
-    // ── D-Pad Left / Right ──
-    // Return `ignored` — Flutter's directional traversal policy will move
-    // focus to the prev/next TvFocusable button automatically.
-    if (key == LogicalKeyboardKey.arrowLeft ||
-        key == LogicalKeyboardKey.arrowRight) {
-      return KeyEventResult.ignored;
-    }
-
-    // ── Up / Down ──
-    // Return `ignored` so Flutter's directional traversal can move focus
-    // smoothly between all control buttons (Play/Pause, Fullscreen Toggle, etc.).
-    // Dedicated physical channel +/- buttons on TV remotes handle channel switching.
-    if (key == LogicalKeyboardKey.channelUp) {
-      if (widget.onPreviousChannel != null) {
+    // ── Smart TV Remote UX when controls are hidden ──
+    if (!widget.showControls) {
+      // D-Pad Up / Down when controls hidden → quick channel zap
+      if (key == LogicalKeyboardKey.arrowUp && widget.onPreviousChannel != null) {
         widget.onPreviousChannel!();
+        _showOsd('Previous Channel', Icons.skip_previous_rounded);
         return KeyEventResult.handled;
       }
-    }
-
-    if (key == LogicalKeyboardKey.channelDown) {
-      if (widget.onNextChannel != null) {
+      if (key == LogicalKeyboardKey.arrowDown && widget.onNextChannel != null) {
         widget.onNextChannel!();
+        _showOsd('Next Channel', Icons.skip_next_rounded);
         return KeyEventResult.handled;
       }
+
+      // D-Pad Left / Right when controls hidden → seek VOD ±10s directly
+      final isSeekableVod = !_isLive && _duration > Duration.zero;
+      if (isSeekableVod && key == LogicalKeyboardKey.arrowLeft) {
+        _seekRelative(-10, wakeControls: false);
+        _showOsd('-10s', Icons.replay_10_rounded);
+        return KeyEventResult.handled;
+      }
+      if (isSeekableVod && key == LogicalKeyboardKey.arrowRight) {
+        _seekRelative(10, wakeControls: false);
+        _showOsd('+10s', Icons.forward_10_rounded);
+        return KeyEventResult.handled;
+      }
+
+      // Any other remote key wakes up the OSD and focuses Play/Pause
+      widget.onTap?.call();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (widget.playPauseFocusNode != null) {
+          widget.playPauseFocusNode!.requestFocus();
+        } else {
+          final ctx = _playPauseKey.currentContext;
+          if (ctx != null) {
+            Focus.of(ctx).requestFocus();
+          }
+        }
+      });
+      return KeyEventResult.handled;
+    } else {
+      widget.onInteract?.call();
     }
 
+    // ── Play / Pause (fallback when no child button is focused) ──
+    if (key == LogicalKeyboardKey.select ||
+        key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.space ||
+        key == LogicalKeyboardKey.gameButtonA ||
+        key == LogicalKeyboardKey.accept ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      if (_focusNode.hasPrimaryFocus) {
+        _togglePlayPause();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored; // let TvFocusable child handle it
+    }
+
+    // ── D-Pad Left / Right / Up / Down when controls are visible ──
+    // Return `ignored` — Flutter's directional traversal moves focus smoothly.
     return KeyEventResult.ignored;
   }
 

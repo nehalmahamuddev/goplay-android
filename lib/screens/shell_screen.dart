@@ -11,6 +11,7 @@ import '../core/typography.dart';
 import '../widgets/tv_focus_wrapper.dart';
 import '../widgets/main_bottom_nav_bar.dart';
 import '../widgets/category_m3u_auto_sync_observer.dart';
+import '../services/tv_service.dart';
 
 /// Main shell screen with bottom navigation bar.
 ///
@@ -79,55 +80,58 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     // use the Left Side Navigation Rail.
     // Mobile phones in portrait mode (width <= height) use the Bottom Navigation Bar.
     final isLandscape = size.width > size.height;
-    final isTv = MediaQuery.navigationModeOf(context) == NavigationMode.directional ||
-        FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
+    final isTv = TvScope.isTvOf(context);
     final isDesktop = isLandscape || isTv;
+    final overscanPadding = TvScope.overscanPaddingOf(context);
 
     Widget content;
 
     if (isDesktop) {
       content = Scaffold(
         backgroundColor: cs.surface,
-        body: Row(
-          children: [
-            // Side Navigation Rail — D-Pad friendly
-            RepaintBoundary(
-              child: Container(
-                width: 72,
-                decoration: BoxDecoration(
-                  color: navBarBg,
-                ),
-                child: SafeArea(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      for (int i = 0; i < tabs.length; i++) ...[
-                        if (i > 0) const SizedBox(height: 8),
-                        _RailNavItem(
-                          focusNode: (i < _navFocusNodes.length) ? _navFocusNodes[i] : null,
-                          svgAsset: tabs[i].svgAsset,
-                          selectedSvgAsset: tabs[i].selectedSvgAsset,
-                          icon: tabs[i].icon,
-                          selectedIcon: tabs[i].selectedIcon,
-                          label: tabs[i].label,
-                          isSelected: isNavDestinationSelected(
-                            tabs[i],
-                            currentIndex: index,
-                            selectedCategory: selectedCategory,
-                            hasFavoritesTab: hasFavoritesTab,
+        body: Padding(
+          padding: overscanPadding,
+          child: Row(
+            children: [
+              // Side Navigation Rail — D-Pad friendly
+              RepaintBoundary(
+                child: Container(
+                  width: 72,
+                  decoration: BoxDecoration(
+                    color: navBarBg,
+                  ),
+                  child: SafeArea(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        for (int i = 0; i < tabs.length; i++) ...[
+                          if (i > 0) const SizedBox(height: 8),
+                          _RailNavItem(
+                            focusNode: (i < _navFocusNodes.length) ? _navFocusNodes[i] : null,
+                            svgAsset: tabs[i].svgAsset,
+                            selectedSvgAsset: tabs[i].selectedSvgAsset,
+                            icon: tabs[i].icon,
+                            selectedIcon: tabs[i].selectedIcon,
+                            label: tabs[i].label,
+                            isSelected: isNavDestinationSelected(
+                              tabs[i],
+                              currentIndex: index,
+                              selectedCategory: selectedCategory,
+                              hasFavoritesTab: hasFavoritesTab,
+                            ),
+                            onTap: () => _handleDestinationTap(tabs[i]),
                           ),
-                          onTap: () => _handleDestinationTap(tabs[i]),
-                        ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
 
-            // Main Content Area
-            Expanded(child: widget.navigationShell),
-          ],
+              // Main Content Area
+              Expanded(child: widget.navigationShell),
+            ],
+          ),
         ),
       );
     } else {
@@ -239,6 +243,22 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               }
               _navFocusNodes[widget.navigationShell.currentIndex].requestFocus();
               return KeyEventResult.handled;
+            }
+          }
+
+          // TV Remote D-Pad RIGHT from Side Rail -> move into main content
+          if (key == LogicalKeyboardKey.arrowRight) {
+            final primary = FocusManager.instance.primaryFocus;
+            if (primary != null && _navFocusNodes.contains(primary)) {
+              if (primary.context != null) {
+                final moved = FocusTraversalGroup.of(primary.context!).inDirection(
+                  primary,
+                  TraversalDirection.right,
+                );
+                if (moved) {
+                  return KeyEventResult.handled;
+                }
+              }
             }
           }
         }

@@ -104,6 +104,7 @@ class SettingTile extends StatelessWidget {
 
     return TvFocusable(
       borderRadius: BorderRadius.circular(12),
+      excludeChildFocus: true,
       onTap: enabled ? onTap : null,
       child: content,
     );

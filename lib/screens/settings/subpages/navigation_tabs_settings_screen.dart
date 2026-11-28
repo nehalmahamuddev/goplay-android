@@ -6,6 +6,7 @@ import '../../../core/typography.dart';
 import '../../../models/nav_destination.dart';
 import '../../../providers/app_providers.dart';
 import '../../../providers/theme_provider.dart';
+import '../../../widgets/tv_focus_wrapper.dart';
 import '../widgets/setting_section_header.dart';
 
 /// Full-screen settings page for customizing bottom navigation tabs and order.
@@ -131,16 +132,20 @@ class NavigationTabsSettingsScreen extends ConsumerWidget {
               elevation: 0,
               scrolledUnderElevation: 0,
               automaticallyImplyLeading: false,
-              leading: IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
-                tooltip: 'Back',
-                onPressed: () {
+              leading: TvFocusable(
+                isCircle: true,
+                excludeChildFocus: true,
+                semanticLabel: 'Back',
+                onTap: () {
                   if (Navigator.of(context).canPop()) {
                     Navigator.of(context).pop();
                   } else {
                     context.go('/settings/layout');
                   }
                 },
+                child: Center(
+                  child: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
+                ),
               ),
               title: Text(
                 'Navigation Tabs',

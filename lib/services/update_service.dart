@@ -189,7 +189,11 @@ class UpdateService {
   /// Checks if the app has permission to install packages (Android 8+).
   Future<bool> isInstallPermissionGranted() async {
     if (Platform.isAndroid) {
-      return await Permission.requestInstallPackages.isGranted;
+      try {
+        return await Permission.requestInstallPackages.isGranted;
+      } catch (_) {
+        return true;
+      }
     }
     return true;
   }
@@ -197,8 +201,12 @@ class UpdateService {
   /// Requests the package installation permission (opens System Settings).
   Future<bool> requestInstallPermission() async {
     if (Platform.isAndroid) {
-      final status = await Permission.requestInstallPackages.request();
-      return status.isGranted;
+      try {
+        final status = await Permission.requestInstallPackages.request();
+        return status.isGranted;
+      } catch (_) {
+        return false;
+      }
     }
     return true;
   }

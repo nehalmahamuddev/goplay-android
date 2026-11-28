@@ -18,6 +18,8 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/theme_provider.dart';
 import '../../widgets/search_pill_card.dart';
+import '../../widgets/tv_focus_wrapper.dart';
+import '../../widgets/tv_modal.dart';
 import '../categories/categories_screen.dart' show ChannelSortOption;
 
 const double _kTabStripHeight = 48.0;
@@ -426,7 +428,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
-    showModalBottomSheet<void>(
+    showAdaptiveSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: isDark ? const Color(0xFF161616) : cs.surface,
@@ -619,11 +621,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
     required IconData icon,
     required bool isSelected,
     required VoidCallback onTap,
+    bool autoFocus = false,
   }) {
     final cs = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: onTap,
+    return TvFocusable(
+      autoFocus: autoFocus,
+      excludeChildFocus: true,
       borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
@@ -666,32 +671,33 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Material(
-      color: isDark
-          ? const Color(0xFF202020)
-          : cs.surfaceContainerHighest.withValues(alpha: 0.5),
+    return TvFocusable(
+      excludeChildFocus: true,
       borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 18, color: cs.onSurface),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontFamily: GoPlayType.family,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: cs.onSurface,
-                ),
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark
+              ? const Color(0xFF202020)
+              : cs.surfaceContainerHighest.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 18, color: cs.onSurface),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: GoPlayType.family,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: cs.onSurface,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

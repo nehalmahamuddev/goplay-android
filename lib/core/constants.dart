@@ -32,6 +32,14 @@ class AppConstants {
   static const String defaultLaunchPageKey = 'default_launch_page';
   static const String lastActiveNavTabKey = 'last_active_nav_tab';
 
+  // Android TV & Compatibility Settings Keys
+  static const String tvModeOverrideKey = 'tv_mode_override'; // 'auto' | 'on' | 'off'
+  static const String tvOverscanPaddingKey = 'tv_overscan_padding_enabled';
+  static const String hwAccelerationKey = 'hw_acceleration_enabled';
+  static const String useSurfaceViewKey = 'use_surface_view_enabled';
+  static const String autoPlayOnOpenKey = 'auto_play_on_open';
+  static const String backgroundAudioKey = 'background_audio_enabled';
+
   // App Info
   static const String appName = 'GoPlay';
   static const String appVersion = '2.4.1';

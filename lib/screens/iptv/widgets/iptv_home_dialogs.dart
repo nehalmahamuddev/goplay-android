@@ -6,6 +6,7 @@ import '../../../core/typography.dart';
 import '../../../models/iptv_playlist.dart';
 import '../../../providers/iptv_providers.dart';
 import '../../../providers/theme_provider.dart';
+import '../../../widgets/tv_modal.dart';
 
 /// Interactive multi-section How-To Guide replicating the APK's
 /// `GuideActivity` and `bottom_dialog_guide_playlist` (`res/UI.xml`).
@@ -13,7 +14,7 @@ class IptvGuideSheet extends ConsumerStatefulWidget {
   const IptvGuideSheet({super.key});
 
   static Future<void> show(BuildContext context) {
-    return showModalBottomSheet(
+    return showAdaptiveSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -391,7 +392,7 @@ class IptvManageEpgSheet extends ConsumerStatefulWidget {
   const IptvManageEpgSheet({super.key});
 
   static Future<void> show(BuildContext context) {
-    return showModalBottomSheet(
+    return showAdaptiveSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

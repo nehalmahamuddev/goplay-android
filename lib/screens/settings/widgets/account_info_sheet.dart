@@ -4,13 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants.dart';
 import '../../../core/typography.dart';
 import '../../../providers/app_providers.dart';
+import '../../../widgets/tv_modal.dart';
 
 /// Interactive Account & Device Sheet displayed when the user taps the top Profile Header.
 class AccountInfoSheet extends ConsumerWidget {
   const AccountInfoSheet({super.key});
 
   static Future<void> show(BuildContext context) {
-    return showModalBottomSheet<void>(
+    return showAdaptiveSheet<void>(
       context: context,
       backgroundColor: const Color(0xFF161616),
       shape: const RoundedRectangleBorder(

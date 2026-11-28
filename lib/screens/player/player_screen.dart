@@ -10,6 +10,7 @@ import '../../core/navigation_coordinator.dart';
 import '../../core/theme.dart';
 import '../../core/typography.dart';
 import '../../providers/app_providers.dart';
+import '../../providers/iptv_providers.dart';
 import '../../models/channel.dart';
 import '../../models/category.dart';
 import '../../models/event.dart';
@@ -18,6 +19,7 @@ import '../../widgets/player/channel_video_player.dart';
 import '../../widgets/tv_focus_wrapper.dart';
 import '../../widgets/main_bottom_nav_bar.dart';
 import '../../services/playback/playback_session.dart';
+import '../../services/tv_service.dart';
 
 // ─── Pre-cached top-level constants — zero per-frame allocations ─
 
@@ -202,6 +204,48 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (!next.resolutionFailed) {
       _startControlsTimer();
     }
+  }
+
+  DateTime? _lastSourceRefreshAt;
+
+  Future<Channel?> _refreshFailedIptvChannel(Channel failedChannel) async {
+    final now = DateTime.now();
+    // Avoid tight refresh loops when a stream server is genuinely down, while
+    // allowing fresh pulls whenever a token/playlist rotated after >10s.
+    if (_lastSourceRefreshAt != null &&
+        now.difference(_lastSourceRefreshAt!) < const Duration(seconds: 10)) {
+      return null;
+    }
+    _lastSourceRefreshAt = now;
+
+    final fresh = await ref
+        .read(iptvPlaylistsProvider.notifier)
+        .refreshChannelFromSource(failedChannel);
+    if (!mounted || fresh == null) return null;
+
+    final playlists = ref.read(iptvPlaylistsProvider).value ?? const [];
+    final owner = findOwnerPlaylist(fresh, playlists);
+    final updatedResolved = <Channel>[
+      fresh,
+      if (owner != null) ...owner.channels.where((c) => c.id != fresh.id),
+      ..._resolvedDynamicChannels.where(
+        (c) =>
+            c.id != fresh.id &&
+            c.id != failedChannel.id &&
+            (owner == null || !owner.channels.any((oc) => oc.id == c.id)),
+      ),
+    ];
+
+    setState(() {
+      _session = _session.copyWith(
+        currentChannelId:
+            _currentChannelId == failedChannel.id ? fresh.id : null,
+        resolvedDynamicChannels: updatedResolved,
+        servers: const <Channel>[],
+        activeServerIndex: 0,
+      );
+    });
+    return fresh;
   }
 
   Future<void> _resolveSportEvent(SportEvent event) async {
@@ -389,21 +433,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return KeyEventResult.ignored;
     }
 
-    // TV Remote Wake-Up: If player controls have auto-hidden, ANY remote key press
-    // immediately shows all controls, focuses Play/Pause, and starts the 8s timer.
-    if (!_controlsVisible) {
-      setState(() {
-        _controlsVisible = true;
-      });
-      _startControlsTimer();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _playPauseFocusNode.requestFocus();
-        }
-      });
-      return KeyEventResult.handled;
-    }
-
     final lKey = event.logicalKey;
     final pKey = event.physicalKey;
 
@@ -419,6 +448,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         lKey == LogicalKeyboardKey.escape) {
       if (_isFullViewMode) {
         _toggleFullscreen();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+
+    // Never intercept media/channel/directional keys here when hidden if the
+    // channel panel isn't focused — ChannelVideoPlayerNative handles CH+/CH-,
+    // media keys, VOD seek, and D-Pad Up/Down zapping cleanly.
+    if (!_controlsVisible && !_channelPanelHasFocus) {
+      if (lKey == LogicalKeyboardKey.select ||
+          lKey == LogicalKeyboardKey.enter ||
+          lKey == LogicalKeyboardKey.space ||
+          lKey == LogicalKeyboardKey.gameButtonA ||
+          lKey == LogicalKeyboardKey.accept ||
+          lKey == LogicalKeyboardKey.numpadEnter) {
+        setState(() {
+          _controlsVisible = true;
+        });
+        _startControlsTimer();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _playPauseFocusNode.requestFocus();
+          }
+        });
         return KeyEventResult.handled;
       }
     }
@@ -457,10 +510,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final channelsAsync = ref.watch(channelsProvider);
     final categoriesAsync = ref.watch(categoriesProvider);
     final mq = MediaQuery.of(context);
-    // TV detection: matches improved logic from ShellScreen
-    final isTv = mq.navigationMode == NavigationMode.directional ||
-        FocusManager.instance.highlightMode == FocusHighlightMode.traditional ||
-        mq.size.shortestSide >= 960;
+    // TV detection via TvScope (native detection + user override + directional mode)
+    final isTv = TvScope.isTvOf(context);
     // Cache TV detection for orientation logic (only set once)
     if (!_isTvDevice && isTv) _isTvDevice = true;
     final isLandscape = mq.orientation == Orientation.landscape || mq.size.width > mq.size.height;
@@ -515,12 +566,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     )
                   : null;
 
-              final allChannels = [
-                ...channels,
-                if (widget.dynamicChannels != null) ...widget.dynamicChannels!,
-                ..._resolvedDynamicChannels,
-                ?eventPlaceholder,
-              ];
+              final allChannels = PlaybackSessionCoordinator.mergeCatalog(
+                catalog: channels,
+                dynamicChannels: widget.dynamicChannels,
+                resolvedDynamicChannels: _resolvedDynamicChannels,
+                eventPlaceholder: eventPlaceholder,
+              );
 
 
               final channel = allChannels.cast<Channel?>().firstWhere(
@@ -663,6 +714,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         showUnlockButton: _showUnlockButton,
                         onUnlock: _unlockScreen,
                         onLockChanged: (locked) => setState(() => _isScreenLocked = locked),
+                        onRefreshChannel: _refreshFailedIptvChannel,
                         topBar: _FullscreenTopBar(
                           category: channel.category ?? '',
                           currentChannelId: channel.id,
@@ -701,16 +753,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           _focusPlayer();
                         }
                       },
-                      child: KeyboardListener(
-                        focusNode: FocusNode(canRequestFocus: false),
-                        onKeyEvent: (event) {
+                      child: Focus(
+                        canRequestFocus: false,
+                        onKeyEvent: (node, event) {
                           // D-Pad Left from channel list → return focus to player
                           if ((event is KeyDownEvent || event is KeyRepeatEvent) &&
                               event.logicalKey == LogicalKeyboardKey.arrowLeft) {
                             // Move focus back to player — find nearest sibling
                             FocusScope.of(context).previousFocus();
                             _focusPlayer();
+                            return KeyEventResult.handled;
                           }
+                          return KeyEventResult.ignored;
                         },
                         child: SizedBox(
                           width: mq.size.width > 1100 ? 380 : 320,
@@ -843,6 +897,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       showUnlockButton: _showUnlockButton,
                       onUnlock: _unlockScreen,
                       onLockChanged: (locked) => setState(() => _isScreenLocked = locked),
+                      onRefreshChannel: _refreshFailedIptvChannel,
                       height: responsivePlayerHeight,
                       topBar: isFullscreen
                           ? _FullscreenTopBar(
@@ -916,6 +971,7 @@ class _PlayerContainer extends StatelessWidget {
   final bool showUnlockButton;
   final VoidCallback? onUnlock;
   final ValueChanged<bool>? onLockChanged;
+  final Future<Channel?> Function(Channel failedChannel)? onRefreshChannel;
 
   const _PlayerContainer({
     required this.channel,
@@ -939,6 +995,7 @@ class _PlayerContainer extends StatelessWidget {
     this.showUnlockButton = false,
     this.onUnlock,
     this.onLockChanged,
+    this.onRefreshChannel,
   });
 
   @override
@@ -973,6 +1030,7 @@ class _PlayerContainer extends StatelessWidget {
                 onServerSelected: onServerSelected,
                 isLocked: isLocked,
                 onLockChanged: onLockChanged,
+                onRefreshChannel: onRefreshChannel,
               ),
             ),
 

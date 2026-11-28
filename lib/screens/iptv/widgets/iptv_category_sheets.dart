@@ -10,6 +10,8 @@ import '../../../models/iptv_playlist.dart';
 import '../../../providers/iptv_providers.dart';
 import '../../../providers/theme_provider.dart';
 import '../../../services/playback/playback_session.dart';
+import '../../../widgets/tv_focus_wrapper.dart';
+import '../../../widgets/tv_modal.dart';
 
 /// Quick 3-column category jump bottom sheet replicating `action_tab` (`res/F4.xml`, `context.md` §7.2).
 class IptvTabJumpSheet extends ConsumerWidget {
@@ -30,7 +32,7 @@ class IptvTabJumpSheet extends ConsumerWidget {
     required String activeCategoryTitle,
     required ValueChanged<int> onSelectTabIndex,
   }) {
-    return showModalBottomSheet(
+    return showAdaptiveSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -145,13 +147,15 @@ class IptvTabJumpSheet extends ConsumerWidget {
                 final group = categories[index];
                 final isSelected =
                     group.title.toLowerCase() == activeCategoryTitle.toLowerCase();
-                return InkWell(
+                return TvFocusable(
+                  autoFocus: isSelected,
+                  excludeChildFocus: true,
+                  borderRadius: BorderRadius.circular(10),
                   onTap: () {
                     HapticFeedback.selectionClick();
                     Navigator.of(context).pop();
                     onSelectTabIndex(index);
                   },
-                  borderRadius: BorderRadius.circular(10),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                     decoration: BoxDecoration(
@@ -565,7 +569,7 @@ class IptvEpgInfoBottomSheet extends ConsumerWidget {
     required List<IptvEpgProgramme> programmes,
     required VoidCallback onPlay,
   }) {
-    return showModalBottomSheet(
+    return showAdaptiveSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -889,7 +893,7 @@ class IptvChannelInfoListSheet extends ConsumerWidget {
   const IptvChannelInfoListSheet({super.key, required this.channel});
 
   static Future<void> show(BuildContext context, Channel channel) {
-    return showModalBottomSheet(
+    return showAdaptiveSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -1032,7 +1036,7 @@ class IptvBookmarksSheet extends ConsumerStatefulWidget {
     BuildContext context, {
     required Future<void> Function(Channel ch, List<Channel> scope) onPlayChannel,
   }) {
-    return showModalBottomSheet(
+    return showAdaptiveSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

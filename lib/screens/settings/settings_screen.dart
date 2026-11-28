@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants.dart';
 import '../../core/typography.dart';
+import '../../services/tv_service.dart';
+import '../../widgets/tv_focus_wrapper.dart';
+import '../../widgets/tv_modal.dart';
 import 'widgets/account_info_sheet.dart';
 import 'widgets/setting_tile.dart';
 
@@ -255,35 +258,45 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     return Scaffold(
       backgroundColor: cs.surface,
-      body: SafeArea(
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 12),
-                    if (!widget.isShellTab && Navigator.of(context).canPop())
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8.0),
-                        child: IconButton(
-                          icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
-                          tooltip: 'Back',
-                          onPressed: () => Navigator.of(context).pop(),
+      body: Padding(
+        padding: widget.isShellTab
+            ? EdgeInsets.zero
+            : TvScope.overscanPaddingOf(context),
+        child: SafeArea(
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 12),
+                      if (!widget.isShellTab && Navigator.of(context).canPop())
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: TvFocusable(
+                            isCircle: true,
+                            excludeChildFocus: true,
+                            semanticLabel: 'Back',
+                            onTap: () => Navigator.of(context).pop(),
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
+                            ),
+                          ),
                         ),
-                      ),
 
-                    // ─── 1. Profile / Account Header (Screenshot 1) ───
-                  InkWell(
-                    onTap: () => AccountInfoSheet.show(context),
-                    borderRadius: BorderRadius.circular(16),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-                      child: Row(
-                        children: [
+                      // ─── 1. Profile / Account Header (Screenshot 1) ───
+                    TvFocusable(
+                      excludeChildFocus: true,
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => AccountInfoSheet.show(context),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+                        child: Row(
+                          children: [
                           // Blue Swirl Avatar (matching Screenshot 1)
                           Container(
                             width: 52,
@@ -382,32 +395,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   contentPadding: EdgeInsets.zero,
                                 ),
                               ),
-                              child: TextField(
-                                controller: _searchController,
-                                focusNode: _searchFocusNode,
-                                cursorColor: cs.primary,
-                                style: TextStyle(
-                                  fontFamily: GoPlayType.family,
-                                  fontSize: 15,
-                                  color: cs.onSurface,
+                              child: Focus(
+                                canRequestFocus: false,
+                                onKeyEvent: (node, event) => handleTvTextFieldKeyEvent(
+                                  _searchFocusNode,
+                                  event,
+                                  context,
                                 ),
-                                decoration: InputDecoration(
-                                  hintText: 'Search...',
-                                  hintStyle: TextStyle(
+                                child: TextField(
+                                  controller: _searchController,
+                                  focusNode: _searchFocusNode,
+                                  cursorColor: cs.primary,
+                                  style: TextStyle(
                                     fontFamily: GoPlayType.family,
                                     fontSize: 15,
-                                    color: cs.onSurfaceVariant.withValues(alpha: 0.5),
+                                    color: cs.onSurface,
                                   ),
-                                  filled: false,
-                                  fillColor: Colors.transparent,
-                                  border: InputBorder.none,
-                                  enabledBorder: InputBorder.none,
-                                  focusedBorder: InputBorder.none,
-                                  errorBorder: InputBorder.none,
-                                  disabledBorder: InputBorder.none,
-                                  focusedErrorBorder: InputBorder.none,
-                                  isDense: true,
-                                  contentPadding: EdgeInsets.zero,
+                                  decoration: InputDecoration(
+                                    hintText: 'Search...',
+                                    hintStyle: TextStyle(
+                                      fontFamily: GoPlayType.family,
+                                      fontSize: 15,
+                                      color: cs.onSurfaceVariant.withValues(alpha: 0.5),
+                                    ),
+                                    filled: false,
+                                    fillColor: Colors.transparent,
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    errorBorder: InputBorder.none,
+                                    disabledBorder: InputBorder.none,
+                                    focusedErrorBorder: InputBorder.none,
+                                    isDense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
                                 ),
                               ),
                             ),
@@ -571,6 +592,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

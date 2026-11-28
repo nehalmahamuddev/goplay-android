@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../core/constants.dart';
 import '../core/typography.dart';
 import '../providers/app_providers.dart';
+import 'tv_modal.dart';
 
 /// Wraps the root app tree to provide global Emergency Maintenance Lock
 /// and Launch Announcement Popup Modal based on dashboard ui_config.
@@ -177,9 +177,12 @@ class _AnnouncementPopupDialog extends StatelessWidget {
                         ),
                         onPressed: () async {
                           _dismiss(context);
-                          final uri = Uri.tryParse(actionUrl);
-                          if (uri != null && await canLaunchUrl(uri)) {
-                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          if (context.mounted) {
+                            await launchUrlWithTvFallback(
+                              context,
+                              actionUrl,
+                              title: title.isNotEmpty ? title : 'Open Link',
+                            );
                           }
                         },
                         child: Text(

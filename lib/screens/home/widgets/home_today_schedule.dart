@@ -5,6 +5,7 @@ import '../../../core/theme.dart';
 import '../../../models/event.dart';
 import '../../../providers/app_providers.dart';
 import '../../../services/event_stream_launcher.dart';
+import '../../../services/tv_service.dart';
 import '../../../widgets/cards/modern_event_card.dart';
 import '../skeletons/home_skeletons.dart';
 
@@ -57,8 +58,7 @@ class _HomeTodayScheduleState extends ConsumerState<HomeTodaySchedule> {
         }
 
         final size = MediaQuery.sizeOf(context);
-        final isTv = MediaQuery.navigationModeOf(context) == NavigationMode.directional ||
-            FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
+        final isTv = TvScope.isTvOf(context);
         final isDesktopOrTv = size.width >= 800 || (size.width > size.height && size.width > 600) || isTv;
 
         if (isDesktopOrTv) {

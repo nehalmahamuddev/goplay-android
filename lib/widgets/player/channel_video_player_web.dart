@@ -22,6 +22,7 @@ Widget getChannelVideoPlayer({
   ValueChanged<int>? onServerSelected,
   bool isLocked = false,
   ValueChanged<bool>? onLockChanged,
+  Future<Channel?> Function(Channel failedChannel)? onRefreshChannel,
 }) {
   return ChannelVideoPlayerWeb(
     channel: channel,
@@ -37,6 +38,7 @@ Widget getChannelVideoPlayer({
     onServerSelected: onServerSelected,
     isLocked: isLocked,
     onLockChanged: onLockChanged,
+    onRefreshChannel: onRefreshChannel,
   );
 }
 
@@ -79,6 +81,8 @@ class ChannelVideoPlayerWeb extends StatefulWidget implements ChannelVideoPlayer
   final bool isLocked;
   @override
   final ValueChanged<bool>? onLockChanged;
+  @override
+  final Future<Channel?> Function(Channel failedChannel)? onRefreshChannel;
 
   const ChannelVideoPlayerWeb({
     super.key,
@@ -98,6 +102,7 @@ class ChannelVideoPlayerWeb extends StatefulWidget implements ChannelVideoPlayer
     this.onServerSelected,
     this.isLocked = false,
     this.onLockChanged,
+    this.onRefreshChannel,
   });
 
   @override

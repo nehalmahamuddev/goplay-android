@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/typography.dart';
 import '../../../models/app_theme_options.dart';
 import '../../../providers/theme_provider.dart';
+import '../../../widgets/tv_focus_wrapper.dart';
 import '../widgets/setting_section_header.dart';
 
 /// Full-screen settings page for selecting the app's Primary Accent Color.
@@ -56,16 +57,20 @@ class PrimaryColorSettingsScreen extends ConsumerWidget {
               elevation: 0,
               scrolledUnderElevation: 0,
               automaticallyImplyLeading: false,
-              leading: IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
-                tooltip: 'Back',
-                onPressed: () {
+              leading: TvFocusable(
+                isCircle: true,
+                excludeChildFocus: true,
+                semanticLabel: 'Back',
+                onTap: () {
                   if (Navigator.of(context).canPop()) {
                     Navigator.of(context).pop();
                   } else {
                     context.go('/settings/layout');
                   }
                 },
+                child: Center(
+                  child: Icon(Icons.arrow_back_rounded, color: cs.onSurface, size: 24),
+                ),
               ),
               title: Text(
                 'Primary Accent Color',
@@ -141,14 +146,13 @@ class PrimaryColorSettingsScreen extends ConsumerWidget {
                             ),
                           ),
                         ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.zero,
-                            onTap: () {
-                              ref.read(themeSettingsProvider.notifier).setAccentColor(accent);
-                            },
-                            child: Padding(
+                        child: TvFocusable(
+                          excludeChildFocus: true,
+                          borderRadius: BorderRadius.zero,
+                          onTap: () {
+                            ref.read(themeSettingsProvider.notifier).setAccentColor(accent);
+                          },
+                          child: Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                               child: Row(
                                 children: [
@@ -196,7 +200,6 @@ class PrimaryColorSettingsScreen extends ConsumerWidget {
                               ),
                             ),
                           ),
-                        ),
                       );
                     }).toList(),
                   ),

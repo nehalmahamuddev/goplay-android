@@ -139,20 +139,32 @@ class PlaybackSessionCoordinator {
         .toList(growable: false);
   }
 
-  /// Single source of truth for merging static catalog, scoped dynamic channels,
-  /// and resolved manifests into one ordered lookup list.
+  /// Single source of truth for merging resolved/refreshed channels, scoped
+  /// dynamic channels, and static catalog into one priority-ordered list.
   static List<Channel> mergeCatalog({
     required List<Channel> catalog,
     List<Channel>? dynamicChannels,
     List<Channel> resolvedDynamicChannels = const <Channel>[],
     Channel? eventPlaceholder,
   }) {
-    return <Channel>[
-      ...catalog,
-      if (dynamicChannels != null) ...dynamicChannels,
-      ...resolvedDynamicChannels,
-      ?eventPlaceholder,
-    ];
+    final seenIds = <String>{};
+    final merged = <Channel>[];
+    void addAllUnique(Iterable<Channel>? list) {
+      if (list == null) return;
+      for (final ch in list) {
+        if (seenIds.add(ch.id)) {
+          merged.add(ch);
+        }
+      }
+    }
+
+    addAllUnique(resolvedDynamicChannels);
+    addAllUnique(dynamicChannels);
+    addAllUnique(catalog);
+    if (eventPlaceholder != null && seenIds.add(eventPlaceholder.id)) {
+      merged.add(eventPlaceholder);
+    }
+    return merged;
   }
 
   /// Single source of truth for resolving adjacent channels in the player's

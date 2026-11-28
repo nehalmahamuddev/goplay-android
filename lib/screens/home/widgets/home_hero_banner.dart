@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme.dart';
 import '../../../core/typography.dart';
@@ -11,6 +10,7 @@ import '../../../providers/app_providers.dart';
 import '../../../models/hero_banner_item.dart';
 import '../../../services/playback/playback_session.dart';
 import '../../../widgets/tv_focus_wrapper.dart';
+import '../../../widgets/tv_modal.dart';
 import '../skeletons/home_skeletons.dart';
 
 const _kInterLeagueBadge = TextStyle(
@@ -213,14 +213,11 @@ class _HeroBannerCard extends ConsumerWidget {
       actionValue: banner.actionValue,
     );
     if (banner.isExternalUrl) {
-      final uri = Uri.tryParse(banner.actionValue!);
-      if (uri != null) {
-        try {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        } catch (e) {
-          debugPrint('Error launching banner URL: $e');
-        }
-      }
+      await launchUrlWithTvFallback(
+        context,
+        banner.actionValue!,
+        title: banner.title ?? 'Open Banner Link',
+      );
     } else if (banner.isChannelAction) {
       if (context.mounted) {
         final args = PlaybackLaunchArgs(channelId: banner.actionValue!);

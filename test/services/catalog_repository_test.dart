@@ -259,5 +259,81 @@ void main() {
       expect(prefs.getFavoriteChannelIds(), {'c1'});
       expect(prefs.getDefaultLaunchPageUserPref(), 'channels');
     });
+
+    test('loadTrendingChannels resolves DB and legacy M3U trending rows against active M3U catalog', () async {
+      final store = InMemoryCatalogStore();
+      final remote = _FakeRemoteCatalogAdapter()
+        ..trending = [
+          // DB ID replaced locally by an M3U channel with the same name & category
+          _channel('somoy_tv', 'Somoy TV', category: 'bangla'),
+          // Same display name in a different active category must map to that category
+          _channel('toffee_somoy_tv', 'Somoy TV', category: 'toffee'),
+          // Duplicate hit for bangla Somoy TV using another ID format must deduplicate
+          _channel('m3u_bangla_somoy_tv', 'Somoy TV HD', category: 'bangla'),
+          // Missing category on remote row still resolves by normalized name
+          Channel(
+            id: 'legacy_star_jalsha',
+            name: 'STAR JALSHA HD',
+            category: null,
+            streamUrl: '',
+            isLive: true,
+          ),
+        ];
+
+      final m3uSync = CategoryM3uSyncService(
+        cache: store,
+        fetcher: (url, {ifNoneMatch, ifModifiedSince}) async =>
+            const CategoryM3uHttpResponse(statusCode: 304),
+      );
+      final repo = CatalogRepository(
+        store: store,
+        remote: remote,
+        m3uSync: m3uSync,
+      );
+
+      final liveCatalog = [
+        _channel('m3u_bangla_44', 'Somoy TV', category: 'bangla'),
+        _channel('m3u_toffee_12', 'Somoy TV', category: 'toffee'),
+        _channel('m3u_indian_bangla_star_jalsha', 'Star Jalsha', category: 'indian_bangla'),
+      ];
+
+      final resolved = await repo.loadTrendingChannels(liveCatalog: liveCatalog);
+
+      expect(
+        resolved.map((c) => c.id),
+        [
+          'm3u_bangla_44',
+          'm3u_toffee_12',
+          'm3u_indian_bangla_star_jalsha',
+        ],
+      );
+    });
+
+    test('loadTrendingChannels falls back to local isTrending pins when remote matches nothing', () async {
+      final store = InMemoryCatalogStore();
+      final remote = _FakeRemoteCatalogAdapter()
+        ..trending = [
+          _channel('removed_channel', 'Deleted Channel', category: 'bangla'),
+        ];
+
+      final repo = CatalogRepository(
+        store: store,
+        remote: remote,
+        m3uSync: CategoryM3uSyncService(
+          cache: store,
+          fetcher: (url, {ifNoneMatch, ifModifiedSince}) async =>
+              const CategoryM3uHttpResponse(statusCode: 304),
+        ),
+      );
+
+      final resolved = await repo.loadTrendingChannels(
+        liveCatalog: [
+          _channel('local_pin', 'Local Pin', isTrending: true),
+          _channel('other', 'Other'),
+        ],
+      );
+
+      expect(resolved.map((c) => c.id), ['local_pin']);
+    });
   });
 }

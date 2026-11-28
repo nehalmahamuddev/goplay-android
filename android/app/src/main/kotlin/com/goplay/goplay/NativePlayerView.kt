@@ -11,6 +11,7 @@ import android.util.Base64
 import android.util.Log
 import android.view.View
 import android.widget.FrameLayout
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -22,8 +23,12 @@ import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.drm.DefaultDrmSessionManager
 import androidx.media3.exoplayer.drm.LocalMediaDrmCallback
 import androidx.media3.exoplayer.drm.FrameworkMediaDrm
@@ -72,15 +77,31 @@ class NativePlayerView(
     }
 
     private val container: FrameLayout = FrameLayout(context)
-    private val playerView: PlayerView = LayoutInflater.from(context).inflate(R.layout.player_view_layout, container, false) as PlayerView
+    private val useSurfaceView: Boolean = (creationParams?.get("use_surface_view") as? Boolean) == true
+    private val playerView: PlayerView = LayoutInflater.from(context).inflate(
+        if (useSurfaceView) R.layout.player_view_surface_layout else R.layout.player_view_layout,
+        container,
+        false
+    ) as PlayerView
     private var player: ExoPlayer? = null
     private val methodChannel: MethodChannel
     private var fallbackStage = 0
     private var lifecycleCallbacks: Application.ActivityLifecycleCallbacks? = null
     private var preferredQualityHeight: Int = -1
+    private var hwAccelerationEnabled: Boolean = true
+    private var backgroundAudioEnabled: Boolean = false
     private var loudnessEnhancer: LoudnessEnhancer? = null
     private val audioManager: AudioManager? by lazy {
         context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    }
+
+    @Suppress("DEPRECATION")
+    private fun isTvDevice(): Boolean {
+        val pm = context.packageManager
+        val uiMode = context.getSystemService(Context.UI_MODE_SERVICE) as? android.app.UiModeManager
+        return uiMode?.currentModeType == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION ||
+            pm.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) ||
+            pm.hasSystemFeature(android.content.pm.PackageManager.FEATURE_TELEVISION)
     }
 
     init {
@@ -99,6 +120,7 @@ class NativePlayerView(
             val callbacks = object : Application.ActivityLifecycleCallbacks {
                 override fun onActivityPaused(act: Activity) {
                     if (act === activity) {
+                        if (backgroundAudioEnabled) return
                         // Pause player if app goes to background/paused AND is not in PiP mode
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                             if (!act.isInPictureInPictureMode) {
@@ -112,6 +134,7 @@ class NativePlayerView(
 
                 override fun onActivityStopped(act: Activity) {
                     if (act === activity) {
+                        if (backgroundAudioEnabled) return
                         // Pause player immediately on activity stop (which includes PiP close/dismissal)
                         player?.pause()
                     }
@@ -275,6 +298,10 @@ class NativePlayerView(
                 result.success(true)
             }
             "setBrightness" -> {
+                if (isTvDevice()) {
+                    result.success(false)
+                    return
+                }
                 val brightness = (call.arguments as? Double)?.toFloat() ?: -1.0f
                 val activity = getActivity(context)
                 if (activity != null) {
@@ -407,12 +434,14 @@ class NativePlayerView(
         val url = config["url"] as? String ?: return
         Log.d(TAG, "Initializing player with config: $config")
 
-        // Apply initial quality & aspect ratio preferences from settings
+        // Apply initial quality, decoder, audio & aspect ratio preferences from settings
         val initialQuality = (config["initial_quality"] as? Number)?.toInt() ?: -1
         preferredQualityHeight = if (initialQuality > 0) initialQuality else -1
         val initialResizeMode = (config["initial_resize_mode"] as? Number)?.toInt() ?: 0
         playerView.resizeMode = initialResizeMode
         val bufferMode = config["buffer_mode"] as? String ?: "Balanced"
+        hwAccelerationEnabled = (config["hw_acceleration"] as? Boolean) ?: true
+        backgroundAudioEnabled = (config["background_audio"] as? Boolean) ?: false
 
         // --- Build HTTP DataSource Factory with custom headers ---
         val httpFactory = DefaultHttpDataSource.Factory()
@@ -526,8 +555,42 @@ class NativePlayerView(
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
 
-            exoPlayer = ExoPlayer.Builder(context)
+            val renderersFactory = DefaultRenderersFactory(context)
+                .setEnableDecoderFallback(true)
+                .apply {
+                    if (!hwAccelerationEnabled) {
+                        setMediaCodecSelector(object : MediaCodecSelector {
+                            override fun getDecoderInfos(
+                                mimeType: String,
+                                requiresSecureDecoder: Boolean,
+                                requiresTunnelingDecoder: Boolean
+                            ): MutableList<MediaCodecInfo> {
+                                val all = MediaCodecUtil.getDecoderInfos(
+                                    mimeType,
+                                    requiresSecureDecoder,
+                                    requiresTunnelingDecoder
+                                )
+                                return all.sortedBy { info ->
+                                    val name = info.name.lowercase()
+                                    val isSoftware = info.softwareOnly ||
+                                        name.startsWith("c2.android.") ||
+                                        name.startsWith("omx.google.") ||
+                                        name.contains(".sw.")
+                                    if (isSoftware) 0 else 1
+                                }.toMutableList()
+                            }
+                        })
+                    }
+                }
+
+            val audioAttributes = AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                .build()
+
+            exoPlayer = ExoPlayer.Builder(context, renderersFactory)
                 .setLoadControl(loadControl)
+                .setAudioAttributes(audioAttributes, true)
                 .build()
             player = exoPlayer
             playerView.player = exoPlayer
@@ -658,11 +721,12 @@ class NativePlayerView(
         }
 
         // --- Start playback ---
+        val autoPlay = (config["auto_play"] as? Boolean) ?: true
         try {
             exoPlayer.setMediaSource(mediaSource)
             exoPlayer.prepare()
-            exoPlayer.playWhenReady = true
-            Log.d(TAG, "Player prepared and starting playback")
+            exoPlayer.playWhenReady = autoPlay
+            Log.d(TAG, "Player prepared and starting playback (autoPlay=$autoPlay)")
         } catch (e: Throwable) {
             Log.e(TAG, "Native player initialization error: ${e.message}", e)
             methodChannel.invokeMethod("onError", mapOf(

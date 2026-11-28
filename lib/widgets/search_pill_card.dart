@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../core/theme.dart';
 import '../core/typography.dart';
+import 'tv_focus_wrapper.dart';
+import 'tv_modal.dart';
 
 /// Exact upstream vector SVG from D:\Poject\upstream\app\src\main\res\drawable\search_icon.xml
 const String kUpstreamSearchSvg = '''
@@ -110,38 +112,46 @@ class _SearchPillCardState extends State<SearchPillCard> {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: TextField(
-                        controller: widget.controller,
-                        focusNode: _effectiveFocusNode,
-                        textInputAction: TextInputAction.search,
-                        textAlignVertical: TextAlignVertical.center,
-                        onChanged: widget.onChanged,
-                        cursorColor: widget.cursorColor ?? GoPlayTheme.primary,
-                        cursorWidth: 2,
-                        style: TextStyle(
-                          fontFamily: GoPlayType.family,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                          color: cs.onSurface,
+                      child: Focus(
+                        canRequestFocus: false,
+                        onKeyEvent: (node, event) => handleTvTextFieldKeyEvent(
+                          _effectiveFocusNode,
+                          event,
+                          context,
                         ),
-                        decoration: InputDecoration(
-                          hintText: widget.hintText,
-                          hintStyle: TextStyle(
+                        child: TextField(
+                          controller: widget.controller,
+                          focusNode: _effectiveFocusNode,
+                          textInputAction: TextInputAction.search,
+                          textAlignVertical: TextAlignVertical.center,
+                          onChanged: widget.onChanged,
+                          cursorColor: widget.cursorColor ?? GoPlayTheme.primary,
+                          cursorWidth: 2,
+                          style: TextStyle(
                             fontFamily: GoPlayType.family,
-                            fontSize: 13.5,
+                            fontSize: 14,
                             fontWeight: FontWeight.w400,
-                            color: cs.onSurfaceVariant.withValues(alpha: 0.5),
+                            color: cs.onSurface,
                           ),
-                          filled: false,
-                          fillColor: Colors.transparent,
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          errorBorder: InputBorder.none,
-                          disabledBorder: InputBorder.none,
-                          focusedErrorBorder: InputBorder.none,
-                          isDense: true,
-                          contentPadding: EdgeInsets.zero,
+                          decoration: InputDecoration(
+                            hintText: widget.hintText,
+                            hintStyle: TextStyle(
+                              fontFamily: GoPlayType.family,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w400,
+                              color: cs.onSurfaceVariant.withValues(alpha: 0.5),
+                            ),
+                            filled: false,
+                            fillColor: Colors.transparent,
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            errorBorder: InputBorder.none,
+                            disabledBorder: InputBorder.none,
+                            focusedErrorBorder: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
                         ),
                       ),
                     ),
@@ -149,63 +159,67 @@ class _SearchPillCardState extends State<SearchPillCard> {
                       valueListenable: widget.controller,
                       builder: (context, value, child) {
                         if (value.text.isEmpty) return const SizedBox.shrink();
-                        return SizedBox(
-                          width: 32,
-                          height: widget.height,
-                          child: IconButton(
-                            tooltip: 'Clear search',
-                            padding: EdgeInsets.zero,
-                            icon: Icon(
-                              Icons.close_rounded,
-                              color: cs.onSurfaceVariant.withValues(alpha: 0.8),
-                              size: 17,
+                        return TvFocusable(
+                          isCircle: true,
+                          excludeChildFocus: true,
+                          semanticLabel: 'Clear search',
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            widget.controller.clear();
+                            widget.onChanged?.call('');
+                            widget.onClear?.call();
+                            _effectiveFocusNode.requestFocus();
+                          },
+                          child: SizedBox(
+                            width: 32,
+                            height: widget.height,
+                            child: Center(
+                              child: Icon(
+                                Icons.close_rounded,
+                                color: cs.onSurfaceVariant.withValues(alpha: 0.8),
+                                size: 17,
+                              ),
                             ),
-                            splashRadius: 16,
-                            onPressed: () {
-                              HapticFeedback.lightImpact();
-                              widget.controller.clear();
-                              widget.onChanged?.call('');
-                              widget.onClear?.call();
-                              _effectiveFocusNode.requestFocus();
-                            },
                           ),
                         );
                       },
                     ),
                     if (widget.onFilterTap != null)
-                      SizedBox(
-                        width: 36,
-                        height: widget.height,
-                        child: IconButton(
-                          tooltip: widget.filterTooltip ?? 'Filter and sort',
-                          padding: EdgeInsets.zero,
-                          splashRadius: 18,
-                          icon: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Icon(
-                                Icons.filter_list_rounded,
-                                size: 20,
-                                color: widget.isFilterActive
-                                    ? GoPlayTheme.primary
-                                    : cs.onSurfaceVariant.withValues(alpha: 0.8),
-                              ),
-                              if (widget.isFilterActive)
-                                Positioned(
-                                  top: -1,
-                                  right: -1,
-                                  child: Container(
-                                    width: 6,
-                                    height: 6,
-                                    decoration: const BoxDecoration(
-                                      color: GoPlayTheme.primary,
-                                      shape: BoxShape.circle,
+                      TvFocusable(
+                        isCircle: true,
+                        excludeChildFocus: true,
+                        semanticLabel: widget.filterTooltip ?? 'Filter and sort',
+                        onTap: widget.onFilterTap,
+                        child: SizedBox(
+                          width: 36,
+                          height: widget.height,
+                          child: Center(
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Icon(
+                                  Icons.filter_list_rounded,
+                                  size: 20,
+                                  color: widget.isFilterActive
+                                      ? GoPlayTheme.primary
+                                      : cs.onSurfaceVariant.withValues(alpha: 0.8),
+                                ),
+                                if (widget.isFilterActive)
+                                  Positioned(
+                                    top: -1,
+                                    right: -1,
+                                    child: Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: const BoxDecoration(
+                                        color: GoPlayTheme.primary,
+                                        shape: BoxShape.circle,
+                                      ),
                                     ),
                                   ),
-                                ),
-                            ],
+                              ],
+                            ),
                           ),
-                          onPressed: widget.onFilterTap,
                         ),
                       ),
                     const SizedBox(width: 4),
